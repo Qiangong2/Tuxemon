@@ -250,6 +250,12 @@ is licensed under [CC-BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/
 
 * "Tux" by [Hyperdriveguy](https://github.com/hyperdriveguy) is licensed under [CC BY 3.0](http://creativecommons.org/licenses/by/3.0/)
 
+* ["Female Trainer"](https://wiki.tuxemon.org/index.php?title=Female_Trainer) by
+[Leo](https://forum.tuxemon.org/viewtopic.php?id=76)
+is licensed under [CC-BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/)
+
+* ["Professor Sprite"](https://github.com/Tuxemon/Tuxemon/tree/development/tuxemon/resources/sprites) by
+Kurt Stine is licensed under [CC-BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/)
 
 **Concept Art**
 
