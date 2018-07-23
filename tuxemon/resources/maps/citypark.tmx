@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<map version="1.0" tiledversion="1.1.2" orientation="orthogonal" renderorder="right-down" width="40" height="40" tilewidth="16" tileheight="16" infinite="0" nextobjectid="111">
+<map version="1.0" tiledversion="1.1.6" orientation="orthogonal" renderorder="right-down" width="40" height="40" tilewidth="16" tileheight="16" infinite="0" nextobjectid="111">
  <properties>
   <property name="edges" value="clamped"/>
  </properties>
@@ -423,6 +423,7 @@
     <property name="act6" value="npc_face npc_knight1,down"/>
     <property name="act7" value="npc_face npc_knight2,down"/>
     <property name="act8" value="translated_dialog splendid4"/>
+    <property name="act9" value="add_monster txmn_snowrilla,15"/>
     <property name="cond1" value="is player_at"/>
     <property name="cond2" value="is player_facing up"/>
     <property name="cond3" value="is variable_set choice:yes"/>
