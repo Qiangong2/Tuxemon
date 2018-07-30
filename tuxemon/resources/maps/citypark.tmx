@@ -424,6 +424,7 @@
     <property name="act7" value="npc_face npc_knight2,down"/>
     <property name="act8" value="translated_dialog splendid4"/>
     <property name="act9" value="add_monster txmn_snowrilla,15"/>
+    <property name="act90" value="translated_dialog splendid5"/>
     <property name="cond1" value="is player_at"/>
     <property name="cond2" value="is player_facing up"/>
     <property name="cond3" value="is variable_set choice:yes"/>
