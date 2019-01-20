@@ -69,13 +69,15 @@ def main(load_slot=None):
     # basically the main menu
     control.push_state("StartState")
 
-    # Show the splash screen if it is enabled in the game configuration
-    if prepare.CONFIG.splash == "1":
+    if load_slot:
+        control.push_state("LoadMenuState", load_slot=load_slot)
+    elif prepare.CONFIG.splash:
+        # Show the splash screen if it is enabled in the game configuration
         control.push_state("SplashState")
         control.push_state("FadeInTransition")
 
     # block of code useful for testing
-    if prepare.CONFIG.collision_map == "1":
+    if prepare.CONFIG.collision_map:
         logger.info("********* DEBUG OPTIONS ENABLED *********")
 
         logging.basicConfig(level=logging.DEBUG)

@@ -28,7 +28,6 @@ from __future__ import absolute_import, division
 
 import logging
 import time
-from collections import deque
 
 import pygame as pg
 
@@ -37,7 +36,6 @@ from . import prepare
 from .components import cli, controller, networking, rumble
 from .components.game_event import GAME_EVENT
 from .platform import android
-# from .components.combat import CombatEngine, CombatRouter
 from .state import StateManager
 
 logger = logging.getLogger(__name__)
@@ -57,13 +55,16 @@ class Control(StateManager):
     """
 
     def __init__(self, caption):
+        # Set up our game's configuration from the prepare module.
+        self.config = prepare.CONFIG
+
         # INFO: no need to call superclass for now
         self.screen = pg.display.get_surface()
         self.caption = caption
         self.done = False
         self.clock = pg.time.Clock()
-        self.fps = prepare.CONFIG.fps
-        self.show_fps = prepare.CONFIG.show_fps
+        self.fps = self.config.fps
+        self.show_fps = self.config.show_fps
         self.current_time = 0.0
         self.ishost = False
         self.isclient = False
@@ -89,13 +90,11 @@ class Control(StateManager):
         # Set up our networking for multiplayer.
         self.server = networking.TuxemonServer(self)
         self.client = networking.TuxemonClient(self)
+        self.controller_server = None
 
         # Set up our combat engine and router.
         #        self.combat_engine = CombatEngine(self)
         #        self.combat_router = CombatRouter(self, self.combat_engine)
-
-        # Set up our game's configuration from the prepare module.
-        self.config = prepare.CONFIG
 
         # Set up our game's event engine which executes actions based on
         # conditions defined in map files.
@@ -159,7 +158,7 @@ class Control(StateManager):
             self.cli = cli.CommandLine(self)
 
         # Controller overlay
-        if self.config.controller_overlay == "1":
+        if self.config.controller_overlay:
             self.controller = controller.Controller(self)
             self.controller.load()
 
@@ -175,7 +174,7 @@ class Control(StateManager):
             }
 
         # Set up our networked controller if enabled.
-        if self.config.net_controller_enabled == "1":
+        if self.config.net_controller_enabled:
             self.controller_server = networking.ControllerServer(self)
 
         # Set up rumble support for gamepads
@@ -551,30 +550,30 @@ class Control(StateManager):
         :returns: None
 
         """
-        import gc
-
-        gc.disable()
         update = self.update
         draw = self.draw
         screen = self.screen
         flip = pg.display.update
-        times = deque(maxlen=10)
         clock = time.time
-        frame_time = (1. / self.fps)
-        last_draw = 0
-        last_frame = clock()
+        frame_length = (1. / self.fps)
+        time_since_draw = 0
+        last_update = clock()
+        fps_timer = 0
+        frames = 0
 
         while not self.exit:
-            dt = (clock() - last_frame)
-            last_frame = clock()
-            times.append(dt)
-            last_draw += dt
-            update(dt)
-            if last_draw >= frame_time:
-                last_draw = last_draw - frame_time
-                gc.collect()
+            clock_tick = clock() - last_update
+            last_update = clock()
+            time_since_draw += clock_tick
+            update(clock_tick)
+            if time_since_draw >= frame_length:
+                time_since_draw -= frame_length
                 draw(screen)
                 flip()
+                frames += 1
+
+            fps_timer, frames = self.handle_fps(clock_tick, fps_timer, frames)
+
             time.sleep(.001)
 
     def update(self, time_delta):
@@ -633,20 +632,19 @@ class Control(StateManager):
 
         :type dt: Float
         """
+
+        for state in self.active_states:
+            state.update(dt)
+
         current_state = self.current_state
 
         # handle case where the top state has been dismissed
         if current_state is None:
             self.exit = True
 
-        for state in self.active_states:
-            state.update(dt)
-
-        for state in self._state_resume_set:
-            state.resume()
-            state.update(dt)
-
-        self._state_resume_set.clear()
+        if current_state in self._state_resume_set:
+            current_state.resume()
+            self._state_resume_set.remove(current_state)
 
     def draw(self, surface):
         """ Draw all active states
@@ -685,10 +683,15 @@ class Control(StateManager):
         #     self.frame_number += 1
         #     pg.image.save(self.screen, filename)
 
-        # if self.show_fps:
-        #     fps = self.clock.get_fps()
-        #     with_fps = "{} - {:.2f} FPS".format(self.caption, fps)
-        #     pg.display.set_caption(with_fps)
+    def handle_fps(self, clock_tick, fps_timer, frames):
+        if self.show_fps:
+            fps_timer += clock_tick
+            if fps_timer >= 1:
+                with_fps = "{} - {:.2f} FPS".format(self.caption, frames / fps_timer)
+                pg.display.set_caption(with_fps)
+                return 0, 0
+            return fps_timer, frames
+        return 0, 0
 
     def add_clients_to_map(self, registry):
         """Checks to see if clients are supposed to be displayed on the current map. If
