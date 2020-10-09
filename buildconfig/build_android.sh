@@ -35,4 +35,4 @@ p4a apk --name Tuxemon \
   --package=org.tuxemon.Tuxemon \
   --requirements=openssl,libffi,python3==3.8,pygame==2.0.0.dev12 \
   --bootstrap=sdl2,
-  --orientation=landscape,
+  --orientation=landscape
