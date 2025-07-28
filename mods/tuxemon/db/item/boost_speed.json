@@ -3,7 +3,10 @@
   "effects": [
     {
       "type": "buff",
-      "parameters": ["speed","0.2"]
+      "parameters": [
+        "speed",
+        "0.2"
+      ]
     }
   ],
   "slug": "boost_speed",
@@ -15,7 +18,9 @@
     "MainCombatMenuState"
   ],
   "modifiers": [],
-  "behaviors": {},
+  "behaviors": {
+    "resellable": true
+  },
   "use_failure": "generic_failure",
   "use_item": "combat_used_x",
   "use_success": "generic_success"

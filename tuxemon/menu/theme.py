@@ -1,15 +1,17 @@
 # SPDX-License-Identifier: GPL-3.0
 # Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+from pathlib import Path
 from typing import Optional
 
-import pygame
 import pygame_menu
+from pygame.surface import Surface
 from pygame_menu import locals, sound
 from pygame_menu.widgets.core.selection import Selection
 from pygame_menu.widgets.core.widget import Widget
 from pygame_menu.widgets.widget.menubar import MENUBAR_STYLE_ADAPTIVE
 
-from tuxemon.tools import transform_resource_filename
+from tuxemon import prepare
+from tuxemon.tools import scale, transform_resource_filename
 
 _theme: Optional[pygame_menu.Theme] = None
 
@@ -39,11 +41,7 @@ class TuxemonArrowSelection(Selection):
         )
         self.arrow = arrow
 
-    def draw(
-        self,
-        surface: pygame.Surface,
-        widget: Widget,
-    ) -> Selection:
+    def draw(self, surface: Surface, widget: Widget) -> Selection:
         """
         This method receives the surface to draw the selection and the
         widget itself. For retrieving the Selection coordinates the rect
@@ -80,6 +78,7 @@ def get_theme() -> pygame_menu.Theme:
         -2 * tuxemon_background_center_rect.height // 3,
     )
 
+    tuxemon_border._surface = tuxemon_border._surface.convert_alpha()
     tuxemon_background = tuxemon_border.copy().crop_rect(
         tuxemon_background_center_rect
     )
@@ -97,6 +96,20 @@ def get_theme() -> pygame_menu.Theme:
         widget_font_shadow=True,
     )
 
+    # Set common font sizes and colors as part of the theme definition
+    theme.widget_font_size = scale(prepare.FONT_SIZE)
+    theme.title_font_size = scale(prepare.FONT_SIZE_BIG)
+    theme.widget_font_color = prepare.FONT_COLOR
+    theme.selection_color = prepare.FONT_COLOR
+    theme.scrollbar_color = prepare.SCROLLBAR_COLOR
+    theme.scrollbar_slider_color = prepare.SCROLLBAR_SLIDER_COLOR
+    theme.title_font_color = prepare.FONT_COLOR
+    theme.title_background_color = prepare.TRANSPARENT_COLOR
+    theme.widget_font_shadow_color = prepare.FONT_SHADOW_COLOR
+    font = prepare.fetch("font", prepare.CONFIG.locale.font_file)
+    theme.title_font = font
+    theme.widget_font = font
+
     _theme = theme
     return _theme
 
@@ -105,12 +118,15 @@ _sound_engine: Optional[pygame_menu.Sound] = None
 
 
 def get_sound_engine(
-    volume: float, filename: Optional[str]
+    volume: float, filename: Optional[Path]
 ) -> pygame_menu.Sound:
     """Get Tuxemon default sound engine."""
     global _sound_engine
 
     if _sound_engine is not None:
+        _sound_engine.set_sound_volume(
+            sound_type=sound.SOUND_TYPE_WIDGET_SELECTION, volume=volume
+        )
         return _sound_engine
 
     sound_engine = pygame_menu.Sound()

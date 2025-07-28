@@ -8,7 +8,7 @@ import pygame_menu
 from pygame_menu import locals
 
 from tuxemon import prepare
-from tuxemon.animation import Animation
+from tuxemon.animation import Animation, ScheduleType
 from tuxemon.item.item import Item
 from tuxemon.locale import T
 from tuxemon.menu.interface import MenuItem
@@ -16,13 +16,7 @@ from tuxemon.menu.menu import PygameMenuState
 from tuxemon.monster import Monster
 from tuxemon.platform.const import buttons
 from tuxemon.platform.events import PlayerInput
-from tuxemon.session import local_session
 from tuxemon.states.items.item_menu import ItemMenuState
-
-
-def fix_measure(measure: int, percentage: float) -> int:
-    """it returns the correct measure based on percentage"""
-    return round(measure * percentage)
 
 
 class MonsterItemState(PygameMenuState):
@@ -35,10 +29,11 @@ class MonsterItemState(PygameMenuState):
         menu: pygame_menu.Menu,
         monster: Monster,
     ) -> None:
+        owner = monster.get_owner()
 
         def add_item() -> None:
-            menu = self.client.push_state(ItemMenuState())
-            menu.is_valid_entry = validate  # type: ignore[assignment]
+            menu = self.client.push_state(ItemMenuState(owner, self.name))
+            menu.is_valid_entry = validate  # type: ignore[method-assign]
             menu.on_menu_selection = choose_target  # type: ignore[method-assign]
 
         def validate(item: Optional[Item]) -> bool:
@@ -47,8 +42,7 @@ class MonsterItemState(PygameMenuState):
         def choose_target(menu_item: MenuItem[Item]) -> None:
             item = menu_item.game_object
             monster.held_item.set_item(item)
-            assert monster.owner
-            monster.owner.remove_item(item)
+            owner.items.remove_item(item)
             self.client.remove_state_by_name("ItemMenuState")
             self.client.remove_state_by_name("MonsterItemState")
             self.client.remove_state_by_name("MonsterMenuState")
@@ -56,8 +50,7 @@ class MonsterItemState(PygameMenuState):
         def remove_item() -> None:
             item = monster.held_item.get_item()
             if item is not None:
-                assert monster.owner
-                monster.owner.add_item(item)
+                owner.items.add_item(item)
             monster.held_item.clear_item()
             self.client.remove_state_by_name("MonsterItemState")
             self.client.remove_state_by_name("MonsterMenuState")
@@ -76,32 +69,34 @@ class MonsterItemState(PygameMenuState):
             )
         menu.add.label(
             title=label,
-            font_size=self.font_size_small,
+            font_size=self.font_type.small,
             align=locals.ALIGN_CENTER,
         )
         if held_item is not None:
             menu.add.label(
                 title=held_item.description,
-                font_size=self.font_size_small,
+                font_size=self.font_type.small,
                 align=locals.ALIGN_CENTER,
                 wordwrap=True,
             )
             menu.add.button(
                 title=T.translate("generic_remove"),
                 action=remove_item,
-                font_size=self.font_size_small,
+                font_size=self.font_type.small,
                 align=locals.ALIGN_CENTER,
             )
         else:
-            assert monster.owner
+            owner = monster.get_owner()
             holdable = [
-                item for item in monster.owner.items if item.behaviors.holdable
+                item
+                for item in owner.items.get_items()
+                if item.behaviors.holdable
             ]
             if holdable:
                 menu.add.button(
                     title=T.translate("generic_add"),
                     action=add_item,
-                    font_size=self.font_size_small,
+                    font_size=self.font_type.small,
                     align=locals.ALIGN_CENTER,
                 )
 
@@ -130,7 +125,7 @@ class MonsterItemState(PygameMenuState):
             "MonsterMenuState",
             "MonsterTakeState",
         ]:
-            monsters = self._get_monsters()
+            monsters = _get_monsters(self._monster, self._source)
             slot = monsters.index(self._monster)
 
             if event.button == buttons.RIGHT and event.pressed:
@@ -143,21 +138,10 @@ class MonsterItemState(PygameMenuState):
                 client.replace_state("MonsterItemState", kwargs=param)
 
         if event.button in (buttons.BACK, buttons.B) and event.pressed:
-            client.pop_state()
+            client.remove_state_by_name("MonsterItemState")
         elif event.button == buttons.A and event.pressed:
             return super().process_event(event)
         return None
-
-    def _get_monsters(self) -> list[Monster]:
-        if self._source == "MonsterTakeState":
-            box = local_session.player.monster_boxes.get_box_name(
-                self._monster.instance_id
-            )
-            if box is None:
-                raise ValueError("Box doesn't exist")
-            return local_session.player.monster_boxes.get_monsters(box)
-        else:
-            return local_session.player.monsters
 
     def update_animation_size(self) -> None:
         widgets_size = self.menu.get_size(widget=True)
@@ -176,5 +160,16 @@ class MonsterItemState(PygameMenuState):
         """
         self.animation_size = 0.0
         ani = self.animate(self, animation_size=1.0, duration=0.2)
-        ani.update_callback = self.update_animation_size
+        ani.schedule(self.update_animation_size, ScheduleType.ON_UPDATE)
         return ani
+
+
+def _get_monsters(monster: Monster, source: str) -> list[Monster]:
+    owner = monster.get_owner()
+    if source == "MonsterTakeState":
+        box = owner.monster_boxes.get_box_name(monster.instance_id)
+        if box is None:
+            raise ValueError("Box doesn't exist")
+        return owner.monster_boxes.get_monsters(box)
+    else:
+        return owner.monsters

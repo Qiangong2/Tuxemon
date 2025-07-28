@@ -10,6 +10,7 @@ from tuxemon.db import Comparison, EvolutionStage, GenderType, StatType
 from tuxemon.event.eventaction import EventAction
 from tuxemon.menu.interface import MenuItem
 from tuxemon.monster import Monster
+from tuxemon.session import Session
 from tuxemon.states.monster import MonsterMenuState
 from tuxemon.tools import compare
 
@@ -54,7 +55,6 @@ class GetPlayerMonsterAction(EventAction):
         filter_name: the name of the first filter
         value_name: the actual value to filter
         extra: used to filter more
-
     """
 
     name = "get_player_monster"
@@ -93,11 +93,15 @@ class GetPlayerMonsterAction(EventAction):
                 self.result = True
                 return self.result
             # filter element / type
-            if filter_name == "element" and target.has_type(value_name):
+            if (
+                filter_name == "element"
+                and value_name
+                and target.has_type(value_name)
+            ):
                 self.result = True
                 return self.result
             # filter shape
-            if filter_name == "shape" and target.shape == value_name:
+            if filter_name == "shape" and target.shape.slug == value_name:
                 self.result = True
                 return self.result
             # filter taste warm
@@ -141,11 +145,12 @@ class GetPlayerMonsterAction(EventAction):
         )
         self.session.client.pop_state()
 
-    def start(self) -> None:
+    def start(self, session: Session) -> None:
+        self.session = session
         self.result = False
         self.choose = False
         # pull up the monster menu so we know which one we are saving
-        menu = self.session.client.push_state(MonsterMenuState())
+        menu = session.client.push_state(MonsterMenuState(session.player))
         menu.is_valid_entry = self.validate  # type: ignore[assignment]
         menu.on_menu_selection = self.set_var  # type: ignore[assignment]
         # if without filters, no closing by clicking back
@@ -156,11 +161,11 @@ class GetPlayerMonsterAction(EventAction):
         ):
             menu.escape_key_exits = False
 
-    def update(self) -> None:
+    def update(self, session: Session) -> None:
         try:
-            self.session.client.get_state_by_name(MonsterMenuState)
+            session.client.get_state_by_name("MonsterMenuState")
         except ValueError:
-            player = self.session.player
+            player = session.player
             if self.result and not self.choose:
                 # the player can choose, but returns
                 player.game_variables[self.variable_name] = "no_choice"

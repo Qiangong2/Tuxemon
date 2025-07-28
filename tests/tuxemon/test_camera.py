@@ -10,13 +10,10 @@ from tuxemon.camera import (
     SPEED_RIGHT,
     SPEED_UP,
     Camera,
-    CameraInputHandler,
-    CameraManager,
     project,
     unproject,
 )
 from tuxemon.math import Vector2
-from tuxemon.platform.const import intentions
 
 # For the entity at position (5.0, 5.0):
 # The project function calculates:
@@ -32,7 +29,7 @@ class TestCamera(unittest.TestCase):
     def setUp(self):
         prepare.TILE_SIZE = (16, 16)
         self.entity = Mock()
-        self.entity.position3 = Vector2(5.0, 5.0)
+        self.entity.position = Vector2(5.0, 5.0)
         self.boundary = Mock()
         self.boundary.get_boundary_validity.return_value = (True, True)
         self.camera = Camera(self.entity, self.boundary)
@@ -54,13 +51,13 @@ class TestCamera(unittest.TestCase):
         self.assertEqual(self.camera.get_entity_center(), Vector2(88, 88))
 
     def test_update_follow(self):
-        self.camera.update()
+        self.camera.update(0.1)
         self.assertEqual(self.camera.position, Vector2(88, 88))
 
     def test_update_unfollow(self):
-        self.camera.update()
+        self.camera.update(0.1)
         self.camera.unfollow()
-        self.camera.update()
+        self.camera.update(0.1)
         self.assertEqual(self.camera.position, Vector2(88, 88))
         self.camera.move(dx=10)
         self.assertNotEqual(self.camera.position, Vector2(88, 88))
@@ -93,7 +90,7 @@ class TestCamera(unittest.TestCase):
 
     def test_switch_to_entity(self):
         new_entity = Mock()
-        new_entity.position3 = Vector2(10.0, 10.0)
+        new_entity.position = Vector2(10.0, 10.0)
         self.camera.switch_to_entity(new_entity)
         self.assertEqual(self.camera.entity, new_entity)
         self.assertEqual(self.camera.position, Vector2(168, 168))
@@ -101,7 +98,7 @@ class TestCamera(unittest.TestCase):
 
     def test_switch_to_original_entity(self):
         new_entity = Mock()
-        new_entity.position3 = Vector2(10.0, 10.0)
+        new_entity.position = Vector2(10.0, 10.0)
         self.camera.switch_to_entity(new_entity)
         self.camera.switch_to_original_entity()
         self.assertEqual(self.camera.entity, self.entity)
@@ -123,94 +120,3 @@ class TestCamera(unittest.TestCase):
     def test_move_right(self):
         self.camera.move_right()
         self.assertEqual(self.camera.position.x, 88 + SPEED_RIGHT)
-
-
-class TestCameraManager(unittest.TestCase):
-    def setUp(self):
-        self.manager = CameraManager()
-        self.camera1 = Mock(spec=Camera)
-        self.camera2 = Mock(spec=Camera)
-
-    def test_add_camera(self):
-        self.manager.add_camera(self.camera1)
-        self.assertIn(self.camera1, self.manager.cameras)
-        self.assertEqual(self.manager.active_camera, self.camera1)
-
-    def test_set_active_camera(self):
-        self.manager.add_camera(self.camera1)
-        self.manager.add_camera(self.camera2)
-        self.manager.set_active_camera(self.camera2)
-        self.assertEqual(self.manager.active_camera, self.camera2)
-
-    def test_update(self):
-        self.manager.add_camera(self.camera1)
-        self.manager.update()
-        self.camera1.update.assert_called_once()
-
-    def test_handle_input(self):
-        self.manager.add_camera(self.camera1)
-        self.camera1.free_roaming_enabled = True
-        event = Mock()
-        self.manager.input_handler.handle_input = Mock()
-        self.manager.handle_input(event)
-        self.manager.input_handler.handle_input.assert_called_once_with(event)
-
-    def test_get_active_camera(self):
-        self.manager.add_camera(self.camera1)
-        self.assertEqual(self.manager.get_active_camera(), self.camera1)
-
-
-class TestCameraInputHandler(unittest.TestCase):
-    def setUp(self):
-        self.camera = Mock(spec=Camera)
-        self.handler = CameraInputHandler(self.camera)
-
-    def test_handle_input_free_roaming_held_up(self):
-        self.camera.free_roaming_enabled = True
-        event = Mock()
-        event.held = True
-        event.pressed = False
-        event.button = intentions.UP
-        self.handler.handle_input(event)
-        self.camera.move_up.assert_called_once()
-
-    def test_handle_input_free_roaming_pressed_down(self):
-        self.camera.free_roaming_enabled = True
-        event = Mock()
-        event.held = False
-        event.pressed = True
-        event.button = intentions.DOWN
-        self.handler.handle_input(event)
-        self.camera.move_down.assert_called_once()
-
-    def test_handle_input_free_roaming_disabled(self):
-        self.camera.free_roaming_enabled = False
-        event = Mock()
-        event.held = True
-        event.button = intentions.UP
-        self.handler.handle_input(event)
-        self.camera.move_up.assert_not_called()
-
-    def test_handle_input_return_event(self):
-        self.camera.free_roaming_enabled = True
-        event = Mock()
-        event.held = True
-        event.button = intentions.UP
-        returned_event = self.handler.handle_input(event)
-        self.assertEqual(event, returned_event)
-
-    def test_handle_input_left(self):
-        self.camera.free_roaming_enabled = True
-        event = Mock()
-        event.held = True
-        event.button = intentions.LEFT
-        self.handler.handle_input(event)
-        self.camera.move_left.assert_called_once()
-
-    def test_handle_input_right(self):
-        self.camera.free_roaming_enabled = True
-        event = Mock()
-        event.held = True
-        event.button = intentions.RIGHT
-        self.handler.handle_input(event)
-        self.camera.move_right.assert_called_once()

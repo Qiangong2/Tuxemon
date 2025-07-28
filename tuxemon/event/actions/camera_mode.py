@@ -8,7 +8,7 @@ from enum import Enum
 from typing import final
 
 from tuxemon.event.eventaction import EventAction
-from tuxemon.states.world.worldstate import WorldState
+from tuxemon.session import Session
 
 logger = logging.getLogger(__name__)
 
@@ -36,9 +36,8 @@ class CameraModeAction(EventAction):
     name = "camera_mode"
     mode: str
 
-    def start(self) -> None:
-        world = self.session.client.get_state_by_name(WorldState)
-        camera = world.camera_manager.get_active_camera()
+    def start(self, session: Session) -> None:
+        camera = session.client.camera_manager.get_active_camera()
         if camera is None:
             logger.error("No active camera found.")
             return

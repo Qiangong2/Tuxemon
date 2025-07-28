@@ -8,7 +8,7 @@ from typing import final
 
 from tuxemon.event.eventaction import EventAction
 from tuxemon.prepare import CAMERA_SHAKE_RANGE
-from tuxemon.states.world.worldstate import WorldState
+from tuxemon.session import Session
 
 logger = logging.getLogger(__name__)
 
@@ -37,14 +37,13 @@ class CameraShakeAction(EventAction):
     intensity: float
     duration: float
 
-    def start(self) -> None:
-        world = self.session.client.get_state_by_name(WorldState)
+    def start(self, session: Session) -> None:
         lower, upper = CAMERA_SHAKE_RANGE
         if not lower <= self.intensity <= upper:
             logger.error(
                 f"{self.intensity} must be between {lower} and {upper}",
             )
-        camera = world.camera_manager.get_active_camera()
+        camera = session.client.camera_manager.get_active_camera()
         if camera is None:
             logger.error("No active camera found.")
             return

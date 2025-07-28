@@ -41,7 +41,10 @@ class CheckEvolutionCondition(EventCondition):
             logger.error(f"{_character} not found")
             return False
 
-        context = {"map_inside": session.client.map_inside, "use_item": False}
+        context = {
+            "map_inside": session.client.map_manager.map_inside,
+            "use_item": False,
+        }
 
         evolving_monsters = []
         for monster in character.monsters:
@@ -50,8 +53,9 @@ class CheckEvolutionCondition(EventCondition):
                     if monster.evolution_handler.can_evolve(
                         evolution_item=evolution, context=context
                     ):
-                        evolved_monster = Monster()
-                        evolved_monster.load_from_db(evolution.monster_slug)
+                        evolved_monster = Monster.create(
+                            evolution.monster_slug
+                        )
                         evolving_monsters.append((monster, evolved_monster))
 
         if evolving_monsters:

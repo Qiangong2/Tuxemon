@@ -6,7 +6,9 @@
     },
     {
       "type": "category",
-      "parameters": ["threat"],
+      "parameters": [
+        "threat"
+      ],
       "operator": "not"
     }
   ],
@@ -26,7 +28,8 @@
   ],
   "modifiers": [],
   "behaviors": {
-    "throwable": true
+    "throwable": true,
+    "resellable": true
   },
   "use_failure": "generic_failure",
   "use_item": "combat_used_x",

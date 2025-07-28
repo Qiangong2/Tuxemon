@@ -7,10 +7,11 @@ from dataclasses import dataclass
 from typing import Optional, final
 
 from tuxemon.combat import check_battle_legal
-from tuxemon.db import db
+from tuxemon.db import EnvironmentModel, db
 from tuxemon.event import get_npc
 from tuxemon.event.eventaction import EventAction
-from tuxemon.states.combat.combat import CombatState
+from tuxemon.session import Session
+from tuxemon.states.combat.combat_context import CombatContext
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +31,6 @@ class StartBattleAction(EventAction):
         character1: Either "player" or character slug name (e.g. "npc_maple").
         character2: Either "player" or character slug name (e.g. "npc_maple").
         music: The name of the music file to play (Optional).
-
     """
 
     name = "start_battle"
@@ -38,11 +38,11 @@ class StartBattleAction(EventAction):
     character2: Optional[str] = None
     music: Optional[str] = None
 
-    def start(self) -> None:
+    def start(self, session: Session) -> None:
         self.character2 = self.character2 or "player"
 
-        character1 = get_npc(self.session, self.character1)
-        character2 = get_npc(self.session, self.character2)
+        character1 = get_npc(session, self.character1)
+        character2 = get_npc(session, self.character2)
 
         if not character1 or not character2:
             _char = self.character1 if not character1 else self.character2
@@ -60,11 +60,11 @@ class StartBattleAction(EventAction):
             if fighter.isplayer:
                 env_slug = fighter.game_variables.get("environment", "grass")
             else:
-                env_slug = self.session.player.game_variables.get(
+                env_slug = session.player.game_variables.get(
                     "environment", "grass"
                 )
 
-        env = db.lookup(env_slug, table="environment")
+        env = EnvironmentModel.lookup(env_slug, db)
 
         fighters = sorted(
             [character1, character2], key=lambda x: not x.isplayer
@@ -73,20 +73,22 @@ class StartBattleAction(EventAction):
         logger.info(
             f"Starting battle between {fighters[0].name} and {fighters[1].name}!"
         )
-        self.session.client.push_state(
-            CombatState(
-                players=(fighters[0], fighters[1]),
-                combat_type="trainer",
-                graphics=env.battle_graphics,
-                battle_mode="single",
-            )
+        context = CombatContext(
+            session=session,
+            teams=fighters,
+            combat_type="trainer",
+            graphics=env.battle_graphics,
+            battle_mode="single",
         )
+        session.client.push_state("CombatState", context=context)
 
         filename = env.battle_music if not self.music else self.music
-        self.session.client.current_music.play(filename)
+        session.client.event_engine.execute_action(
+            "play_music", [filename], True
+        )
 
-    def update(self) -> None:
+    def update(self, session: Session) -> None:
         try:
-            self.session.client.get_state_by_name(CombatState)
+            session.client.get_state_by_name("CombatState")
         except ValueError:
             self.stop()

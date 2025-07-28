@@ -3,7 +3,10 @@
   "effects": [
     {
       "type": "buff",
-      "parameters": ["ranged","0.2"]
+      "parameters": [
+        "ranged",
+        "0.2"
+      ]
     }
   ],
   "slug": "boost_ranged",
@@ -15,7 +18,9 @@
     "MainCombatMenuState"
   ],
   "modifiers": [],
-  "behaviors": {},
+  "behaviors": {
+    "resellable": true
+  },
   "use_failure": "generic_failure",
   "use_item": "combat_used_x",
   "use_success": "generic_success"

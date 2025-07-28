@@ -2,14 +2,15 @@
   "conditions": [
     {
       "type": "facing_tile",
-      "parameters": ["surfable"],
+      "parameters": [
+        "surfable"
+      ],
       "operator": "is"
     }
   ],
   "effects": [
     {
-      "type": "fishing",
-      "parameters": ["0.85","25","35"]
+      "type": "fishing"
     }
   ],
   "slug": "poseidon",

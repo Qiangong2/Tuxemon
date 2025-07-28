@@ -1,17 +1,37 @@
 # SPDX-License-Identifier: GPL-3.0
 # Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+from collections import deque
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Optional, Union
+from functools import partial
+from typing import Deque, Optional, Union
 
-from tuxemon import prepare
 from tuxemon.animation_entity import AnimationEntity
-from tuxemon.formula import speed_monster
+from tuxemon.formula import config_combat, speed_monster
 from tuxemon.item.item import Item
 from tuxemon.monster import Monster
 from tuxemon.npc import NPC
 from tuxemon.sprite import Sprite
 from tuxemon.status.status import Status
 from tuxemon.technique.technique import Technique
+
+
+@dataclass
+class MenuVisibility:
+    menu_fight: bool = True
+    menu_monster: bool = True
+    menu_item: bool = True
+    menu_forfeit: bool = False
+    menu_run: bool = True
+
+    def update_visibility(self, key: str, visible: bool) -> None:
+        if hasattr(self, key):
+            setattr(self, key, visible)
+        else:
+            raise ValueError(f"Invalid menu item key: {key}")
+
+    def reset_to_default(self) -> None:
+        self.__dict__.update(MenuVisibility().__dict__)
 
 
 @dataclass
@@ -29,9 +49,114 @@ class DamageReport:
     attack: Monster
     defense: Monster
     damage: int
+    turn: int
 
     def __repr__(self) -> str:
-        return f"DamageReport(attack={self.attack}, defense={self.defense}, damage={self.damage})"
+        return (
+            f"DamageReport(attack={self.attack}, defense={self.defense}, "
+            f"damage={self.damage}, turn={self.turn})"
+        )
+
+
+class DamageTracker:
+    def __init__(self) -> None:
+        self._damage_map: dict[tuple[Monster, Monster], list[DamageReport]] = (
+            {}
+        )
+
+    def log_damage(
+        self, attacker: Monster, defender: Monster, damage: int, turn: int
+    ) -> None:
+        """
+        Log a damage event into the damage map.
+        """
+        key = (attacker, defender)
+        if key not in self._damage_map:
+            self._damage_map[key] = []
+        self._damage_map[key].append(
+            DamageReport(attacker, defender, damage, turn)
+        )
+
+    def get_damages(
+        self, attacker: Monster, defender: Monster
+    ) -> list[DamageReport]:
+        """
+        Retrieve all damage reports for a specific pair of attacker
+        and defender.
+        """
+        key = (attacker, defender)
+        return self._damage_map.get(key, [])
+
+    def remove_monster(self, monster: Monster) -> None:
+        """
+        Remove all damage reports involving the given monster.
+        """
+        self._damage_map = {
+            key: reports
+            for key, reports in self._damage_map.items()
+            if key[0] != monster and key[1] != monster
+        }
+
+    def clear_damage(self) -> None:
+        """
+        Clear all damage reports.
+        """
+        self._damage_map.clear()
+
+    def get_all_damages(self) -> list[DamageReport]:
+        """
+        Flatten and retrieve all recorded damage reports as a single list.
+        """
+        return [
+            report
+            for reports in self._damage_map.values()
+            for report in reports
+        ]
+
+    def get_attackers(self, loser: Monster) -> set[Monster]:
+        """
+        Retrieve all monsters who attacked the given target (loser).
+        """
+        attackers = set()
+        for reports in self._damage_map.values():
+            for report in reports:
+                if report.defense == loser:
+                    attackers.add(report.attack)
+        return attackers
+
+    def count_hits(
+        self, loser: Monster, winner: Optional[Monster] = None
+    ) -> tuple[int, int]:
+        """
+        Count the number of hits on the loser and optionally the hits
+        by a specific winner.
+        """
+        total_hits = 0
+        winner_hits = 0
+        for reports in self._damage_map.values():
+            for report in reports:
+                if report.defense == loser:
+                    total_hits += 1
+                    if winner and report.attack == winner:
+                        winner_hits += 1
+        return total_hits, winner_hits
+
+    def total_damage_by_attacker(self, attacker: Monster) -> int:
+        """
+        Calculate the total damage dealt by a specific attacker.
+        """
+        return sum(
+            report.damage
+            for reports in self._damage_map.values()
+            for report in reports
+            if report.attack == attacker
+        )
+
+    def __repr__(self) -> str:
+        return (
+            f"DamageTracker with {len(self.get_all_damages())} entries. "
+            f"Attackers: {set(report.attack for report in self.get_all_damages())}"
+        )
 
 
 class MethodAnimationCache:
@@ -86,7 +211,7 @@ class MethodAnimationCache:
 
 
 class SortManager:
-    SORT_ORDER = prepare.SORT_ORDER
+    SORT_ORDER = config_combat.sort_order
 
     @classmethod
     def get_sort_index(cls, action_sort_type: str) -> int:
@@ -215,9 +340,9 @@ class ActionQueue:
                 (
                     pend.user
                     and isinstance(pend.user, Monster)
-                    and pend.user.current_hp <= 0
+                    and pend.user.is_fainted
                 )
-                or pend.target.current_hp <= 0
+                or pend.target.is_fainted
             )
         ]
 
@@ -332,3 +457,57 @@ class ActionQueue:
             A list of actions that occurred in the specified turn.
         """
         return self._action_history.get_actions_by_turn(turn)
+
+
+def compute_text_anim_time(message: str) -> float:
+    """
+    Compute required time for a text animation.
+
+    Parameters:
+        message: The given text to be animated.
+
+    Returns:
+        The time in seconds expected to be taken by the animation.
+    """
+    return config_combat.action_time + config_combat.letter_time * len(message)
+
+
+class TextAnimationManager:
+    """
+    Manages a queue of timed text animations.
+    """
+
+    def __init__(self) -> None:
+        self.text_queue: Deque[tuple[Callable[[], None], float]] = deque()
+        self._text_time_left: float = 0
+        self._xp_messages: list[str] = []
+
+    def update_text_animation(self, time_delta: float) -> None:
+        """Update the text animation."""
+        self._text_time_left -= time_delta
+        if self._text_time_left <= 0 and self.text_queue:
+            next_animation, self._text_time_left = self.text_queue.popleft()
+            next_animation()
+
+    def add_text_animation(
+        self, animation: Callable[..., None], duration: float = 0
+    ) -> None:
+        """Adds a text animation to the queue."""
+        self.text_queue.append((animation, duration))
+
+    def get_text_animation_time_left(self) -> float:
+        return self._text_time_left
+
+    def add_xp_message(self, message: str) -> None:
+        """Handles XP messages separately, appends them and prepares animation."""
+        self._xp_messages.append(message)
+
+    def trigger_xp_animation(self, alert_func: Callable[..., None]) -> None:
+        """Only triggers XP animation when explicitly called."""
+        if self._xp_messages:
+            combined_message = "\n".join(self._xp_messages)
+            timed_text_animation = partial(alert_func, combined_message)
+            self.add_text_animation(
+                timed_text_animation, compute_text_anim_time(combined_message)
+            )
+            self._xp_messages.clear()

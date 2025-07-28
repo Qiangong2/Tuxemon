@@ -7,7 +7,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Optional
 
-from tuxemon.db import MissionStatus, db
+from tuxemon.db import MissionModel, MissionStatus, db
 from tuxemon.locale import T
 
 if TYPE_CHECKING:
@@ -25,9 +25,85 @@ class MissionProgress:
     completion_percentage: float
 
 
-class MissionManager:
+class MissionController:
+    """Manages the missions for an NPC."""
+
     def __init__(self, character: NPC) -> None:
         self.character = character
+        self.mission_manager = MissionManager()
+
+    def encode_missions(self) -> Sequence[Mapping[str, Any]]:
+        """
+        Prepares a list of missions to be saved to a file.
+        """
+        return encode_mission(self.get_missions())
+
+    def decode_missions(
+        self, save_data: Optional[Sequence[Mapping[str, Any]]]
+    ) -> None:
+        """
+        Recreates missions from saved data.
+        """
+        self.mission_manager.missions = []
+        if save_data:
+            for mission_data in decode_mission(save_data):
+                self.mission_manager.add_mission(mission_data)
+
+    def check_all_prerequisites(self) -> bool:
+        """
+        Checks if all prerequisites for all missions are met for the given character.
+        """
+        return all(
+            mission.check_all_prerequisites(self.character)
+            for mission in self.get_missions()
+        )
+
+    def update_mission_progress(self) -> None:
+        """
+        Updates the progress of all missions for the given character.
+        """
+        for mission in self.get_missions():
+            if (
+                mission.check_all_prerequisites(self.character)
+                and mission.is_active()
+            ):
+                if mission.get_progress(self.character) >= 100.0:
+                    mission.update_status(MissionStatus.completed)
+
+    def get_missions_with_met_prerequisites(self) -> list[Mission]:
+        """
+        Checks for missions with met prerequisites.
+        """
+        missions_with_met_prerequisites = []
+        for mission in self.get_active_missions():
+            if mission.check_all_prerequisites(self.character):
+                missions_with_met_prerequisites.append(mission)
+        return missions_with_met_prerequisites
+
+    def check_connected_missions(self) -> bool:
+        """
+        Checks if all connected missions are accessible for the given character.
+        """
+        return all(
+            mission.check_connected_missions(self.character)
+            for mission in self.get_missions()
+        )
+
+    def get_missions(self) -> list[Mission]:
+        """
+        Retrieves all missions through the mission manager.
+        """
+        return self.mission_manager.missions
+
+    def get_active_missions(self) -> list[Mission]:
+        """
+        Retrieves all active missions through the mission manager.
+        """
+        return self.mission_manager.get_active_missions()
+
+
+class MissionManager:
+    def __init__(self) -> None:
         self.missions: list[Mission] = []
 
     def add_mission(self, mission: Mission) -> None:
@@ -53,66 +129,12 @@ class MissionManager:
     def get_mission_count(self) -> int:
         return len(self.missions)
 
-    def encode_missions(self) -> Sequence[Mapping[str, Any]]:
-        return encode_mission(self.missions)
-
-    def load_missions(
-        self, save_data: Optional[Sequence[Mapping[str, Any]]]
-    ) -> None:
-        self.missions = decode_mission(save_data)
-
-    def check_all_prerequisites(self) -> bool:
-        """
-        Checks if all prerequisites for all missions are met for the given character.
-        """
-        return all(
-            mission.check_all_prerequisites(self.character)
-            for mission in self.missions
-        )
-
-    def update_mission_progress(self) -> None:
-        """
-        Updates the progress of all missions for the given character.
-        """
-        for mission in self.missions:
-            if (
-                mission.check_all_prerequisites(self.character)
-                and mission.is_active()
-            ):
-                if mission.get_progress(self.character) >= 100.0:
-                    mission.update_status(MissionStatus.completed)
-
-    def get_missions_with_met_prerequisites(self) -> list[Mission]:
-        """
-        Checks for missions with met prerequisites.
-        """
-        missions_with_met_prerequisites = []
-        for mission in self.missions:
-            if (
-                mission.check_all_prerequisites(self.character)
-                and mission.is_active()
-            ):
-                missions_with_met_prerequisites.append(mission)
-        return missions_with_met_prerequisites
-
-    def check_connected_missions(self) -> bool:
-        """
-        Checks if all connected missions are accessible for the given character.
-        """
-        return all(
-            mission.check_connected_missions(self.character)
-            for mission in self.missions
-        )
-
     def get_active_missions(self) -> list[Mission]:
         return [mission for mission in self.missions if mission.is_active()]
 
 
 class Mission:
-    """
-    Tuxemon mission.
-
-    """
+    """Tuxemon mission."""
 
     def __init__(self, save_data: Optional[Mapping[str, Any]] = None) -> None:
         save_data = save_data or {}
@@ -132,13 +154,8 @@ class Mission:
     def load(self, slug: str) -> None:
         """
         Loads and sets mission from the db.
-
         """
-        try:
-            results = db.lookup(slug, table="mission")
-        except KeyError:
-            raise RuntimeError(f"Mission {slug} not found")
-
+        results = MissionModel.lookup(slug, db)
         self.slug = results.slug
         self.name = T.translate(results.slug)
         self.description = T.translate(results.description)
@@ -166,7 +183,6 @@ class Mission:
     def get_state(self) -> Mapping[str, Any]:
         """
         Prepares a dictionary of the mission to be saved to a file.
-
         """
         save_data = {
             attr: getattr(self, attr)
@@ -181,7 +197,6 @@ class Mission:
     def set_state(self, save_data: Mapping[str, Any]) -> None:
         """
         Loads information from saved data.
-
         """
         if not save_data:
             return
@@ -195,16 +210,21 @@ class Mission:
                 setattr(self, key, value)
 
     def check_required_items(self, character: NPC) -> bool:
-        return all(character.find_item(item) for item in self.required_items)
+        return all(
+            character.items.find_item(item) for item in self.required_items
+        )
 
     def check_required_monsters(self, character: NPC) -> bool:
         return all(
-            character.find_monster(monster)
+            character.party.find_monster(monster)
             for monster in self.required_monsters
         )
 
     def get_slug_missions(self, character: NPC) -> list[str]:
-        return [mission.slug for mission in character.mission_manager.missions]
+        return [
+            mission.slug
+            for mission in character.mission_controller.get_missions()
+        ]
 
     def check_connected_missions(self, character: NPC) -> bool:
         return all(

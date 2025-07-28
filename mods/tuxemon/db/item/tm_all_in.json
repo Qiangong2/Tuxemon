@@ -2,14 +2,18 @@
   "conditions": [
     {
       "type": "has_tech",
-      "parameters": ["all_in"],
+      "parameters": [
+        "all_in"
+      ],
       "operator": "not"
     }
   ],
   "effects": [
     {
       "type": "learn_tm",
-      "parameters": ["all_in"]
+      "parameters": [
+        "all_in"
+      ]
     }
   ],
   "slug": "tm_all_in",
@@ -21,7 +25,9 @@
     "WorldState"
   ],
   "modifiers": [],
-  "behaviors": {},
+  "behaviors": {
+    "resellable": true
+  },
   "use_failure": "generic_failure",
   "use_item": "combat_used_x",
   "use_success": "generic_success"

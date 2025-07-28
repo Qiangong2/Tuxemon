@@ -9,6 +9,7 @@ from typing import Optional, final
 from tuxemon.event import get_npc
 from tuxemon.event.eventaction import EventAction
 from tuxemon.locale import T
+from tuxemon.session import Session
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +33,6 @@ class ModifyBillAction(EventAction):
 
     eg. "modify_bill player,bill_slug,-50"
     eg. "modify_bill player,bill_slug,,name_variable"
-
     """
 
     name = "modify_bill"
@@ -41,14 +41,14 @@ class ModifyBillAction(EventAction):
     amount: Optional[int] = None
     variable: Optional[str] = None
 
-    def start(self) -> None:
-        character = get_npc(self.session, self.character)
+    def start(self, session: Session) -> None:
+        character = get_npc(session, self.character)
 
         if character is None:
             logger.error(f"Character '{self.character}' not found")
             return
 
-        player = self.session.player
+        player = session.player
         money_manager = character.money_controller.money_manager
         if self.amount is None:
             if self.variable:
@@ -69,10 +69,6 @@ class ModifyBillAction(EventAction):
         if not T.has_translation("en_US", self.bill_slug):
             logger.error(f"Please add {self.bill_slug} to the en_US base.po")
 
-        bill_amount = money_manager.get_bill(self.bill_slug).amount
-        if bill_amount <= 0:
-            logger.error(f"Bill '{self.bill_slug}' doesn't exist")
-            return
         if amount >= 0:
             money_manager.add_bill(self.bill_slug, amount)
         else:

@@ -17,8 +17,8 @@ from tuxemon.mission import Mission
 from tuxemon.npc import NPC
 from tuxemon.platform.const import buttons
 from tuxemon.platform.events import PlayerInput
-from tuxemon.session import local_session
 from tuxemon.tools import open_choice_dialog, open_dialog
+from tuxemon.ui.menu_options import ChoiceOption, MenuOptions
 
 MenuGameObj = Callable[[], object]
 
@@ -47,7 +47,7 @@ class MissionState(PygameMenuState):
         width = int(0.8 * width)
         height = int(0.8 * height)
         super().__init__(height=height, width=width)
-        self.character.mission_manager.update_mission_progress()
+        self.character.mission_controller.update_mission_progress()
         self.initialize_items(self.menu)
         self.reset_theme()
 
@@ -58,7 +58,7 @@ class MissionState(PygameMenuState):
         def change_state(state: str, **kwargs: Any) -> MenuGameObj:
             return partial(self.client.push_state, state, **kwargs)
 
-        missions = self.character.mission_manager.get_active_missions()
+        missions = self.character.mission_controller.get_active_missions()
         for key, mission in enumerate(missions, start=1):
             if mission.check_all_prerequisites(self.character):
                 progress = mission.get_progress(self.character)
@@ -72,7 +72,7 @@ class MissionState(PygameMenuState):
                             "character": self.character,
                         },
                     ),
-                    font_size=self.font_size_small,
+                    font_size=self.font_type.small,
                 )
 
 
@@ -103,13 +103,24 @@ class SingleMissionState(PygameMenuState):
     ) -> None:
         def delete_mission() -> None:
             msg = T.translate("mission_deletion")
-            open_dialog(local_session, [msg])
-            _no = T.translate("no")
-            _yes = T.translate("yes")
-            menu: list[tuple[str, str, Callable[[], None]]] = []
-            menu.append(("no", _no, refuse_deletion))
-            menu.append(("yes", _yes, confirm_deletion))
-            open_choice_dialog(local_session, menu)
+            open_dialog(self.client, [msg])
+
+            options = [
+                ChoiceOption(
+                    key="no",
+                    display_text=T.translate("no"),
+                    action=refuse_deletion,
+                ),
+                ChoiceOption(
+                    key="yes",
+                    display_text=T.translate("yes"),
+                    action=confirm_deletion,
+                ),
+            ]
+
+            menu = MenuOptions(options)
+
+            open_choice_dialog(self.client, menu)
 
         def confirm_deletion() -> None:
             self.mission.update_status(MissionStatus.failed)
@@ -117,33 +128,33 @@ class SingleMissionState(PygameMenuState):
             self.client.remove_state_by_name("DialogState")
             self.client.remove_state_by_name("SingleMissionState")
             self.client.remove_state_by_name("WorldMenuState")
-            self.client.pop_state()
+            self.client.remove_state_by_name("MissionState")
 
         def refuse_deletion() -> None:
             self.client.remove_state_by_name("ChoiceState")
-            self.client.pop_state()
+            self.client.remove_state_by_name("DialogState")
 
-        missions = self.character.mission_manager.get_active_missions()
+        missions = self.character.mission_controller.get_active_missions()
 
         single = missions.index(self.mission)
         menu.add.label(
             title=f"{single + 1}/{len(missions)}",
             label_id="number",
-            font_size=self.font_size_small,
+            font_size=self.font_type.small,
             align=locals.ALIGN_RIGHT,
             float=False,
         )
         menu.add.label(
             title=f"{self.mission.name}",
             label_id="name",
-            font_size=self.font_size_small,
+            font_size=self.font_type.small,
             align=locals.ALIGN_LEFT,
             float=False,
         )
         menu.add.label(
             title=self.mission.description,
             label_id="description",
-            font_size=self.font_size_small,
+            font_size=self.font_type.small,
             align=locals.ALIGN_LEFT,
             float=False,
         )
@@ -155,7 +166,7 @@ class SingleMissionState(PygameMenuState):
         menu.add.label(
             title=f"Next missions: {next_missions}",
             label_id="next_missions",
-            font_size=self.font_size_small,
+            font_size=self.font_type.small,
             align=locals.ALIGN_LEFT,
             float=False,
         )
@@ -163,19 +174,19 @@ class SingleMissionState(PygameMenuState):
         menu.add.progress_bar(
             title="Progress",
             default=progress,
-            font_size=self.font_size_small,
+            font_size=self.font_type.small,
             align=locals.ALIGN_LEFT,
             float=False,
         )
         menu.add.button(
             title="Delete",
             action=delete_mission,
-            font_size=self.font_size_small,
+            font_size=self.font_type.small,
         )
 
     def process_event(self, event: PlayerInput) -> Optional[PlayerInput]:
         client = self.client
-        missions = self.character.mission_manager.get_active_missions()
+        missions = self.character.mission_controller.get_active_missions()
         if event.button in (buttons.RIGHT, buttons.LEFT) and event.pressed:
             if len(missions) == 1:
                 return None
@@ -193,7 +204,7 @@ class SingleMissionState(PygameMenuState):
                 },
             )
         elif event.button in (buttons.BACK, buttons.B) and event.pressed:
-            client.pop_state()
+            client.remove_state_by_name("SingleMissionState")
         elif event.button == buttons.A and event.pressed:
             super().process_event(event)
         return None

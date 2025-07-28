@@ -6,7 +6,7 @@ import logging
 from collections.abc import Sequence
 from typing import Optional
 
-from tuxemon.db import ElementItemModel, db
+from tuxemon.db import ElementItemModel, ElementModel, db
 from tuxemon.locale import T
 
 logger = logging.getLogger(__name__)
@@ -36,11 +36,7 @@ class Element:
             self.icon = cached_element.icon
             return
 
-        try:
-            results = db.lookup(slug, table="element")
-        except KeyError:
-            raise RuntimeError(f"Element {slug} not found")
-
+        results = ElementModel.lookup(slug, db)
         self.slug = slug
         self.name = T.translate(self.slug)
         self.types = results.types
@@ -108,3 +104,43 @@ class Element:
             )
             return 1.0
         return mult
+
+
+class ElementTypesHandler:
+
+    def __init__(self, initial_types: Optional[Sequence[str]] = None):
+        pre_types = (
+            []
+            if initial_types is None
+            else [Element(ele) for ele in initial_types]
+        )
+        self._current_types = pre_types
+        self._default_types = list(pre_types)
+
+    def set_types(self, new_types: list[Element]) -> None:
+        self._current_types = new_types
+
+    def reset_to_default(self) -> None:
+        self._current_types = list(self._default_types)
+
+    def get_type_slugs(self) -> list[str]:
+        return [element.slug for element in self._current_types]
+
+    def has_type(self, type_slug: str) -> bool:
+        return type_slug in {type_obj.slug for type_obj in self._current_types}
+
+    @property
+    def current(self) -> list[Element]:
+        return list(self._current_types)
+
+    @property
+    def default(self) -> list[Element]:
+        return list(self._default_types)
+
+    @property
+    def primary(self) -> Element:
+        if not self._current_types:
+            raise ValueError(
+                "No types available, cannot determine primary type."
+            )
+        return self._current_types[0]

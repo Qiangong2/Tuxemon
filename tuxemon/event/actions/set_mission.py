@@ -8,6 +8,7 @@ from typing import final
 
 from tuxemon.event import get_npc
 from tuxemon.event.eventaction import EventAction
+from tuxemon.session import Session
 
 logger = logging.getLogger(__name__)
 
@@ -30,16 +31,16 @@ class SetMissionAction(EventAction):
     name = "set_mission"
     character: str
 
-    def start(self) -> None:
-        character = get_npc(self.session, self.character)
+    def start(self, session: Session) -> None:
+        character = get_npc(session, self.character)
         if character is None:
             logger.error(f"{self.character} not found")
             return
 
         missions = (
-            character.mission_manager.get_missions_with_met_prerequisites()
+            character.mission_controller.get_missions_with_met_prerequisites()
         )
         if not missions:
             return
         else:
-            character.mission_manager.update_mission_progress()
+            character.mission_controller.update_mission_progress()

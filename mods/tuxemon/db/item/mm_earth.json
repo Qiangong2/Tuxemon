@@ -2,14 +2,18 @@
   "conditions": [
     {
       "type": "type",
-      "parameters": ["earth"],
+      "parameters": [
+        "earth"
+      ],
       "operator": "is"
     }
   ],
   "effects": [
     {
       "type": "learn_mm",
-      "parameters": ["earth"]
+      "parameters": [
+        "earth"
+      ]
     }
   ],
   "slug": "mm_earth",
@@ -21,7 +25,9 @@
     "WorldState"
   ],
   "modifiers": [],
-  "behaviors": {},
+  "behaviors": {
+    "resellable": true
+  },
   "use_failure": "generic_failure",
   "use_item": "combat_used_x",
   "use_success": "generic_success"

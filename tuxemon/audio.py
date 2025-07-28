@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-import os.path
+from pathlib import Path
 from typing import Optional, Protocol
 
 import pygame
@@ -52,7 +52,7 @@ class MusicPlayerState:
         if filename in self.cache:
             return self.cache[filename]
         else:
-            path = prepare.fetch("music", db.lookup_file("music", filename))
+            path = prepare.fetch("music", db.get_entry("music", filename))
             self.cache[filename] = path
             return path
 
@@ -157,23 +157,29 @@ class SoundManager:
     def __init__(self) -> None:
         self.sounds: dict[str, SoundProtocol] = {}
 
-    def get_sound_filename(self, slug: str) -> Optional[str]:
+    def get_sound_filename(self, slug: str) -> Optional[Path]:
         if slug is None or slug == "":
             return None
 
-        filename = db.lookup_file("sounds", slug)
+        filename = db.get_entry("sounds", slug)
         filename = transform_resource_filename("sounds", filename)
 
-        if not os.path.exists(filename):
-            logger.error(f"audio file does not exist: {filename}")
+        path = Path(filename)
+
+        if not path.exists():
+            logger.error(f"Audio file does not exist: {filename}")
+            logger.debug(
+                f"Sound '{slug}' failed to resolve to a valid file path."
+            )
             return None
 
-        return filename
+        return path
 
     def load_sound(
         self, slug: str, value: float = prepare.CONFIG.sound_volume
     ) -> SoundProtocol:
         if slug in self.sounds:
+            logger.debug(f"Sound '{slug}' loaded from cache.")
             return self.sounds[slug]
 
         filename = self.get_sound_filename(slug)
@@ -184,6 +190,7 @@ class SoundManager:
             sound = pygame.mixer.Sound(filename)
             sound.set_volume(value)
             self.sounds[slug] = SoundWrapper(sound)
+            logger.debug(f"Sound '{slug}' loaded and cached successfully.")
             return self.sounds[slug]
         except (MemoryError, pygame.error) as e:
             logger.error(f"Failed to load sound '{slug}': {e}")
@@ -194,3 +201,14 @@ class SoundManager:
     ) -> None:
         sound = self.load_sound(slug, value)
         sound.play()
+
+    def unload_sound(self, slug: str) -> None:
+        if slug in self.sounds:
+            del self.sounds[slug]
+            logger.debug(f"Unloaded sound '{slug}' from cache.")
+        else:
+            logger.debug(f"Attempted to unload non-existent sound '{slug}'.")
+
+    def unload_all_sounds(self) -> None:
+        self.sounds.clear()
+        logger.debug("All sounds unloaded from SoundManager cache.")

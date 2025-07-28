@@ -4,10 +4,11 @@ from __future__ import annotations
 
 import random as rd
 from dataclasses import dataclass
-from typing import Union, final
+from typing import Optional, final
 
 from tuxemon.db import EvolutionStage, MonsterModel, db
 from tuxemon.event.eventaction import EventAction
+from tuxemon.session import Session
 
 lookup_cache: dict[str, MonsterModel] = {}
 
@@ -36,13 +37,13 @@ class RandomMonsterAction(EventAction):
 
     name = "random_monster"
     monster_level: int
-    trainer_slug: Union[str, None] = None
-    exp: Union[int, None] = None
-    money: Union[int, None] = None
-    shape: Union[str, None] = None
-    evo: Union[str, None] = None
+    trainer_slug: Optional[str] = None
+    exp: Optional[float] = None
+    money: Optional[float] = None
+    shape: Optional[str] = None
+    evo: Optional[str] = None
 
-    def start(self) -> None:
+    def start(self, session: Session) -> None:
         if not lookup_cache:
             _lookup_monsters()
 
@@ -75,7 +76,7 @@ class RandomMonsterAction(EventAction):
 
         monster_slug = rd.choice(filters)
 
-        self.session.client.event_engine.execute_action(
+        session.client.event_engine.execute_action(
             "add_monster",
             [
                 monster_slug,
@@ -91,6 +92,6 @@ class RandomMonsterAction(EventAction):
 def _lookup_monsters() -> None:
     monsters = list(db.database["monster"])
     for mon in monsters:
-        results = db.lookup(mon, table="monster")
+        results = MonsterModel.lookup(mon, db)
         if results.txmn_id > 0:
             lookup_cache[mon] = results

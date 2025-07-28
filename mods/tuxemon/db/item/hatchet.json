@@ -2,13 +2,15 @@
   "conditions": [
     {
       "type": "facing_sprite",
-      "parameters": ["log"],
+      "parameters": [
+        "log"
+      ],
       "operator": "is"
     }
   ],
   "effects": [
     {
-      "type": "remove"
+      "type": "remove_entity"
     }
   ],
   "slug": "hatchet",
