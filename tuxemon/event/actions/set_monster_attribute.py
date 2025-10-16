@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import logging
-import uuid
 from dataclasses import dataclass
 from typing import final
+from uuid import UUID
 
 from tuxemon.event import get_monster_by_iid
 from tuxemon.event.actions.common import CommonAction
@@ -30,7 +30,6 @@ class SetMonsterAttributeAction(EventAction):
         variable: Name of the variable where to store the monster id.
         attribute: Name of the attribute.
         value: Value of the attribute.
-
     """
 
     name = "set_monster_attribute"
@@ -40,11 +39,11 @@ class SetMonsterAttributeAction(EventAction):
 
     def start(self, session: Session) -> None:
         player = session.player
-        if self.variable not in player.game_variables:
+        if not player.game_variables.has(self.variable):
             logger.error(f"Game variable {self.variable} not found")
             return
 
-        monster_id = uuid.UUID(player.game_variables[self.variable])
+        monster_id = UUID(player.game_variables.get(self.variable))
         monster = get_monster_by_iid(session, monster_id)
         if monster is None:
             monster = player.monster_boxes.get_monsters_by_iid(monster_id)

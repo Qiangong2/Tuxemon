@@ -65,7 +65,7 @@ msgid "combat_amnesia_get"
 msgstr "{user} kärsii muistinmenetyksestä."
 
 msgid "combat_state_recover_failure"
-msgstr "{user} enempää ei voida parantaa."
+msgstr "{target} enempää ei voida parantaa."
 
 msgid "combat_defeat"
 msgstr "Sinut päihitettiin!"
@@ -171,7 +171,7 @@ msgid "super_potion"
 msgstr "Erityistehorohdos"
 
 msgid "super_potion_description"
-msgstr "Parantaa hirviötä 150:llä terveyspisteellä."
+msgstr "Parantaa hirviötä 100:llä terveyspisteellä."
 
 msgid "imperial_potion_description"
 msgstr "Parantaa hirviötä 350:llä terveyspisteellä."

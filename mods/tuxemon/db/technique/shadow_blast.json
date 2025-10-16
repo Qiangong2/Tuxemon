@@ -1,6 +1,6 @@
 {
   "tech_id": 193,
-  "accuracy": 0.99,
+  "accuracy": 0.95,
   "animation": "shadow_blast",
   "effects": [
     {
@@ -16,15 +16,16 @@
   ],
   "flip_axes": "",
   "healing_power": 0.2,
-  "speed": "fast",
+  "speed": "very_fast",
   "potency": 1,
   "power": 2.8,
   "range": "ranged",
   "recharge": 4,
-  "sfx": "sfx_blaster",
+  "sfx": "sfx_pulse",
   "slug": "shadow_blast",
   "sort": "damage",
   "modifiers": [],
+  "behaviors": {},
   "target": {
     "enemy_monster": true,
     "enemy_team": false,
@@ -39,7 +40,7 @@
     "darkness"
   ],
   "types": [
-    "metal"
+    "shadow"
   ],
   "use_failure": "combat_miss",
   "use_success": null,

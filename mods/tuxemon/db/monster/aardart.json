@@ -1,42 +1,42 @@
 {
   "slug": "aardart",
-  "category": "anteater",
+  "species": "anteater",
   "moveset": [
     {
       "level_learned": 1,
-      "technique": "lick_lash"
+      "technique": "gnaw"
     },
     {
       "level_learned": 1,
-      "technique": "hibernate"
-    },
-    {
-      "level_learned": 4,
       "technique": "evasion"
     },
     {
       "level_learned": 7,
-      "technique": "stampede"
+      "technique": "lick_lash"
     },
     {
       "level_learned": 10,
-      "technique": "tonguespear"
-    },
-    {
-      "level_learned": 13,
-      "technique": "lantern"
-    },
-    {
-      "level_learned": 16,
       "technique": "assault"
     },
     {
-      "level_learned": 25,
+      "level_learned": 13,
+      "technique": "sand_spray"
+    },
+    {
+      "level_learned": 16,
+      "technique": "hibernate"
+    },
+    {
+      "level_learned": 19,
       "technique": "feint"
     },
     {
+      "level_learned": 25,
+      "technique": "stampede"
+    },
+    {
       "level_learned": 28,
-      "technique": "sand_spray"
+      "technique": "tonguespear"
     },
     {
       "level_learned": 31,
@@ -46,8 +46,20 @@
   "evolutions": [],
   "history": [
     {
-      "mon_slug": "aardorn",
-      "evo_stage": "basic"
+      "slug": "aardart",
+      "stage": "stage1",
+      "evolves_from": [
+        "aardorn"
+      ],
+      "evolves_into": []
+    },
+    {
+      "slug": "aardorn",
+      "stage": "basic",
+      "evolves_from": [],
+      "evolves_into": [
+        "aardart"
+      ]
     }
   ],
   "terrains": [
@@ -64,15 +76,19 @@
   "shape": "varmint",
   "stage": "stage1",
   "types": [
-    "earth"
+    "normal"
   ],
-  "possible_genders": [
-    "male",
-    "female"
-  ],
+  "gender_weights": {
+    "male": 0.5,
+    "female": 0.5
+  },
   "txmn_id": 43,
   "height": 185,
   "weight": 45,
+  "sounds": {
+    "combat_call": "sound_cat_purr_twit5",
+    "faint_call": "sound_cat_purr_twit5_faint"
+  },
   "catch_rate": 70.0,
   "lower_catch_resistance": 0.9,
   "upper_catch_resistance": 1.15

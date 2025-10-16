@@ -13,10 +13,11 @@
   "power": 1.5,
   "range": "reach",
   "recharge": 1,
-  "sfx": "sfx_blaster",
+  "sfx": "sfx_kick",
   "slug": "spiky_strike",
   "sort": "damage",
   "modifiers": [],
+  "behaviors": {},
   "target": {
     "enemy_monster": true,
     "enemy_team": false,
@@ -30,8 +31,8 @@
     "sharp"
   ],
   "types": [
-    "wood",
-    "earth"
+    "earth",
+    "wood"
   ],
   "use_failure": "combat_miss",
   "use_success": null,

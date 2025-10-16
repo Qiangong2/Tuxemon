@@ -12,15 +12,16 @@
     }
   ],
   "flip_axes": "",
-  "speed": "fast",
+  "speed": "normal",
   "potency": 1,
   "power": 0,
   "range": "special",
   "recharge": 2,
-  "sfx": "sfx_blaster",
+  "sfx": "sfx_bubbles",
   "slug": "rot",
   "sort": "damage",
   "modifiers": [],
+  "behaviors": {},
   "target": {
     "enemy_monster": true,
     "enemy_team": false,
@@ -34,7 +35,7 @@
     "toxic"
   ],
   "types": [
-    "aether"
+    "venom"
   ],
   "use_failure": "combat_miss",
   "use_success": null,

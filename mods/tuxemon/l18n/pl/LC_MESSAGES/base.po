@@ -279,7 +279,7 @@ msgid "combat_trainer_appeared"
 msgstr "{name} chce walczyć!"
 
 msgid "combat_state_recover_failure"
-msgstr "{user} nie może się dalej uleczyć."
+msgstr "{target} nie może się dalej uleczyć."
 
 msgid "combat_state_recover_success"
 msgstr "{user} odzyskał zdrowie!"
@@ -377,7 +377,7 @@ msgid "imperial_potion"
 msgstr "Cesarski eliksir"
 
 msgid "super_potion_description"
-msgstr "Leczy potwora, dając mu 150 HP."
+msgstr "Leczy potwora, dając mu 100 HP."
 
 # Super Potion
 msgid "super_potion"

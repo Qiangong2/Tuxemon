@@ -1,6 +1,6 @@
 {
   "slug": "carcharock",
-  "category": "fossil",
+  "species": "fossil",
   "moveset": [
     {
       "level_learned": 1,
@@ -48,7 +48,14 @@
     }
   ],
   "evolutions": [],
-  "history": [],
+  "history": [
+    {
+      "slug": "carcharock",
+      "stage": "standalone",
+      "evolves_from": [],
+      "evolves_into": []
+    }
+  ],
   "terrains": [
     "coastal",
     "jungle"
@@ -62,15 +69,19 @@
   "shape": "dragon",
   "stage": "standalone",
   "types": [
-    "fire"
+    "earth"
   ],
-  "possible_genders": [
-    "male",
-    "female"
-  ],
+  "gender_weights": {
+    "male": 0.5,
+    "female": 0.5
+  },
   "txmn_id": 385,
   "height": 120,
   "weight": 45,
+  "sounds": {
+    "combat_call": "sound_frog",
+    "faint_call": "sound_frog"
+  },
   "catch_rate": 100.0,
   "lower_catch_resistance": 0.9,
   "upper_catch_resistance": 1.15

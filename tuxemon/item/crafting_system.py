@@ -12,7 +12,7 @@ from tuxemon.item.item import Item
 from tuxemon.item.recipe import Recipe
 
 if TYPE_CHECKING:
-    from tuxemon.npc import NPCBagHandler
+    from tuxemon.entity_dir.bag import BagHandler
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +30,7 @@ class CraftingResult:
 
 class CraftingSystem:
     """
-    Manages crafting operations using recipe rules and live NPCBagHandler contents.
+    Manages crafting operations using recipe rules and live BagHandler contents.
     No static item definitions required.
     """
 
@@ -70,7 +70,7 @@ class CraftingSystem:
         return possible_outputs[-1]
 
     def check_can_craft(
-        self, recipe_slug: str, npc_bag_handler: NPCBagHandler
+        self, recipe_slug: str, npc_bag_handler: BagHandler
     ) -> bool:
         """
         Determines if a recipe can be crafted, based on the player's inventory
@@ -121,22 +121,11 @@ class CraftingSystem:
         return True
 
     def craft_item_for_bag(
-        self, recipe_slug: str, npc_bag_handler: NPCBagHandler
+        self, recipe_slug: str, npc_bag_handler: BagHandler
     ) -> CraftingResult:
         logger.debug(f"[Craft] Attempting to craft recipe: '{recipe_slug}'")
 
-        if not self.check_can_craft(recipe_slug, npc_bag_handler):
-            logger.debug(
-                f"[Craft] Preconditions not met for recipe '{recipe_slug}'."
-            )
-            return CraftingResult(
-                success=False,
-                message_slug="generic_failure",
-                output_type="",
-                crafted_items=[],
-                failure_reason="Missing required ingredients.",
-            )
-
+        # Retrieve the recipe from the database
         recipe = self.recipes.get(recipe_slug)
         if not recipe:
             logger.debug(
@@ -150,35 +139,44 @@ class CraftingSystem:
                 failure_reason=f"Recipe '{recipe_slug}' not found.",
             )
 
-        for item_slug, item_quantity in recipe.required_ingredients.items():
-            item = npc_bag_handler.find_item(item_slug)
-            if not item or item.quantity < item_quantity:
-                logger.debug(
-                    f"[Craft] Missing or insufficient '{item_slug}' (needed: {item_quantity}, available: {item.quantity if item else 0})"
-                )
-                return CraftingResult(
-                    success=False,
-                    message_slug="generic_failure",
-                    output_type="",
-                    crafted_items=[],
-                    failure_reason=f"Missing or insufficient '{item_slug}'",
-                )
+        # Check if crafting is possible before proceeding
+        if not self.check_can_craft(recipe_slug, npc_bag_handler):
+            logger.debug(
+                f"[Craft] Preconditions not met for recipe '{recipe_slug}'."
+            )
+            return CraftingResult(
+                success=False,
+                message_slug="generic_failure",
+                output_type="",
+                crafted_items=[],
+                failure_reason="Missing required ingredients.",
+            )
 
-            if item.quantity > item_quantity:
-                item.decrease_quantity(item_quantity)
+        # Consume required ingredients (check_can_craft has validated availability)
+        for item_slug, item_quantity in recipe.required_ingredients.items():
+            bag_item = npc_bag_handler.find_item(item_slug)
+
+            if bag_item and bag_item.quantity > item_quantity:
+                bag_item.decrease_quantity(item_quantity)
                 logger.debug(
                     f"[Craft] Decreased '{item_slug}' by {item_quantity}"
                 )
-            else:
-                npc_bag_handler.remove_item(item)
+            elif bag_item and bag_item.quantity == item_quantity:
+                npc_bag_handler.remove_item(bag_item)
                 logger.debug(
                     f"[Craft] Removed '{item_slug}' (exact quantity matched)"
+                )
+            else:
+                # Should not occur if check_can_craft passed, but log for safety
+                logger.error(
+                    f"[Craft] Failed to find or remove '{item_slug}'."
                 )
 
         crafted_items: list[Item] = []
         revealed_content_slug: Optional[str] = None
         message_slug: str = "generic_success"
 
+        # Select output from recipe's weighted options
         selected = self.select_weighted_output(recipe.possible_outputs)
         slug: str = selected["slug"]
         output_type: str = selected.get("type", "item")
@@ -187,6 +185,7 @@ class CraftingSystem:
             f"[Craft] Selected output: {slug} x{qty} (type: {output_type})"
         )
 
+        # Handle output based on type
         if output_type == "item":
             if npc_bag_handler.has_item(slug):
                 existing = npc_bag_handler.find_item(slug)
@@ -197,7 +196,7 @@ class CraftingSystem:
                         f"[Craft] Increased quantity of existing item '{slug}' by {qty}"
                     )
             else:
-                new_item = Item().create(slug)
+                new_item = Item.create(slug)
                 npc_bag_handler.add_item(new_item, qty)
                 crafted_items.append(new_item)
                 logger.debug(f"[Craft] Added new item '{slug}' x{qty} to bag")

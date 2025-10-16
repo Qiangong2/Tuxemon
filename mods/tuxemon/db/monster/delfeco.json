@@ -1,6 +1,6 @@
 {
   "slug": "delfeco",
-  "category": "joyful_dolphin",
+  "species": "joyful_dolphin",
   "moveset": [
     {
       "level_learned": 1,
@@ -54,8 +54,24 @@
   "evolutions": [],
   "history": [
     {
-      "mon_slug": "dollfin",
-      "evo_stage": "basic"
+      "slug": "delfeco",
+      "stage": "stage1",
+      "evolves_from": [
+        "dollfin"
+      ],
+      "evolves_into": []
+    },
+    {
+      "slug": "dollfin",
+      "stage": "basic",
+      "evolves_from": [],
+      "evolves_into": [
+        "bigfin",
+        "bigfin",
+        "sharpfin",
+        "sharpfin",
+        "delfeco"
+      ]
     }
   ],
   "terrains": [
@@ -71,15 +87,20 @@
   "shape": "piscine",
   "stage": "stage1",
   "types": [
-    "water"
+    "water",
+    "wood"
   ],
-  "possible_genders": [
-    "male",
-    "female"
-  ],
+  "gender_weights": {
+    "male": 0.5,
+    "female": 0.5
+  },
   "txmn_id": 24,
   "height": 200,
   "weight": 150,
+  "sounds": {
+    "combat_call": "sfx_bubbles",
+    "faint_call": "sfx_bubbles"
+  },
   "catch_rate": 70.0,
   "lower_catch_resistance": 0.85,
   "upper_catch_resistance": 1.1

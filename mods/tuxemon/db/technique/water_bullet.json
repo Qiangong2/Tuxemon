@@ -8,15 +8,16 @@
     }
   ],
   "flip_axes": "",
-  "speed": "fast",
+  "speed": "very_fast",
   "potency": 0.0,
   "power": 1.25,
   "range": "ranged",
   "recharge": 1,
-  "sfx": "sfx_blaster",
+  "sfx": "sfx_bubbles",
   "slug": "water_bullet",
   "sort": "damage",
   "modifiers": [],
+  "behaviors": {},
   "target": {
     "enemy_monster": true,
     "enemy_team": false,
@@ -25,7 +26,7 @@
     "own_team": false,
     "own_trainer": false
   },
-  "category": "animal",
+  "category": "simple",
   "tags": [
     "soldier",
     "water"

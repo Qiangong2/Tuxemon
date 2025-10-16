@@ -26,10 +26,11 @@
   "power": 1.2,
   "range": "touch",
   "recharge": 3,
-  "sfx": "sfx_blaster",
+  "sfx": "sfx_bite",
   "slug": "electric_multibite",
   "sort": "damage",
   "modifiers": [],
+  "behaviors": {},
   "target": {
     "enemy_monster": true,
     "enemy_team": false,
@@ -44,8 +45,7 @@
     "electricity"
   ],
   "types": [
-    "water",
-    "fire"
+    "lightning"
   ],
   "use_failure": "combat_miss",
   "use_success": null,

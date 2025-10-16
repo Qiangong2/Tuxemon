@@ -10,13 +10,12 @@ from uuid import UUID, uuid4
 from pygame.surface import Surface
 
 from tuxemon import graphics, prepare
-from tuxemon.constants import paths
-from tuxemon.core.core_condition import CoreCondition
-from tuxemon.core.core_effect import CoreEffect, ItemEffectResult
-from tuxemon.core.core_manager import ConditionManager, EffectManager
+from tuxemon.core.asset import CoreAssetManager
+from tuxemon.core.core_effect import ItemEffectResult
 from tuxemon.core.core_processor import ConditionProcessor, EffectProcessor
-from tuxemon.db import ItemCategory, ItemModel, State, db
+from tuxemon.db import ItemBehaviors, ItemCategory, ItemModel, State, db
 from tuxemon.locale import T
+from tuxemon.modifiers import ModifiersHandler
 from tuxemon.surfanim import FlipAxes
 
 if TYPE_CHECKING:
@@ -24,7 +23,6 @@ if TYPE_CHECKING:
     from tuxemon.npc import NPC
     from tuxemon.plugin import PluginObject
     from tuxemon.session import Session
-    from tuxemon.states.combat.combat import CombatState
 
 logger = logging.getLogger(__name__)
 
@@ -36,9 +34,6 @@ INFINITE_ITEMS: int = -1
 class Item:
     """An item object is an item that can be used either in or out of combat."""
 
-    effect_manager: Optional[EffectManager] = None
-    condition_manager: Optional[ConditionManager] = None
-
     def __init__(self, save_data: Optional[Mapping[str, Any]] = None) -> None:
         save_data = save_data or {}
 
@@ -49,12 +44,12 @@ class Item:
         self.quantity: int = 1
         self.animation: Optional[str] = None
         self.flip_axes: FlipAxes = FlipAxes.NONE
+        self.modifiers: ModifiersHandler = ModifiersHandler()
         # The path to the sprite to load.
         self.sprite: str = ""
         self.category: ItemCategory = ItemCategory.none
         self.surface: Optional[Surface] = None
         self.surface_size_original: tuple[int, int] = (0, 0)
-        self.combat_state: Optional[CombatState] = None
 
         self.sort: str = ""
         self.confirm_text: str = ""
@@ -63,20 +58,15 @@ class Item:
         self.use_success: str = ""
         self.use_failure: str = ""
         self.usable_in: Sequence[State] = []
+        self.immunity_to_status: Sequence[str] = []
+        self.behaviors: ItemBehaviors
         self.cost: int = 0
         self.wear: int = 0
         self.max_wear: int = 0
         self.break_chance: float = 0.0
+        self.menu_actions_data: Sequence[Mapping[str, str]] = []
 
-        if Item.effect_manager is None:
-            Item.effect_manager = EffectManager(
-                CoreEffect, paths.CORE_EFFECT_PATH
-            )
-        if Item.condition_manager is None:
-            Item.condition_manager = ConditionManager(
-                CoreCondition, paths.CORE_CONDITION_PATH
-            )
-
+        self.core_assets = CoreAssetManager()
         self.effects: Sequence[PluginObject] = []
         self.conditions: Sequence[PluginObject] = []
 
@@ -119,7 +109,7 @@ class Item:
         self.slug = results.slug
         self.name = T.translate(self.slug)
         self.description = T.translate(f"{self.slug}_description")
-        self.modifiers = results.modifiers
+        self.modifiers = ModifiersHandler(results.modifiers)
 
         # item use notifications (translated!)
         self.use_item = T.translate(results.use_item)
@@ -128,22 +118,19 @@ class Item:
         self.confirm_text = T.translate(results.confirm_text)
         self.cancel_text = T.translate(results.cancel_text)
 
-        # misc attributes (not translated!)
-        self.world_menu = results.world_menu
+        self.menu_actions_data = results.menu_actions
+        self.dynamic_menu = results.dynamic_menu
         self.behaviors = results.behaviors
         self.cost = results.cost
         self.max_wear = results.max_wear
         self.break_chance = results.break_chance
         self.sort = results.sort
+        self.immunity_to_status = results.immunity_to_status
         self.category = results.category
         self.sprite = results.sprite
         self.usable_in = results.usable_in
-        if self.effect_manager and results.effects:
-            self.effects = self.effect_manager.parse_effects(results.effects)
-        if self.condition_manager and results.conditions:
-            self.conditions = self.condition_manager.parse_conditions(
-                results.conditions
-            )
+        self.effects = self.core_assets.parse_effects(results.effects)
+        self.conditions = self.core_assets.parse_conditions(results.conditions)
         self.condition_handler = ConditionProcessor(self.conditions)
         self.effect_handler = EffectProcessor(self.effects)
         self.surface = graphics.load_and_scale(self.sprite)
@@ -153,15 +140,11 @@ class Item:
         self.animation = results.animation
         self.flip_axes = results.flip_axes
 
-    def get_combat_state(self) -> CombatState:
-        """Returns the CombatState."""
-        if not self.combat_state:
-            raise ValueError("No CombatState.")
-        return self.combat_state
-
-    def set_combat_state(self, combat_state: Optional[CombatState]) -> None:
-        """Sets the CombatState."""
-        self.combat_state = combat_state
+    def is_immune(self, status: str) -> bool:
+        return (
+            "all" in self.immunity_to_status
+            or status in self.immunity_to_status
+        )
 
     def set_quantity(self, amount: int = 1) -> None:
         """Set item quantity with clamping at zero, unless it's infinite (-1)."""
@@ -232,17 +215,6 @@ class Item:
         """
         return self.condition_handler.validate(session=session, target=target)
 
-    def execute_item_action(
-        self,
-        session: Session,
-        combat_instance: CombatState,
-        user: NPC,
-        target: Optional[Monster],
-    ) -> ItemEffectResult:
-        """Executes the item action and returns the result."""
-        self.set_combat_state(combat_instance)
-        return self.use(session, user, target)
-
     def use(
         self, session: Session, user: NPC, target: Optional[Monster]
     ) -> ItemEffectResult:
@@ -285,7 +257,7 @@ class Item:
             if getattr(self, attr)
         }
 
-        save_data["instance_id"] = str(self.instance_id.hex)
+        save_data["instance_id"] = self.instance_id.hex
 
         return save_data
 

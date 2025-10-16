@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 
 from tuxemon.core.core_effect import CoreEffect, ItemEffectResult
 from tuxemon.event import get_npc_pos
-from tuxemon.map import get_coords, get_direction
+from tuxemon.map.map import get_coords, get_direction
 
 if TYPE_CHECKING:
     from tuxemon.item.item import Item
@@ -36,7 +36,7 @@ class RemoveEntityEffect(CoreEffect):
                     client.event_engine.execute_action(
                         "remove_npc", [npc.slug], True
                     )
-                    player.game_variables[npc.slug] = self.name
+                    player.game_variables.set(npc.slug, self.name)
                     remove = True
 
         return ItemEffectResult(name=item.name, success=remove)

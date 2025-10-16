@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import logging
-import uuid
 from dataclasses import dataclass
 from typing import final
+from uuid import UUID
 
+from tuxemon import prepare
 from tuxemon.event import get_monster_by_iid
 from tuxemon.event.eventaction import EventAction
 from tuxemon.locale import T
@@ -39,11 +40,11 @@ class RenameMonsterAction(EventAction):
 
     def start(self, session: Session) -> None:
         player = session.player
-        if self.variable not in player.game_variables:
+        if not player.game_variables.has(self.variable):
             logger.error(f"Game variable {self.variable} not found")
             return
 
-        monster_id = uuid.UUID(player.game_variables[self.variable])
+        monster_id = UUID(player.game_variables.get(self.variable))
         monster = get_monster_by_iid(session, monster_id)
         if monster is None:
             logger.error("Monster not found")
@@ -57,6 +58,7 @@ class RenameMonsterAction(EventAction):
             callback=self.set_monster_name,
             escape_key_exits=False,
             initial=T.translate(self.monster.slug),
+            char_limit=prepare.PLAYER_NAME_LIMIT,
         )
 
     def update(self, session: Session) -> None:

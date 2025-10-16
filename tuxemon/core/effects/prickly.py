@@ -30,33 +30,30 @@ class PricklyBackEffect(CoreEffect):
     divisor: int
     ranges: str
 
-    def apply_status_target(
-        self, session: Session, status: Status, target: Monster
+    def apply_status(
+        self, session: Session, status: Status
     ) -> StatusEffectResult:
-        done: bool = False
-        ranges = self.ranges.split(":")
+        host = status.get_host()
 
-        if status.has_phase(EffectPhase.PERFORM_STATUS):
-            combat = status.get_combat_state()
-            log = combat._action_queue
-            turn = combat._turn
-            action = log.get_last_action(turn, target, "target")
+        if not status.has_phase(EffectPhase.PERFORM_STATUS):
+            return StatusEffectResult(name=status.name, success=False)
 
-            if (
-                action
-                and isinstance(action.method, Technique)
-                and isinstance(action.user, Monster)
-            ):
-                method = action.method
-                attacker = action.user
+        combat = session.client.combat_session
+        action = combat.action_queue.get_last_action(
+            combat.turn, host, "target"
+        )
 
-                if (
-                    method.hit
-                    and method.range in ranges
-                    and action.target.instance_id == target.instance_id
-                    and not attacker.is_fainted
-                ):
-                    damage = target.hp // self.divisor
-                    attacker.current_hp = max(0, attacker.current_hp - damage)
-                    done = True
-        return StatusEffectResult(name=status.name, success=done)
+        if (
+            action
+            and isinstance(action.method, Technique)
+            and isinstance(action.user, Monster)
+            and action.method.hit
+            and action.method.range in self.ranges.split(":")
+            and action.target.instance_id == host.instance_id
+            and not action.user.is_fainted
+        ):
+            damage = host.hp // self.divisor
+            action.user.current_hp = max(0, action.user.current_hp - damage)
+            return StatusEffectResult(name=status.name, success=True)
+
+        return StatusEffectResult(name=status.name, success=False)

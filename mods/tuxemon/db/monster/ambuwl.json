@@ -1,6 +1,6 @@
 {
   "slug": "ambuwl",
-  "category": "restorative",
+  "species": "restorative",
   "moveset": [
     {
       "level_learned": 1,
@@ -52,7 +52,14 @@
     }
   ],
   "evolutions": [],
-  "history": [],
+  "history": [
+    {
+      "slug": "ambuwl",
+      "stage": "standalone",
+      "evolves_from": [],
+      "evolves_into": []
+    }
+  ],
   "terrains": [
     "desert",
     "woodland"
@@ -66,15 +73,19 @@
   "shape": "sprite",
   "stage": "standalone",
   "types": [
-    "earth"
+    "cosmic"
   ],
-  "possible_genders": [
-    "male",
-    "female"
-  ],
+  "gender_weights": {
+    "male": 0.5,
+    "female": 0.5
+  },
   "txmn_id": 249,
   "height": 98,
   "weight": 38,
+  "sounds": {
+    "combat_call": "sound_weird_09",
+    "faint_call": "sound_weird_09_faint"
+  },
   "catch_rate": 100.0,
   "lower_catch_resistance": 0.95,
   "upper_catch_resistance": 1.05

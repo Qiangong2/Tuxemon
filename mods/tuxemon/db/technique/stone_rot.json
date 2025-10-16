@@ -1,6 +1,6 @@
 {
   "tech_id": 84,
-  "accuracy": 0.9,
+  "accuracy": 1.0,
   "animation": "drip_green",
   "effects": [
     {
@@ -13,14 +13,15 @@
   ],
   "flip_axes": "",
   "speed": "fast",
-  "potency": 1,
+  "potency": 0.9,
   "power": 0,
   "range": "special",
   "recharge": 1,
-  "sfx": "sfx_blaster",
+  "sfx": "sfx_crumble2",
   "slug": "stone_rot",
   "sort": "damage",
   "modifiers": [],
+  "behaviors": {},
   "target": {
     "enemy_monster": true,
     "enemy_team": false,
@@ -34,7 +35,7 @@
     "toxic"
   ],
   "types": [
-    "aether"
+    "venom"
   ],
   "use_failure": "combat_miss",
   "use_success": null,

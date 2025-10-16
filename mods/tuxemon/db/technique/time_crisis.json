@@ -15,15 +15,16 @@
     }
   ],
   "flip_axes": "",
-  "speed": "fast",
+  "speed": "very_fast",
   "potency": 0.6,
   "power": 2.5,
   "range": "ranged",
   "recharge": 3,
-  "sfx": "sfx_blaster",
+  "sfx": "sfx_pulse",
   "slug": "time_crisis",
   "sort": "damage",
   "modifiers": [],
+  "behaviors": {},
   "target": {
     "enemy_monster": true,
     "enemy_team": false,
@@ -38,7 +39,7 @@
     "mental"
   ],
   "types": [
-    "metal"
+    "cosmic"
   ],
   "use_failure": "combat_miss",
   "use_success": null,

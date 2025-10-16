@@ -18,15 +18,16 @@
     }
   ],
   "flip_axes": "",
-  "speed": "normal",
+  "speed": "extremely_slow",
   "potency": 1,
   "power": 1,
   "range": "melee",
   "recharge": 1,
-  "sfx": "sfx_blaster",
+  "sfx": "sfx_pulse",
   "slug": "undertaker",
   "sort": "damage",
   "modifiers": [],
+  "behaviors": {},
   "target": {
     "enemy_monster": true,
     "enemy_team": false,
@@ -41,7 +42,7 @@
     "ground"
   ],
   "types": [
-    "earth"
+    "shadow"
   ],
   "use_failure": "combat_miss",
   "use_success": null,

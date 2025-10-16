@@ -24,10 +24,11 @@
   "power": 1.5,
   "range": "special",
   "recharge": 2,
-  "sfx": "sfx_blaster",
+  "sfx": "sfx_flames1",
   "slug": "fire_shield",
   "sort": "damage",
   "modifiers": [],
+  "behaviors": {},
   "target": {
     "enemy_monster": true,
     "enemy_team": false,
@@ -42,7 +43,7 @@
     "shielded"
   ],
   "types": [
-    "aether"
+    "fire"
   ],
   "use_failure": "combat_miss",
   "use_success": null,

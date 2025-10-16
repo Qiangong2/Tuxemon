@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import logging
-import uuid
 from dataclasses import dataclass
 from typing import Optional, Union, final
+from uuid import UUID
 
 from tuxemon.event import get_monster_by_iid
 from tuxemon.event.eventaction import EventAction
@@ -50,10 +50,10 @@ class ModifyMonsterHealthAction(EventAction):
             for mon in player.monsters:
                 set_health(mon, monster_health, True)
         else:
-            if self.variable not in player.game_variables:
+            if not player.game_variables.has(self.variable):
                 logger.error(f"Game variable {self.variable} not found")
                 return
-            monster_id = uuid.UUID(player.game_variables[self.variable])
+            monster_id = UUID(player.game_variables.get(self.variable))
             monster = get_monster_by_iid(session, monster_id)
             if monster is None:
                 logger.error("Monster not found")

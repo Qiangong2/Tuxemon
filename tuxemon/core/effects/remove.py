@@ -6,8 +6,8 @@ import random
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from tuxemon.combat import get_target_monsters
 from tuxemon.core.core_effect import CoreEffect, TechEffectResult
+from tuxemon.db import CategoryStatus
 
 if TYPE_CHECKING:
     from tuxemon.monster import Monster
@@ -21,7 +21,7 @@ class RemoveEffect(CoreEffect):
     This effect has a chance to remove a status effect.
 
     Parameters:
-        status: The Status slug (e.g. enraged).
+        status: The Status slug (e.g. enraged) or 'positive', 'negative', 'all'.
         objectives: The targets (e.g. own_monster, enemy_monster, etc.), if
             single "enemy_monster" or "enemy_monster:own_monster"
 
@@ -37,25 +37,41 @@ class RemoveEffect(CoreEffect):
         self, session: Session, tech: Technique, user: Monster, target: Monster
     ) -> TechEffectResult:
         monsters: list[Monster] = []
-        combat = tech.get_combat_state()
 
         objectives = self.objectives.split(":")
         potency = random.random()
-        value = combat.get_tech_hit(user)
+        value = session.client.combat_session.get_tech_hit(user)
         success = tech.potency >= potency and tech.accuracy >= value
 
         if success:
-            monsters = get_target_monsters(objectives, tech, user, target)
-            if self.status == "all":
-                for monster in monsters:
+            monsters = session.client.combat_session.get_target_monsters(
+                objectives, user, target
+            )
+            for monster in monsters:
+                current_status = monster.status.get_current_status()
+                if self.status == "all":
                     monster.status.clear_status(session)
-            else:
-                for monster in monsters:
-                    if monster.status.has_status(self.status):
-                        monster.status.clear_status(session)
+                elif (
+                    self.status in ("positive", "negative")
+                    and current_status
+                    and current_status.category
+                ):
+                    if (
+                        self.status == "positive"
+                        and current_status.category == CategoryStatus.positive
+                    ):
+                        monster.status.remove_status()
+                    elif (
+                        self.status == "negative"
+                        and current_status.category == CategoryStatus.negative
+                    ):
+                        monster.status.remove_status()
+                elif current_status and self.status == current_status.slug:
+                    monster.status.remove_status()
 
         if monsters:
-            combat.update_icons_for_monsters()
-            combat.animate_update_party_hud()
+            event_bus = session.client.event_bus
+            event_bus.publish("status_applied")
+            event_bus.publish("update_party_hud")
 
         return TechEffectResult(name=tech.name, success=bool(monsters))

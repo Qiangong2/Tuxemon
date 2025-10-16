@@ -1,6 +1,6 @@
 {
   "slug": "bursa",
-  "category": "too_hot",
+  "species": "too_hot",
   "moveset": [
     {
       "level_learned": 1,
@@ -47,8 +47,20 @@
   ],
   "history": [
     {
-      "mon_slug": "flambear",
-      "evo_stage": "stage1"
+      "slug": "bursa",
+      "stage": "basic",
+      "evolves_from": [],
+      "evolves_into": [
+        "flambear"
+      ]
+    },
+    {
+      "slug": "flambear",
+      "stage": "stage1",
+      "evolves_from": [
+        "bursa"
+      ],
+      "evolves_into": []
     }
   ],
   "terrains": [
@@ -63,15 +75,20 @@
   "shape": "humanoid",
   "stage": "basic",
   "types": [
-    "fire"
+    "fire",
+    "cosmic"
   ],
-  "possible_genders": [
-    "male",
-    "female"
-  ],
+  "gender_weights": {
+    "male": 0.5,
+    "female": 0.5
+  },
   "txmn_id": 83,
   "height": 180,
   "weight": 110,
+  "sounds": {
+    "combat_call": "sound_terminal_03",
+    "faint_call": "sound_terminal_03_faint"
+  },
   "catch_rate": 100.0,
   "lower_catch_resistance": 0.95,
   "upper_catch_resistance": 1.25

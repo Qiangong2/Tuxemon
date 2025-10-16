@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable, Generator
-from typing import Optional
+from typing import ClassVar, Optional
 
 from tuxemon.item.item import INFINITE_ITEMS
 from tuxemon.locale import T
@@ -25,6 +25,8 @@ MIN_QUANTITY = 1
 class QuantityMenu(Menu[None]):
     """Menu used to select quantities."""
 
+    name: ClassVar[str] = "QuantityMenu"
+
     def __init__(
         self,
         callback: Callable[[int], None],
@@ -35,6 +37,7 @@ class QuantityMenu(Menu[None]):
         cost: int = 0,
         currency_formatter: Optional[CurrencyFormatter] = None,
         quantity_formatter: Optional[QuantityFormatter] = None,
+        label: Optional[Callable[[int], str]] = None,
     ) -> None:
         """
         Initialize the quantity menu.
@@ -59,6 +62,7 @@ class QuantityMenu(Menu[None]):
         self.shrink_to_items = shrink_to_items
         self.currency_formatter = currency_formatter or CurrencyFormatter()
         self.quantity_formatter = quantity_formatter or QuantityFormatter()
+        self.label = label or self.quantity_formatter.format
 
     def process_event(self, event: PlayerInput) -> Optional[PlayerInput]:
         if event.pressed:
@@ -101,7 +105,7 @@ class QuantityMenu(Menu[None]):
         )
 
     def initialize_items(self) -> Generator[MenuItem[None], None, None]:
-        label = self.quantity_formatter.format(self.quantity)
+        label = self.label(self.quantity)
         image = self.shadow_text(label)
         yield MenuItem(image, label, None, None)
 
@@ -120,6 +124,8 @@ class QuantityMenu(Menu[None]):
 
 class QuantityAndPriceMenu(QuantityMenu):
     """Menu used to select quantities, and also shows the price of items."""
+
+    name: ClassVar[str] = "QuantityAndPriceMenu"
 
     def on_open(self) -> None:
         # Do this to force the menu to resize when first opened, as currently
@@ -143,6 +149,8 @@ class QuantityAndPriceMenu(QuantityMenu):
 
 class QuantityAndCostMenu(QuantityMenu):
     """Menu used to select quantities, and also shows the cost of items."""
+
+    name: ClassVar[str] = "QuantityAndCostMenu"
 
     def on_open(self) -> None:
         # Do this to force the menu to resize when first opened, as currently

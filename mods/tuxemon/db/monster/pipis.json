@@ -1,6 +1,6 @@
 {
   "slug": "pipis",
-  "category": "echo",
+  "species": "echo",
   "moveset": [
     {
       "level_learned": 1,
@@ -43,8 +43,20 @@
   ],
   "history": [
     {
-      "mon_slug": "strella",
-      "evo_stage": "stage1"
+      "slug": "pipis",
+      "stage": "basic",
+      "evolves_from": [],
+      "evolves_into": [
+        "strella"
+      ]
+    },
+    {
+      "slug": "strella",
+      "stage": "stage1",
+      "evolves_from": [
+        "pipis"
+      ],
+      "evolves_into": []
     }
   ],
   "terrains": [],
@@ -54,15 +66,20 @@
   "shape": "flier",
   "stage": "basic",
   "types": [
-    "wood"
+    "sky",
+    "normal"
   ],
-  "possible_genders": [
-    "male",
-    "female"
-  ],
+  "gender_weights": {
+    "male": 0.5,
+    "female": 0.5
+  },
   "txmn_id": 48,
   "height": 40,
   "weight": 2,
+  "sounds": {
+    "combat_call": "sound_woosh_2",
+    "faint_call": "sound_woosh_2_faint"
+  },
   "catch_rate": 100.0,
   "lower_catch_resistance": 0.95,
   "upper_catch_resistance": 1.25

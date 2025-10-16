@@ -32,10 +32,11 @@
   "power": 1,
   "range": "melee",
   "recharge": 4,
-  "sfx": "sfx_blaster",
+  "sfx": "sfx_kick",
   "slug": "rift_dash",
   "sort": "damage",
   "modifiers": [],
+  "behaviors": {},
   "target": {
     "enemy_monster": true,
     "enemy_team": false,
@@ -51,7 +52,8 @@
     "speed"
   ],
   "types": [
-    "metal"
+    "lightning",
+    "cosmic"
   ],
   "use_failure": "rift_dash_fail",
   "use_success": "rift_dash_success",

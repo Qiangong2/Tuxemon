@@ -16,10 +16,11 @@
   "power": 2.25,
   "range": "melee",
   "recharge": 2,
-  "sfx": "sfx_blaster",
+  "sfx": "sfx_freeze",
   "slug": "icicle_spear",
   "sort": "damage",
   "modifiers": [],
+  "behaviors": {},
   "target": {
     "enemy_monster": true,
     "enemy_team": false,
@@ -33,8 +34,7 @@
     "ice"
   ],
   "types": [
-    "earth",
-    "water"
+    "frost"
   ],
   "use_failure": "combat_miss",
   "use_success": null,

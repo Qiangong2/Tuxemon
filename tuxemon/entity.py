@@ -2,13 +2,13 @@
 # Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
-import uuid
 from collections.abc import Mapping, Sequence
 from enum import Enum
 from typing import TYPE_CHECKING, Any, Generic, Optional, TypeVar
+from uuid import UUID, uuid4
 
 from tuxemon.db import Direction
-from tuxemon.map import dirs3, proj
+from tuxemon.map.map import dirs3, proj
 from tuxemon.math import Point3, Vector3
 from tuxemon.prepare import CONFIG
 from tuxemon.tools import vector2_to_tile_pos
@@ -24,6 +24,7 @@ class EntityState(Enum):
     IDLE = "idle"
     WALKING = "walking"
     RUNNING = "running"
+    JUMPING = "jumping"
 
 
 class Body:
@@ -82,12 +83,14 @@ class Mover:
         self,
         body: Body,
         facing: Direction = Direction.down,
-        moverate: float = 0.0,
+        base_moverate: float = CONFIG.player_walkrate,
+        moverate_modifier: float = 1.0,
     ) -> None:
         self.state = EntityState.IDLE
         self.body = body
         self.facing = facing
-        self.moverate = moverate  # walk by default
+        self.base_moverate = base_moverate
+        self.moverate_modifier = moverate_modifier
         self.direction_map = {tuple(v.normalized): k for k, v in dirs3.items()}
         self.move_direction: Optional[Direction] = None
 
@@ -95,15 +98,23 @@ class Mover:
     def current_direction(self) -> Vector3:
         return dirs3[self.facing]
 
-    def move(self, direction: Vector3, speed: float) -> None:
+    @property
+    def effective_moverate(self) -> float:
+        return self.moverate * self.moverate_modifier
+
+    @property
+    def moverate(self) -> float:
+        return self.base_moverate * self.moverate_modifier
+
+    def move(self, direction: Vector3) -> None:
         """Applies movement in a given direction."""
         normalized_direction = tuple(direction.normalized)
         if normalized_direction in self.direction_map:
-            self.body.velocity = Vector3(*normalized_direction) * speed
+            self.body.velocity = Vector3(*normalized_direction) * self.moverate
             self.facing = self.direction_map[normalized_direction]
             self.state = (
                 EntityState.RUNNING
-                if speed > CONFIG.player_walkrate
+                if self.base_moverate == CONFIG.player_runrate
                 else EntityState.WALKING
             )
         else:
@@ -113,19 +124,26 @@ class Mover:
         """Stops movement without affecting acceleration."""
         self.body.velocity = Vector3(0, 0, 0)
         self.state = EntityState.IDLE
-        self.moverate = CONFIG.player_walkrate
+        self.base_moverate = CONFIG.player_walkrate
 
     def running(self) -> None:
         """Boosts moverate to running speed."""
         if self.body.is_moving:
-            self.moverate = CONFIG.player_runrate
+            self.base_moverate = CONFIG.player_runrate
             self.state = EntityState.RUNNING
 
     def walking(self) -> None:
         """Resets moverate back to walking speed."""
         if self.body.is_moving:
-            self.moverate = CONFIG.player_walkrate
+            self.base_moverate = CONFIG.player_walkrate
             self.state = EntityState.WALKING
+
+    def jump(self, strength: float = 5.0) -> None:
+        """Applies a vertical impulse to simulate a jump."""
+        if self.state != EntityState.JUMPING and self.body.position.z == 0:
+            self.body.velocity.z = strength
+            self.body.acceleration.z = -9.8  # gravity-like pull
+            self.state = EntityState.JUMPING
 
     def update_movement_state(self, running: bool) -> None:
         """
@@ -159,14 +177,14 @@ class Entity(Generic[SaveDict]):
         session: Session,
     ) -> None:
         self.slug = slug
+        self.session = session
         self.client = session.client
-        self.world = session.world
-        self.instance_id = uuid.uuid4()
+        self.instance_id: UUID = uuid4()
         self.body = Body(position=Point3(0, 0, 0))
-        self.mover = Mover(self.body, moverate=CONFIG.player_walkrate)
+        self.mover = Mover(self.body)
         self.tile_pos: tuple[int, int] = (0, 0)
         self.update_location: bool = False
-        self.isplayer: bool = False
+        self.is_player: bool = False
         self.ignore_collisions: bool = False
 
     # === PHYSICS START =======================================================
@@ -188,6 +206,15 @@ class Entity(Generic[SaveDict]):
         self.body.update(td)
         self.pos_update()
 
+        if (
+            self.mover.state == EntityState.JUMPING
+            and self.body.position.z <= 0
+        ):
+            self.body.position.z = 0
+            self.body.velocity.z = 0
+            self.body.acceleration.z = 0
+            self.mover.state = EntityState.IDLE
+
     def set_position(self, pos: Sequence[float]) -> None:
         """
         Set the entity's position in the game world.
@@ -206,7 +233,15 @@ class Entity(Generic[SaveDict]):
         Parameters:
             moverate: The new movement rate to be applied.
         """
-        self.mover.moverate = moverate
+        self.mover.base_moverate = moverate
+
+    def set_moverate_modifier(self, modifier: float) -> None:
+        """Sets a new moverate modifier.
+
+        Parameters:
+            modifier: The new modifier to be applied.
+        """
+        self.mover.moverate_modifier = max(0.0, modifier)
 
     def set_facing(self, direction: Direction) -> None:
         """
@@ -232,13 +267,13 @@ class Entity(Generic[SaveDict]):
         """
         Set the entity's wandering position in the collision zone.
         """
-        self.world.add_collision(self, pos)
+        self.client.collision_manager.add_collision(self, pos)
 
     def remove_collision(self) -> None:
         """
         Remove the entity's wandering position from the collision zone.
         """
-        self.world.remove_collision(self.tile_pos)
+        self.client.collision_manager.remove_collision(self.tile_pos)
 
     # === PHYSICS END =========================================================
 
@@ -267,6 +302,10 @@ class Entity(Generic[SaveDict]):
         return self.mover.facing
 
     @property
+    def is_airborne(self) -> bool:
+        return self.body.position.z > 0
+
+    @property
     def move_direction(self) -> Optional[Direction]:
         """
         Move direction allows other functions to move the entity in a
@@ -275,6 +314,10 @@ class Entity(Generic[SaveDict]):
         move one tile in that direction until it is set to None.
         """
         return self.mover.move_direction
+
+    def jump(self, strength: float = 5.0) -> None:
+        """Triggers a jump for the entity."""
+        self.mover.jump(strength)
 
     def get_state(self, session: Session) -> SaveDict:
         """

@@ -55,7 +55,7 @@ msgid "super_potion"
 msgstr "Super Trank"
 
 msgid "super_potion_description"
-msgstr "Heilt ein Monster um 150 HP."
+msgstr "Heilt ein Monster um 100 HP."
 
 # Imperial Potion
 msgid "imperial_potion"
@@ -176,7 +176,7 @@ msgid "combat_state_recover_success"
 msgstr "{user} hat sie geheilt!"
 
 msgid "combat_state_recover_failure"
-msgstr "{link} kann nicht weiter geheilt werden."
+msgstr "{target} kann nicht weiter geheilt werden."
 
 msgid "combat_status_damage"
 msgstr "{name} erleidet Schaden durch {status}!"
@@ -696,10 +696,6 @@ msgstr "Starte das Spiel neu, damit die Änderungen wirksam werden!"
 
 msgid "menu_storage_take_monster"
 msgstr "Du hast {name} deinem Team hinzugefügt!"
-
-msgid "menu_storage_monsters_full"
-msgstr ""
-"Dein Team ist vollzählig, du kannst nicht noch weitere aus dem Lager nehmen."
 
 msgid "menu_storage_empty_kennel"
 msgstr "Dieser Zwinger ist leer, es gibt dort keine Monster zu holen."

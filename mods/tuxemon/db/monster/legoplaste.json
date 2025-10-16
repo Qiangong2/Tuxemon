@@ -1,6 +1,6 @@
 {
   "slug": "legoplaste",
-  "category": "amoeba",
+  "species": "amoeba",
   "moveset": [
     {
       "level_learned": 1,
@@ -28,7 +28,14 @@
     }
   ],
   "evolutions": [],
-  "history": [],
+  "history": [
+    {
+      "slug": "legoplaste",
+      "stage": "standalone",
+      "evolves_from": [],
+      "evolves_into": []
+    }
+  ],
   "terrains": [
     "any"
   ],
@@ -38,14 +45,18 @@
   "shape": "blob",
   "stage": "standalone",
   "types": [
-    "wood"
+    "normal"
   ],
-  "possible_genders": [
-    "neuter"
-  ],
+  "gender_weights": {
+    "neuter": 1.0
+  },
   "txmn_id": 314,
   "height": 100,
   "weight": 60,
+  "sounds": {
+    "combat_call": "sound_whistle",
+    "faint_call": "sound_whistle"
+  },
   "catch_rate": 100.0,
   "lower_catch_resistance": 0.95,
   "upper_catch_resistance": 1.05

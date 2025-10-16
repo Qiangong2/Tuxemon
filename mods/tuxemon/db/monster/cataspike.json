@@ -1,6 +1,6 @@
 {
   "slug": "cataspike",
-  "category": "pointy",
+  "species": "pointy",
   "moveset": [
     {
       "level_learned": 1,
@@ -8,7 +8,7 @@
     },
     {
       "level_learned": 1,
-      "technique": "wallow"
+      "technique": "frighten"
     },
     {
       "level_learned": 4,
@@ -28,11 +28,11 @@
     },
     {
       "level_learned": 16,
-      "technique": "viper"
+      "technique": "lineage"
     },
     {
       "level_learned": 19,
-      "technique": "lineage"
+      "technique": "viper"
     },
     {
       "level_learned": 22,
@@ -41,10 +41,6 @@
     {
       "level_learned": 25,
       "technique": "eyebite"
-    },
-    {
-      "level_learned": 55,
-      "technique": "tornado"
     }
   ],
   "evolutions": [
@@ -55,12 +51,30 @@
   ],
   "history": [
     {
-      "mon_slug": "puparmor",
-      "evo_stage": "stage1"
+      "slug": "cataspike",
+      "stage": "basic",
+      "evolves_from": [],
+      "evolves_into": [
+        "puparmor"
+      ]
     },
     {
-      "mon_slug": "weavifly",
-      "evo_stage": "stage2"
+      "slug": "puparmor",
+      "stage": "stage1",
+      "evolves_from": [
+        "cataspike"
+      ],
+      "evolves_into": [
+        "weavifly"
+      ]
+    },
+    {
+      "slug": "weavifly",
+      "stage": "stage2",
+      "evolves_from": [
+        "puparmor"
+      ],
+      "evolves_into": []
     }
   ],
   "terrains": [],
@@ -71,15 +85,20 @@
   "shape": "grub",
   "stage": "basic",
   "types": [
-    "metal"
+    "metal",
+    "venom"
   ],
-  "possible_genders": [
-    "male",
-    "female"
-  ],
+  "gender_weights": {
+    "male": 0.5,
+    "female": 0.5
+  },
   "txmn_id": 33,
   "height": 12,
   "weight": 1,
+  "sounds": {
+    "combat_call": "sound_insekt001",
+    "faint_call": "sound_insekt001_faint"
+  },
   "catch_rate": 100.0,
   "lower_catch_resistance": 0.95,
   "upper_catch_resistance": 1.25

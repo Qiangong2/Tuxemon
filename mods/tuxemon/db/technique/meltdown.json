@@ -15,15 +15,16 @@
     }
   ],
   "flip_axes": "",
-  "speed": "normal",
+  "speed": "very_slow",
   "potency": 0.2,
   "power": 2.8,
   "range": "reach",
   "recharge": 2,
-  "sfx": "sfx_blaster",
+  "sfx": "sfx_tornado",
   "slug": "meltdown",
   "sort": "damage",
   "modifiers": [],
+  "behaviors": {},
   "target": {
     "enemy_monster": true,
     "enemy_team": false,
@@ -38,8 +39,7 @@
     "calamity"
   ],
   "types": [
-    "earth",
-    "metal"
+    "venom"
   ],
   "use_failure": "combat_miss",
   "use_success": null,

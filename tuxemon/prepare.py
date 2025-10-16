@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import logging
 import re
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 import yaml
@@ -70,17 +69,20 @@ def _setup_user_environment() -> config.TuxemonConfig:
 # How it would be called in the main part of the file:
 CONFIG = _setup_user_environment()
 
-# Starting map
-STARTING_MAP = "start_"
-
 # Set up the screen size and caption
 SCREEN_SIZE = CONFIG.resolution
 
+REGION_KEYS: list[str] = [
+    "enter_from",
+    "exit_from",
+    "endure",
+    "key",
+    "push_direction",
+    "push_strength",
+    "speed_modifier",
+]
 # Surface Keys (tilesets)
 SURFACE_KEYS: list[str] = ["surfable", "walkable", "climbable"]
-
-# frame
-FRAME_TIME: float = 0.09
 
 # Set the native tile size so we know how much to scale our maps
 # 1 tile = 16 pixels
@@ -109,7 +111,7 @@ ELEMENT_SIZE: tuple[int, int] = (24, 24)
 # set island size, battle terrains (grass, etc.)
 ISLAND_SIZE: tuple[int, int] = (96, 57)
 # set battle background size (grass, etc.)
-BATTLE_BG_SIZE: tuple[int, int] = (280, 112)
+BATTLE_BG_SIZE: tuple[int, int] = (256, 108)
 
 # Set the healthbar _color
 GFX_HP_BAR: str = "gfx/ui/monster/hp_bar.png"
@@ -146,12 +148,14 @@ if CONFIG.large_gui:
     FONT_SIZE = 6
     FONT_SIZE_BIG = 7
     FONT_SIZE_BIGGER = 8
+    FONT_SIZE_BIGGEST = 9
 else:
     FONT_SIZE_SMALLER = 3
     FONT_SIZE_SMALL = 4
     FONT_SIZE = 5
     FONT_SIZE_BIG = 6
     FONT_SIZE_BIGGER = 7
+    FONT_SIZE_BIGGEST = 8
 
 # gradients
 # Hex 77767b > Hex ffffff (linear + top/bottom)
@@ -173,7 +177,9 @@ GRAD_YELLOW: str = "gfx/ui/background/gradient_yellow.png"
 # backgrounds
 TUX_GENERIC: str = "gfx/ui/background/tux_generic.png"
 TUX_INFO: str = "gfx/ui/background/tux_info.png"
+TECH_INFO: str = "gfx/ui/background/tech_info.png"
 ITEM_MENU: str = "gfx/ui/item/item_menu_bg.png"
+INDIV_INFO: str = "gfx/ui/background/passportbackground.png"
 
 # background per state
 BG_MINIGAME: str = GRAD_BLUE
@@ -184,6 +190,7 @@ BG_PHONE: str = GRAD_BLUE
 BG_PHONE_BANKING: str = GRAD_BLUE
 BG_PHONE_CONTACTS: str = GRAD_BLUE
 BG_PHONE_MAP: str = GRAD_BLUE
+BG_PHONE_RENAMING: str = GRAD_BLUE
 BG_START_SCREEN: str = GRAD_BLUE
 PYGAME_LOGO: str = "gfx/ui/intro/pygame_logo.png"
 CREATIVE_COMMONS: str = "gfx/ui/intro/creative_commons.png"
@@ -201,7 +208,7 @@ BG_MONSTERS: str = "gfx/ui/monster/monster_menu_bg.png"
 
 # Native resolution is similar to the old gameboy resolution. This is
 # used for scaling.
-NATIVE_RESOLUTION: tuple[int, int] = (240, 160)
+NATIVE_RESOLUTION: tuple[int, int] = (256, 144)
 
 # Maps
 # 1 tile = 1 m (3.28 ft) large
@@ -213,7 +220,7 @@ COEFF_FEET: float = 0.032808399
 COEFF_POUNDS: float = 2.2046
 
 # Players
-PLAYER_NPC = CONFIG.player_npc
+PLAYER_NPC = "npc_red"
 PLAYER_NAME_LIMIT: int = 15  # The character limit for a player name.
 PARTY_LIMIT: int = 6  # The maximum number of tuxemon this npc can hold
 #  Moverate limits to avoid losing sprites
@@ -243,7 +250,10 @@ MAX_TYPES_BAG: int = 99  # eg 5 capture devices, 1 type and 5 items
 MAX_MENU_ITEMS: int = 11
 
 # Monsters
-MAX_LEVEL: int = 999
+MAX_LEVEL: int = 100
+MAX_TPS: int = 150
+MAX_TOTAL_TPS: int = 300
+DEFAULT_TP_GAIN: int = 1
 MAX_MOVES: int = 4
 MISSING_IMAGE: str = "gfx/sprites/battle/missing.png"
 CATCH_RATE_RANGE: tuple[int, int] = (0, 100)
@@ -371,33 +381,3 @@ def init(platform: str = "pygame") -> None:
         headless_init()
     else:
         raise ValueError(f"Unsupported platform: {platform}")
-
-
-# Fetches a resource file
-# note: this has the potential of being a bottle neck doing to all the checking of paths
-# eventually, this should be configured at game launch, or in a config file instead
-# of looking all over creation for the required files.
-def fetch(*args: str) -> str:
-    relative_path = Path(*args)
-
-    for mod_name in CONFIG.mods:
-        # when assets are in folder with the source
-        path = paths.mods_folder / mod_name / relative_path
-        logger.debug(f"searching asset: {path}")
-        if path.exists():
-            return path.as_posix()
-
-        # when assets are in a system path (like for OS packages and Android)
-        for root_path in paths.system_installed_folders:
-            path = root_path / "mods" / mod_name / relative_path
-            logger.debug(f"searching asset: {path}")
-            if path.exists():
-                return path.as_posix()
-
-        # mods folder is in the same folder as the launch script
-        path = paths.BASEDIR / "mods" / mod_name / relative_path
-        logger.debug(f"searching asset: {path}")
-        if path.exists():
-            return path.as_posix()
-
-    raise OSError(f"Cannot load file {relative_path}")

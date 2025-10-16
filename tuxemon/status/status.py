@@ -7,27 +7,26 @@ from collections.abc import Mapping, Sequence
 from typing import TYPE_CHECKING, Any, Optional
 from uuid import UUID, uuid4
 
-from tuxemon.constants import paths
-from tuxemon.core.core_condition import CoreCondition
-from tuxemon.core.core_effect import CoreEffect, StatusEffectResult
-from tuxemon.core.core_manager import ConditionManager, EffectManager
+from tuxemon.core.asset import CoreAssetManager
+from tuxemon.core.core_effect import StatusEffectResult
 from tuxemon.core.core_processor import ConditionProcessor, EffectProcessor
 from tuxemon.db import (
     CategoryStatus,
     EffectPhase,
     Range,
     ResponseStatus,
+    StatModel,
     StatusModel,
     db,
 )
 from tuxemon.locale import T
+from tuxemon.modifiers import ModifiersHandler
 from tuxemon.surfanim import FlipAxes
 
 if TYPE_CHECKING:
     from tuxemon.monster import Monster
     from tuxemon.plugin import PluginObject
     from tuxemon.session import Session
-    from tuxemon.states.combat.combat import CombatState
 
 logger = logging.getLogger(__name__)
 
@@ -43,8 +42,7 @@ class Status:
     Particular status that tuxemon monsters can be affected.
     """
 
-    effect_manager: Optional[EffectManager] = None
-    condition_manager: Optional[ConditionManager] = None
+    MAX_STACKS: int = 5
 
     def __init__(
         self,
@@ -54,6 +52,8 @@ class Status:
     ) -> None:
         save_data = save_data or {}
 
+        self._effect_applied: set[str] = set()
+
         self.instance_id: UUID = uuid4()
         self.set_steps(steps)
         self.bond: bool = False
@@ -61,17 +61,18 @@ class Status:
         self.cond_id: int = 0
         self.animation: Optional[str] = None
         self.category: Optional[CategoryStatus] = None
-        self.combat_state: Optional[CombatState] = None
         self.description: str = ""
         self.flip_axes: FlipAxes = FlipAxes.NONE
         self.gain_cond: str = ""
         self.icon: str = ""
         self.set_host(host)
+        self.linked_monster: Optional[Monster] = None
         self.name: str = ""
         self.nr_turn: int = 0
         self.duration: int = 0
         self.phase: EffectPhase = EffectPhase.DEFAULT
         self.range: Range = Range.melee
+        self.stack_level: int = 1
         self.on_positive_status: Optional[ResponseStatus] = None
         self.on_negative_status: Optional[ResponseStatus] = None
         self.on_tech_use: Optional[str] = None
@@ -81,16 +82,10 @@ class Status:
         self.slug: str = ""
         self.use_success: str = ""
         self.use_failure: str = ""
+        self.modifiers: ModifiersHandler = ModifiersHandler()
+        self.stat_modifiers: dict[str, StatModel] = {}
 
-        if Status.effect_manager is None:
-            Status.effect_manager = EffectManager(
-                CoreEffect, paths.CORE_EFFECT_PATH
-            )
-        if Status.condition_manager is None:
-            Status.condition_manager = ConditionManager(
-                CoreCondition, paths.CORE_CONDITION_PATH
-            )
-
+        self.core_assets = CoreAssetManager()
         self.effects: Sequence[PluginObject] = []
         self.conditions: Sequence[PluginObject] = []
 
@@ -130,14 +125,10 @@ class Status:
 
         self.icon = results.icon
 
-        self.modifiers = results.modifiers
+        self.modifiers = ModifiersHandler(results.modifiers)
         # monster stats
-        self.statspeed = results.statspeed
-        self.stathp = results.stathp
-        self.statarmour = results.statarmour
-        self.statmelee = results.statmelee
-        self.statranged = results.statranged
-        self.statdodge = results.statdodge
+        self.stat_modifiers = results.stat_modifiers
+
         # status fields
         self.duration = results.duration
         self.bond = results.bond
@@ -149,12 +140,8 @@ class Status:
 
         self.cond_id = results.cond_id
 
-        if self.effect_manager and results.effects:
-            self.effects = self.effect_manager.parse_effects(results.effects)
-        if self.condition_manager and results.conditions:
-            self.conditions = self.condition_manager.parse_conditions(
-                results.conditions
-            )
+        self.effects = self.core_assets.parse_effects(results.effects)
+        self.conditions = self.core_assets.parse_conditions(results.conditions)
         self.condition_handler = ConditionProcessor(self.conditions)
         self.effect_handler = EffectProcessor(self.effects)
 
@@ -165,16 +152,6 @@ class Status:
         # Load the sound effect for this status
         self.sfx = results.sfx
 
-    def get_combat_state(self) -> CombatState:
-        """Returns the CombatState."""
-        if not self.combat_state:
-            raise ValueError("No CombatState.")
-        return self.combat_state
-
-    def set_combat_state(self, combat_state: Optional[CombatState]) -> None:
-        """Sets the CombatState."""
-        self.combat_state = combat_state
-
     def has_phase(self, phase: EffectPhase) -> bool:
         """Returns True if the current phase is equal to the provided phase, False otherwise."""
         return self.phase == phase
@@ -183,18 +160,28 @@ class Status:
         """Sets the phase to the provided value."""
         self.phase = phase
 
-    def apply_phase_and_use(
-        self, session: Session, phase: EffectPhase
-    ) -> StatusEffectResult:
-        """
-        Sets the phase for a given status and immediately applies its effect.
-        """
-        self.set_phase(phase)
-        return self.use(session, self.get_host())
-
     def advance_round(self) -> None:
         """Advance the counter for this status if used."""
         self.counter += 1
+        logger.debug(
+            f"[Status Counter] {self.slug} used {self.counter} times."
+        )
+
+    def check_counter_expiry(
+        self, session: Session, max_uses: int = 1
+    ) -> None:
+        """
+        Checks if the status has reached its use-based expiration threshold.
+        If so, clears the status from the host.
+        """
+        logger.debug(
+            f"[Status Expired] {self.slug} used {self.counter}/{max_uses} times."
+        )
+        if self.counter >= max_uses:
+            logger.debug(
+                f"[Status Expired] {self.slug} removed from {self.host.name} after {self.counter} uses."
+            )
+            self.host.status.clear_status(session)
 
     def validate_monster(self, session: Session, target: Monster) -> bool:
         """
@@ -210,6 +197,14 @@ class Status:
         """Sets the monster associated with this status."""
         self.host = monster
 
+    def get_linked_monster(self) -> Optional[Monster]:
+        """Returns the monster linked to this status effect."""
+        return self.linked_monster
+
+    def set_linked_monster(self, monster: Monster) -> None:
+        """Assigns a linked monster that benefits from this status."""
+        self.linked_monster = monster
+
     def set_steps(self, steps: float) -> None:
         """Sets the steps."""
         self.steps = steps
@@ -222,26 +217,14 @@ class Status:
         """Checks if the status has lasted beyond its intended duration."""
         return self.nr_turn > self.duration
 
-    def execute_status_action(
-        self,
-        session: Session,
-        combat_instance: CombatState,
-        target: Monster,
-        phase: EffectPhase,
-    ) -> StatusEffectResult:
-        """Executes the current status action and returns the result."""
-        self.set_combat_state(combat_instance)
-        self.set_phase(phase)
-        return self.use(session, target)
-
-    def use(self, session: Session, target: Monster) -> StatusEffectResult:
+    def use(self, session: Session, phase: EffectPhase) -> StatusEffectResult:
         """
         Applies the status's effects using EffectProcessor and returns the results.
         """
+        self.set_phase(phase)
         result = self.effect_handler.process_status(
             session=session,
             source=self,
-            target=target,
         )
         return result
 
@@ -255,7 +238,7 @@ class Status:
             if getattr(self, attr)
         }
 
-        save_data["instance_id"] = str(self.instance_id.hex)
+        save_data["instance_id"] = self.instance_id.hex
 
         return save_data
 

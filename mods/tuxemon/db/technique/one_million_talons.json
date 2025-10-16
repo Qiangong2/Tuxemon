@@ -15,15 +15,16 @@
     }
   ],
   "flip_axes": "",
-  "speed": "normal",
+  "speed": "slow",
   "potency": 0.8,
   "power": 3,
   "range": "melee",
   "recharge": 3,
-  "sfx": "sfx_blaster",
+  "sfx": "sfx_kick",
   "slug": "one_million_talons",
   "sort": "damage",
   "modifiers": [],
+  "behaviors": {},
   "target": {
     "enemy_monster": true,
     "enemy_team": false,
@@ -37,7 +38,7 @@
     "bird"
   ],
   "types": [
-    "fire"
+    "sky"
   ],
   "use_failure": "combat_miss",
   "use_success": null,

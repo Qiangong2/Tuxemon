@@ -11,7 +11,7 @@
     }
   ],
   "flip_axes": "",
-  "speed": "normal",
+  "speed": "slow",
   "potency": 0.0,
   "power": 1.5,
   "range": "ranged",
@@ -20,6 +20,7 @@
   "slug": "chill_mist",
   "sort": "damage",
   "modifiers": [],
+  "behaviors": {},
   "target": {
     "enemy_monster": true,
     "enemy_team": false,
@@ -33,7 +34,7 @@
     "weather"
   ],
   "types": [
-    "water"
+    "frost"
   ],
   "use_failure": "combat_miss",
   "use_success": null,

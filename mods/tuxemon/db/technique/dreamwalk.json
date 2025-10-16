@@ -22,10 +22,11 @@
   "power": 2.8,
   "range": "reliable",
   "recharge": 4,
-  "sfx": "sfx_blaster",
+  "sfx": "sfx_pulse",
   "slug": "dreamwalk",
   "sort": "damage",
   "modifiers": [],
+  "behaviors": {},
   "target": {
     "enemy_monster": true,
     "enemy_team": false,
@@ -39,7 +40,8 @@
     "mental"
   ],
   "types": [
-    "metal"
+    "cosmic",
+    "shadow"
   ],
   "use_failure": "combat_miss",
   "use_success": null,

@@ -1,6 +1,6 @@
 {
   "slug": "gastronium",
-  "category": "plutonium",
+  "species": "plutonium",
   "moveset": [
     {
       "level_learned": 1,
@@ -46,8 +46,20 @@
   "evolutions": [],
   "history": [
     {
-      "mon_slug": "stomic",
-      "evo_stage": "basic"
+      "slug": "gastronium",
+      "stage": "stage1",
+      "evolves_from": [
+        "stomic"
+      ],
+      "evolves_into": []
+    },
+    {
+      "slug": "stomic",
+      "stage": "basic",
+      "evolves_from": [],
+      "evolves_into": [
+        "gastronium"
+      ]
     }
   ],
   "terrains": [],
@@ -59,14 +71,19 @@
   "shape": "blob",
   "stage": "stage1",
   "types": [
-    "metal"
+    "metal",
+    "venom"
   ],
-  "possible_genders": [
-    "neuter"
-  ],
+  "gender_weights": {
+    "neuter": 1.0
+  },
   "txmn_id": 339,
   "height": 100,
   "weight": 40,
+  "sounds": {
+    "combat_call": "sound_misc_07_metal",
+    "faint_call": "sound_misc_07_metal_faint"
+  },
   "catch_rate": 70.0,
   "lower_catch_resistance": 0.95,
   "upper_catch_resistance": 1.05

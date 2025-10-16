@@ -3,30 +3,32 @@
 from __future__ import annotations
 
 import logging
-import uuid
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Iterable, Sequence
 from math import hypot
-from typing import TYPE_CHECKING, Any, Optional, TypedDict
+from typing import TYPE_CHECKING, Optional
 
-from tuxemon import prepare
-from tuxemon.battle import BattlesHandler
 from tuxemon.boxes import ItemBoxes, MonsterBoxes
-from tuxemon.db import Direction, NpcModel, db
+from tuxemon.db import DialogueProfile, Direction, NpcModel, db
 from tuxemon.entity import Entity
-from tuxemon.item.item import Item, decode_items, encode_items
+from tuxemon.entity_dir.bag import BagHandler
+from tuxemon.entity_dir.battle import BattlesHandler
+from tuxemon.entity_dir.party import PartyHandler
+from tuxemon.game_variables import GameVariablesManager, PlayerVariablesManager
 from tuxemon.locale import T
-from tuxemon.map import dirs2, get_direction, proj
-from tuxemon.map_view import SpriteController
+from tuxemon.map.map import dirs2, get_direction, proj
+from tuxemon.map.map_view import SpriteController
 from tuxemon.math import Vector2
-from tuxemon.mission import MissionController
-from tuxemon.money import MoneyController
-from tuxemon.monster import Monster, decode_monsters, encode_monsters
-from tuxemon.movement import get_tile_moverate
+from tuxemon.mission.controller import MissionController
+from tuxemon.mission.manager import MissionManager
+from tuxemon.money.controller import MoneyController
+from tuxemon.monster import Monster
+from tuxemon.monster_dir.evolution_registry import EvolutionRegistry
 from tuxemon.relationship import (
     Relationships,
     decode_relationships,
     encode_relationships,
 )
+from tuxemon.save_state import NPCState
 from tuxemon.step_tracker import StepTrackerManager, decode_steps, encode_steps
 from tuxemon.teleporter import TeleportFaint
 from tuxemon.tools import vector2_to_tile_pos
@@ -35,34 +37,12 @@ from tuxemon.tuxepedia import Tuxepedia, decode_tuxepedia, encode_tuxepedia
 from tuxemon.ui.cipher_processor import decode_cipher, encode_cipher
 
 if TYPE_CHECKING:
-    from tuxemon.economy import Economy, ShopInventory
+    from tuxemon.economy.applier import ShopInventory
+    from tuxemon.economy.economy import Economy
     from tuxemon.session import Session
 
 
 logger = logging.getLogger(__name__)
-
-
-class NPCState(TypedDict, total=False):
-    current_map: str
-    facing: Direction
-    game_variables: dict[str, Any]
-    battles: Sequence[Mapping[str, Any]]
-    tuxepedia: Mapping[str, Any]
-    relationships: Mapping[str, Any]
-    money: Mapping[str, Any]
-    template: dict[str, Any]
-    missions: Sequence[Mapping[str, Any]]
-    items: Sequence[Mapping[str, Any]]
-    monsters: Sequence[Mapping[str, Any]]
-    player_name: str
-    player_steps: float
-    monster_boxes: dict[str, Sequence[Mapping[str, Any]]]
-    item_boxes: dict[str, Sequence[Mapping[str, Any]]]
-    tile_pos: tuple[int, int]
-    teleport_faint: tuple[str, int, int]
-    tracker: Mapping[str, Any]
-    step_tracker: Mapping[str, Any]
-    unlocked_letters: Mapping[str, Any]
 
 
 def tile_distance(tile0: Iterable[float], tile1: Iterable[float]) -> float:
@@ -95,29 +75,22 @@ class NPC(Entity[NPCState]):
         # load initial data from the npc database
         npc_data = NpcModel.lookup(npc_slug, db)
         self.template = npc_data.template
+        self.combat = npc_data.combat
 
         # This is the NPC's name to be used in dialog
         self.name = T.translate(self.slug)
 
         # general
         self.behavior: Optional[str] = "wander"  # not used for now
-        self.game_variables: dict[str, Any] = {}  # Tracks the game state
+        self._variables = GameVariablesManager()
         self.battle_handler = BattlesHandler()
-        self.forfeit: bool = False
         # Tracks Tuxepedia (monster seen or caught)
         self.tuxepedia = Tuxepedia()
         self.relationships = Relationships()
         self.money_controller = MoneyController(self)
         # list of ways player can interact with the Npc
         self.interactions: Sequence[str] = []
-        # menu labels (world menu)
-        self.menu_save: bool = True
-        self.menu_load: bool = True
-        self.menu_player: bool = True
-        self.menu_monsters: bool = True
-        self.menu_bag: bool = True
-        self.menu_missions: bool = True
-        self.mission_controller = MissionController(self)
+        self.mission_controller = MissionController(self, MissionManager())
         self.economy: Optional[Economy] = None
         self.shop_inventory: Optional[ShopInventory] = None
         self.teleport_faint = TeleportFaint()
@@ -130,9 +103,10 @@ class NPC(Entity[NPCState]):
         self.monster_boxes = MonsterBoxes()
         self.party = PartyHandler(monster_boxes=self.monster_boxes, owner=self)
         self.item_boxes = ItemBoxes()
-        self.items = NPCBagHandler(item_boxes=self.item_boxes)
-        self.pending_evolutions: list[tuple[Monster, Monster]] = []
+        self.items = BagHandler(item_boxes=self.item_boxes)
+        self.evolution_registry = EvolutionRegistry()
         self.steps: float = 0.0
+        self.dialogue: Optional[DialogueProfile] = None
 
         # pathfinding and waypoint related
         self.pathfinding: Optional[tuple[int, int]] = None
@@ -147,6 +121,10 @@ class NPC(Entity[NPCState]):
         self.path_origin: Optional[tuple[int, int]] = None
 
         self.sprite_controller = SpriteController(self)
+
+    @property
+    def game_variables(self) -> PlayerVariablesManager:
+        return self._variables.player
 
     @property
     def monsters(self) -> list[Monster]:
@@ -166,31 +144,28 @@ class NPC(Entity[NPCState]):
 
         state: NPCState = {
             "current_map": session.client.get_map_name(),
-            "facing": self.facing,
-            "game_variables": self.game_variables,
+            "facing": self.facing.value,
+            "game_variables": self._variables.get_player_state(),
             "battles": self.battle_handler.encode_battle(),
             "tuxepedia": encode_tuxepedia(self.tuxepedia),
             "relationships": encode_relationships(self.relationships),
-            "money": dict(),
+            "money": self.money_controller.save(),
             "items": self.items.encode_items(),
             "template": self.template.model_dump(),
             "missions": self.mission_controller.encode_missions(),
             "monsters": self.party.encode_party(),
+            "player_slug": self.slug,
             "player_name": self.name,
             "player_steps": self.steps,
-            "monster_boxes": dict(),
-            "item_boxes": dict(),
+            "monster_boxes": self.monster_boxes.get_state(),
+            "item_boxes": self.item_boxes.get_state(),
             "tile_pos": self.tile_pos,
-            "teleport_faint": self.teleport_faint.to_tuple(),
+            "teleport_faint": self.teleport_faint.to_dict(),
             "tracker": encode_tracking(self.tracker),
             "step_tracker": encode_steps(self.step_tracker),
             "unlocked_letters": encode_cipher(self.unlocked_letters),
+            "evolution_registry": self.evolution_registry.encode_registry(),
         }
-
-        self.monster_boxes.save(state)
-        self.item_boxes.save(state)
-        state["money"] = self.money_controller.save()
-
         return state
 
     def set_state(self, session: Session, save_data: NPCState) -> None:
@@ -202,23 +177,25 @@ class NPC(Entity[NPCState]):
             save_data: Data used to recreate the NPC.
         """
         self.set_facing(Direction(save_data.get("facing", "down")))
-        self.game_variables = save_data["game_variables"]
+        self._variables.set_player_state(save_data["game_variables"])
         self.tuxepedia = decode_tuxepedia(save_data["tuxepedia"])
         self.relationships = decode_relationships(save_data["relationships"])
         self.battle_handler.decode_battle(save_data)
         self.items.decode_items(save_data)
         self.party.decode_party(save_data)
         self.mission_controller.decode_missions(save_data.get("missions"))
+        self.slug = save_data["player_slug"]
         self.name = save_data["player_name"]
         self.steps = save_data["player_steps"]
         self.money_controller.load(save_data)
         self.unlocked_letters = decode_cipher(save_data)
-        self.monster_boxes.load(self, save_data)
-        self.item_boxes.load(self, save_data)
-
-        self.teleport_faint = TeleportFaint.from_tuple(
-            save_data["teleport_faint"]
+        self.evolution_registry.decode_registry(
+            save_data.get("evolution_registry", {})
         )
+        self.monster_boxes.load(self, save_data)
+        self.item_boxes.load(save_data)
+
+        self.teleport_faint = TeleportFaint.from_dict(save_data)
 
         self.tracker = decode_tracking(save_data.get("tracker", {}))
         self.step_tracker = decode_steps(save_data.get("step_tracker", {}))
@@ -245,7 +222,9 @@ class NPC(Entity[NPCState]):
             destination: Desired final position.
         """
         self.pathfinding = destination
-        path = self.world.pathfind(self.tile_pos, destination, self.facing)
+        path = self.client.pathfinder.pathfind(
+            self.tile_pos, destination, self.facing
+        )
         if path:
             self.path = list(path)
             self.next_waypoint()
@@ -393,6 +372,54 @@ class NPC(Entity[NPCState]):
         target = Vector2(self.tile_pos) + dirs2[direction]
         self.path.append(vector2_to_tile_pos(target))
 
+    def move_multiple_tiles(self, direction: Direction, strength: int) -> None:
+        """
+        Attempts to move the entity multiple tiles in the specified direction,
+        up to the given strength.
+
+        This method checks tile-by-tile whether movement is allowed using the
+        pathfinder's exit logic.
+        If a tile is blocked, movement stops at the last valid position. The
+        resulting path is reversed before being appended to ensure that the
+        next waypoint is always the immediate neighbor, since movement logic
+        expects self.path[-1] to be adjacent to the current position.
+
+        Parameters:
+            direction: The direction in which to move.
+            strength: The maximum number of tiles to attempt moving through.
+        """
+        self.set_facing(direction)
+
+        origin = self.path[-1] if self.path else self.tile_pos
+        steps: list[tuple[int, int]] = []
+
+        for _ in range(strength):
+            candidate = vector2_to_tile_pos(Vector2(origin) + dirs2[direction])
+
+            if candidate == origin:
+                continue
+
+            exits = self.client.pathfinder.get_exits(origin, direction)
+            logger.debug(
+                f"Valid exits from {origin} facing {direction}: {exits}"
+            )
+            if candidate not in exits:
+                logger.debug(
+                    f"Tile blocked: {candidate} from {origin} facing {direction}"
+                )
+                break
+
+            steps.append(candidate)
+            origin = candidate
+
+        if steps:
+            self.path.extend(reversed(steps))
+            self.path_origin = self.tile_pos
+            logger.debug(
+                f"Final path (last is next): {self.path} | path_origin={self.path_origin}"
+            )
+            self.next_waypoint()
+
     @property
     def move_destination(self) -> Optional[tuple[int, int]]:
         """Only used for the char_moved condition."""
@@ -410,12 +437,12 @@ class NPC(Entity[NPCState]):
         * If the next waypoint is blocked, the waypoint will be removed
         """
         target = self.path[-1]
-        surface_map = self.client.map_manager.surface_map
         direction = get_direction(proj(self.position), target)
         self.set_facing(direction)
         try:
-            if self.client.pathfinder.is_tile_traversable(self, target):
-                moverate = get_tile_moverate(surface_map, self, target)
+            if self.client.pathfinder.is_tile_traversable(
+                self.tile_pos, self.facing, target, self.ignore_collisions
+            ):
                 # Surfanim suffers from significant clock drift, causing
                 # timing inconsistencies. Even after completing one animation
                 # cycle, the timing can become inaccurate. This drift results
@@ -429,7 +456,7 @@ class NPC(Entity[NPCState]):
                 # visual glitches and ensure frame accuracy.
                 self.sprite_controller.play_animation()
                 self.path_origin = self.tile_pos
-                self.mover.move(self.mover.current_direction, moverate)
+                self.mover.move(self.mover.current_direction)
                 self.remove_collision()
             else:
                 self.stop_moving()
@@ -473,9 +500,33 @@ class NPC(Entity[NPCState]):
             self.set_position(target)
             self.path.pop()
             self.path_origin = None
+
+            self.check_tile_properties()
+
             self.check_continue()
             if self.path:
                 self.next_waypoint()
+
+    def check_tile_properties(self) -> None:
+        """
+        Checks the current tile properties and applies them if found.
+        """
+        try:
+            tile = self.client.map_manager.collision_map.get(self.tile_pos)
+            if tile is None:
+                return  # No tile found, nothing to apply
+
+            if tile.push_effect:
+                self.move_multiple_tiles(
+                    direction=tile.push_effect.direction,
+                    strength=tile.push_effect.strength,
+                )
+
+            if tile.speed_modifier:
+                self.set_moverate_modifier(tile.speed_modifier)
+
+        except (KeyError, TypeError):
+            pass
 
     def pos_update(self) -> None:
         """WIP.  Required to be called after position changes."""
@@ -503,342 +554,3 @@ class NPC(Entity[NPCState]):
     def network_notify_location_change(self) -> None:
         r"""WIP guesswork ¯\_(ツ)_/¯"""
         self.update_location = True
-
-
-class NPCBagHandler:
-
-    def __init__(
-        self,
-        item_boxes: ItemBoxes,
-        items: Optional[list[Item]] = None,
-        bag_limit: int = prepare.MAX_TYPES_BAG,
-    ) -> None:
-        self._items = items if items is not None else []
-        self._bag_limit = bag_limit
-        self._item_boxes = item_boxes
-
-    def add_item(
-        self, item: Item, quantity: int = 1, locker: str = prepare.LOCKER
-    ) -> None:
-        """
-        Adds an item to the NPC's bag.
-
-        If the bag is full (based on MAX_TYPES_BAG), it will send the item to
-        the PCState archive (item boxes).
-        """
-        logger.debug(
-            f"Adding item '{item.slug}' (quantity: {quantity}) to NPC's inventory."
-        )
-
-        if not self._item_boxes.has_box(locker, "item"):
-            logger.debug(
-                f"Item box '{locker}' does not exist. Creating new item box."
-            )
-            self._item_boxes.create_box(locker, "item")
-
-        existing = self.find_item(item.slug)
-        if existing:
-            new_qty = existing.quantity + quantity
-            logger.debug(
-                f"Item '{item.slug}' exists in inventory. Increasing quantity from {existing.quantity} to {new_qty}."
-            )
-            existing.set_quantity(new_qty)
-        elif len(self._items) >= self._bag_limit:
-            logger.debug(
-                f"Bag is full. Sending item '{item.slug}' to item box '{locker}'."
-            )
-            item.set_quantity(quantity)
-            self._item_boxes.add_item(locker, item)
-        else:
-            logger.debug(
-                f"Item '{item.slug}' added to bag. Current total items: {len(self._items) + 1}."
-            )
-            item.set_quantity(quantity)
-            self._items.append(item)
-
-    def remove_item(self, item: Item, quantity: int = 1) -> bool:
-        """
-        Removes a quantity of an item from the NPC's bag.
-
-        If quantity reaches zero or below, the item is fully removed.
-        """
-        logger.debug(
-            f"Attempting to remove {quantity} of '{item.slug}' from inventory."
-        )
-
-        if quantity < 0:
-            logger.warning(
-                f"Tried to remove negative quantity: {quantity} for item '{item.slug}'"
-            )
-            return False
-
-        if item in self._items:
-            if item.quantity <= quantity:
-                logger.debug(
-                    f"Removing item '{item.slug}' completely (quantity: {item.quantity})."
-                )
-                self._items.remove(item)
-            else:
-                new_qty = item.quantity - quantity
-                logger.debug(
-                    f"Reducing quantity of '{item.slug}' from {item.quantity} to {new_qty}."
-                )
-                item.set_quantity(new_qty)
-            return True
-        logger.debug(f"Item '{item.slug}' not found in inventory.")
-        return False
-
-    def find_item(self, item_slug: str) -> Optional[Item]:
-        """
-        Finds the first item in the NPC's bag with the given slug.
-        """
-        for itm in self._items:
-            if itm.slug == item_slug:
-                return itm
-        return None
-
-    def get_items(self) -> list[Item]:
-        return self._items
-
-    def has_item(self, item_slug: str) -> bool:
-        """
-        Checks if the NPC's bag contains an item with the given slug.
-        """
-        return any(itm.slug == item_slug for itm in self._items)
-
-    def find_item_by_id(self, instance_id: uuid.UUID) -> Optional[Item]:
-        """
-        Finds an item in the NPC's bag which has the given instance ID.
-        """
-        return next(
-            (itm for itm in self._items if itm.instance_id == instance_id),
-            None,
-        )
-
-    def clear_items(self) -> None:
-        """Removes all items from the NPC's bag."""
-        self._items.clear()
-
-    def get_all_item_quantities(self) -> dict[str, int]:
-        """
-        Returns a dictionary mapping item slugs to their total quantities
-        in the NPC's bag. This provides a 'count-based view' of the bag.
-        """
-        quantities: dict[str, int] = {}
-        for item in self._items:
-            quantities[item.slug] = item.quantity
-        return quantities
-
-    def encode_items(self) -> Sequence[Mapping[str, Any]]:
-        return encode_items(self._items)
-
-    def decode_items(self, json_data: Optional[Mapping[str, Any]]) -> None:
-        if json_data and "items" in json_data:
-            self._items = [itm for itm in decode_items(json_data["items"])]
-
-
-class PartyHandler:
-    """
-    Manages a NPC's party, including adding, removing, finding,
-    and switching monsters.
-    """
-
-    def __init__(
-        self,
-        monster_boxes: MonsterBoxes,
-        owner: NPC,
-        monsters: Optional[list[Monster]] = None,
-        party_limit: int = prepare.PARTY_LIMIT,
-    ) -> None:
-        self._monsters = monsters if monsters is not None else []
-        self._party_limit = party_limit
-        self._monster_boxes = monster_boxes
-        self._owner = owner
-
-    @property
-    def monsters(self) -> list[Monster]:
-        """Returns the list of monsters in the party."""
-        return self._monsters
-
-    @property
-    def party_size(self) -> int:
-        """Returns the current number of monsters in the party."""
-        return len(self._monsters)
-
-    @property
-    def party_limit(self) -> int:
-        """Returns the maximum number of monsters allowed in the party."""
-        return self._party_limit
-
-    def add_monster(
-        self,
-        monster: Monster,
-        slot: Optional[int] = None,
-        kennel: str = prepare.KENNEL,
-    ) -> None:
-        """
-        Adds a monster to the party. If the party is full, it sends the monster
-        to the monster boxes (PCState archive).
-
-        Parameters:
-            monster: The monster to add.
-            slot: Optional. The index to insert the monster at. If None or
-                  party is full, it's added to the end or sent to boxes.
-        """
-        monster.set_owner(self._owner)
-
-        if self.party_size >= self._party_limit:
-            self._monster_boxes.add_monster(kennel, monster)
-            if self._monster_boxes.is_box_full(kennel):
-                self._monster_boxes.create_and_merge_box(kennel)
-        else:
-            if slot is not None and 0 <= slot <= self.party_size:
-                self._monsters.insert(slot, monster)
-            else:
-                self._monsters.append(monster)
-
-    def find_monster(self, monster_slug: str) -> Optional[Monster]:
-        """
-        Finds a monster in the party by its slug.
-
-        Parameters:
-            monster_slug: The slug name of the monster.
-
-        Returns:
-            Monster found, or None.
-        """
-        for monster in self._monsters:
-            if monster.slug == monster_slug:
-                return monster
-        return None
-
-    def find_monster_by_id(self, instance_id: uuid.UUID) -> Optional[Monster]:
-        """
-        Finds a monster in the party by its instance ID.
-
-        Parameters:
-            instance_id: The instance_id of the monster.
-
-        Returns:
-            Monster found, or None.
-        """
-        return next(
-            (m for m in self._monsters if m.instance_id == instance_id), None
-        )
-
-    def release_monster(self, monster: Monster) -> bool:
-        """
-        Releases a monster from this party. Used to release into the wild.
-        Prevents releasing the last monster if the party is not empty.
-
-        Parameters:
-            monster: Monster to release into the wild.
-
-        Returns:
-            True if the monster was successfully released, False otherwise.
-        """
-        if self.party_size <= 1:
-            return False
-
-        if monster in self._monsters:
-            self.remove_monster(monster)
-            monster.owner = None
-            return True
-        else:
-            return False
-
-    def remove_monster(self, monster: Monster) -> None:
-        """
-        Removes a monster from this party.
-
-        Parameters:
-            monster: Monster to remove from the party.
-        """
-        if monster in self._monsters:
-            self._monsters.remove(monster)
-
-    def switch_monsters(self, index_1: int, index_2: int) -> None:
-        """
-        Swaps two monsters in this party by their indices.
-
-        Parameters:
-            index_1: The index of the first monster.
-            index_2: The index of the second monster.
-        """
-        if not (
-            0 <= index_1 < self.party_size and 0 <= index_2 < self.party_size
-        ):
-            raise IndexError("Indices out of bounds for party size.")
-
-        self._monsters[index_1], self._monsters[index_2] = (
-            self._monsters[index_2],
-            self._monsters[index_1],
-        )
-
-    def has_monster(self, monster: Monster) -> bool:
-        """
-        Checks if a given monster is in the party.
-
-        Parameters:
-            monster: The monster to check.
-
-        Returns:
-            True if the monster is in the party, False otherwise.
-        """
-        return monster in self._monsters
-
-    def has_tech(self, tech_slug: str) -> bool:
-        """
-        Returns True if any monster in the party has the given technique.
-
-        Parameters:
-            tech_slug: The slug name of the technique.
-        """
-        for monster in self._monsters:
-            if monster.moves.has_move(tech_slug):
-                return True
-        return False
-
-    def replace_monster(
-        self, old_monster: Monster, new_monster: Monster
-    ) -> bool:
-        """
-        Replaces an existing monster in the party with a new one.
-
-        Parameters:
-            old_monster: The monster to replace.
-            new_monster: The new monster.
-
-        Returns:
-            True if successful, False otherwise.
-        """
-        if old_monster in self._monsters:
-            index = self._monsters.index(old_monster)
-            self._monsters[index] = new_monster
-            new_monster.owner = self._owner
-            return True
-        return False
-
-    def has_type(self, element_slug: str) -> bool:
-        """
-        Returns True if any monster in the party has the given type.
-        """
-        return any(mon.has_type(element_slug) for mon in self._monsters)
-
-    def clear_party(self) -> None:
-        """
-        Removes all monsters from the party and clears their ownership.
-        """
-        if self._monsters:
-            for monster in self._monsters:
-                monster.owner = None
-        self._monsters.clear()
-
-    def encode_party(self) -> Sequence[Mapping[str, Any]]:
-        return encode_monsters(self._monsters)
-
-    def decode_party(self, json_data: Optional[Mapping[str, Any]]) -> None:
-        self.clear_party()
-        if json_data and "monsters" in json_data:
-            for mon in decode_monsters(json_data["monsters"]):
-                self.add_monster(mon, self.party_size)

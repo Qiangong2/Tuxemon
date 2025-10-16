@@ -6,7 +6,7 @@
     {
       "type": "cooldown",
       "parameters": [
-        "user",
+        "own_monster",
         "0",
         "sort",
         "damage"
@@ -19,10 +19,11 @@
   "power": 0,
   "range": "special",
   "recharge": 2,
-  "sfx": "sfx_blaster",
+  "sfx": "sfx_bounce",
   "slug": "pouch",
   "sort": "damage",
   "modifiers": [],
+  "behaviors": {},
   "target": {
     "enemy_monster": false,
     "enemy_team": false,
@@ -31,12 +32,12 @@
     "own_team": false,
     "own_trainer": false
   },
-  "category": "animal",
+  "category": "special",
   "tags": [
     "food"
   ],
   "types": [
-    "aether"
+    "normal"
   ],
   "use_failure": "combat_miss",
   "use_success": null,

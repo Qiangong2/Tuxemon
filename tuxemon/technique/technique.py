@@ -7,21 +7,19 @@ from collections.abc import Mapping, Sequence
 from typing import TYPE_CHECKING, Any, Optional
 from uuid import UUID, uuid4
 
-from tuxemon.constants import paths
-from tuxemon.core.core_condition import CoreCondition
-from tuxemon.core.core_effect import CoreEffect, TechEffectResult
-from tuxemon.core.core_manager import ConditionManager, EffectManager
+from tuxemon.core.asset import CoreAssetManager
+from tuxemon.core.core_effect import TechEffectResult
 from tuxemon.core.core_processor import ConditionProcessor, EffectProcessor
-from tuxemon.db import Range, TechniqueModel, db
+from tuxemon.db import Range, TechBehaviors, TechniqueModel, db
 from tuxemon.element import ElementTypesHandler
 from tuxemon.locale import T
+from tuxemon.modifiers import ModifiersHandler
 from tuxemon.surfanim import FlipAxes
 
 if TYPE_CHECKING:
     from tuxemon.monster import Monster
     from tuxemon.plugin import PluginObject
     from tuxemon.session import Session
-    from tuxemon.states.combat.combat import CombatState
 
 logger = logging.getLogger(__name__)
 
@@ -36,9 +34,6 @@ class Technique:
     Particular skill that tuxemon monsters can use in battle.
     """
 
-    effect_manager: Optional[EffectManager] = None
-    condition_manager: Optional[ConditionManager] = None
-
     def __init__(self, save_data: Optional[Mapping[str, Any]] = None) -> None:
         save_data = save_data or {}
 
@@ -47,12 +42,10 @@ class Technique:
         self.tech_id: int = 0
         self.accuracy: float = 0.0
         self.animation: Optional[str] = None
-        self.combat_state: Optional[CombatState] = None
         self.description: str = ""
         self.flip_axes: FlipAxes = FlipAxes.NONE
         self.hit: bool = False
         self.speed: int = 0
-        self.randomly: bool = True
         self.name: str = ""
         self.next_use: int = 0
         self.potency: float = 0.0
@@ -66,22 +59,16 @@ class Technique:
         self.sort: str = ""
         self.slug: str = ""
         self.types: ElementTypesHandler = ElementTypesHandler()
-        self.usable_on: bool = False
+        self.modifiers: ModifiersHandler = ModifiersHandler()
+        self.behaviors: TechBehaviors
         self.use_success: str = ""
         self.use_failure: str = ""
         self.use_tech: str = ""
         self.confirm_text: str = ""
         self.cancel_text: str = ""
+        self.menu_actions_data: Sequence[Mapping[str, str]] = []
 
-        if Technique.effect_manager is None:
-            Technique.effect_manager = EffectManager(
-                CoreEffect, paths.CORE_EFFECT_PATH
-            )
-        if Technique.condition_manager is None:
-            Technique.condition_manager = ConditionManager(
-                CoreCondition, paths.CORE_CONDITION_PATH
-            )
-
+        self.core_assets = CoreAssetManager()
         self.effects: Sequence[PluginObject] = []
         self.conditions: Sequence[PluginObject] = []
 
@@ -133,23 +120,21 @@ class Technique:
         self.default_power = results.power
 
         self.speed = results.speed.numeric_value
-        self.randomly = results.randomly
+        self.behaviors = results.behaviors
         self.healing_power = results.healing_power
         self.recharge_length = results.recharge
         self.range = results.range
         self.tech_id = results.tech_id
+        self.menu_actions_data = results.menu_actions
+        self.tags = results.tags
 
-        if self.effect_manager and results.effects:
-            self.effects = self.effect_manager.parse_effects(results.effects)
-        if self.condition_manager and results.conditions:
-            self.conditions = self.condition_manager.parse_conditions(
-                results.conditions
-            )
+        self.effects = self.core_assets.parse_effects(results.effects)
+        self.conditions = self.core_assets.parse_conditions(results.conditions)
+
         self.condition_handler = ConditionProcessor(self.conditions)
         self.effect_handler = EffectProcessor(self.effects)
         self.target = results.target.model_dump()
-        self.usable_on = results.usable_on
-        self.modifiers = results.modifiers
+        self.modifiers = ModifiersHandler(results.modifiers)
 
         # Load the animation sprites that will be used for this technique
         self.animation = results.animation
@@ -157,16 +142,6 @@ class Technique:
 
         # Load the sound effect for this technique
         self.sfx = results.sfx
-
-    def get_combat_state(self) -> CombatState:
-        """Returns the CombatState."""
-        if not self.combat_state:
-            raise ValueError("No CombatState.")
-        return self.combat_state
-
-    def set_combat_state(self, combat_state: Optional[CombatState]) -> None:
-        """Sets the CombatState."""
-        self.combat_state = combat_state
 
     def advance_round(self) -> None:
         """
@@ -185,17 +160,6 @@ class Technique:
 
     def full_recharge(self) -> None:
         self.next_use = 0
-
-    def execute_tech_action(
-        self,
-        session: Session,
-        combat_instance: CombatState,
-        user: Monster,
-        target: Monster,
-    ) -> TechEffectResult:
-        """Executes the tech action and returns the result."""
-        self.set_combat_state(combat_instance)
-        return self.use(session, user, target)
 
     def use(
         self, session: Session, user: Monster, target: Monster
@@ -235,7 +199,7 @@ class Technique:
             if getattr(self, attr)
         }
 
-        save_data["instance_id"] = str(self.instance_id.hex)
+        save_data["instance_id"] = self.instance_id.hex
 
         return save_data
 

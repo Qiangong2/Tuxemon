@@ -6,8 +6,10 @@ import importlib
 import logging
 from collections.abc import Sequence
 from pathlib import Path
+from typing import Optional
 
 from tuxemon import plugin
+from tuxemon.constants.paths import LIBDIR, get_plugin_paths
 from tuxemon.db import CommonCondition, CommonEffect
 from tuxemon.plugin import PluginObject
 
@@ -18,17 +20,35 @@ class CoreManager:
     """Core class for managing the loading and unloading of plugins."""
 
     def __init__(
-        self, interface: type[PluginObject], path: Path, category: str
+        self,
+        interface: type[PluginObject],
+        path: Path,
+        category: str,
+        root_path: Optional[Path] = None,
     ) -> None:
         self.classes: dict[str, type[PluginObject]] = {}
-        self.load_plugins(interface, path, category)
+        self.load_plugins(interface, path, category, root_path)
 
     def load_plugins(
-        self, interface: type[PluginObject], path: Path, category: str
+        self,
+        interface: type[PluginObject],
+        path: Path,
+        category: str,
+        root_path: Optional[Path],
     ) -> None:
         """Load all available plugins using the existing plugin system."""
+        if root_path is None:
+            root_path = LIBDIR.parent
+
+        plugin_folders = get_plugin_paths(path, category, subfolder="core")
+
         self.classes.update(
-            plugin.load_plugins(path, category, interface=interface)
+            plugin.load_plugins(
+                paths=plugin_folders,
+                root_path=root_path,
+                category=category,
+                interface=interface,
+            )
         )
 
     def load_plugin(self, name: str) -> None:
@@ -118,11 +138,12 @@ class EffectManager(CoreManager):
         effect_class: type[PluginObject],
         path: Path,
         category: str = "effects",
+        root_path: Optional[Path] = None,
     ) -> None:
         """
         Initialize the EffectManager with the specific effect type.
         """
-        super().__init__(effect_class, path, category)
+        super().__init__(effect_class, path, category, root_path)
         self.effect_class = effect_class
 
     def parse_effects(
@@ -140,11 +161,12 @@ class ConditionManager(CoreManager):
         condition_class: type[PluginObject],
         path: Path,
         category: str = "conditions",
+        root_path: Optional[Path] = None,
     ) -> None:
         """
         Initialize the ConditionManager with the specific condition type.
         """
-        super().__init__(condition_class, path, category)
+        super().__init__(condition_class, path, category, root_path)
         self.condition_class = condition_class
 
     def parse_conditions(

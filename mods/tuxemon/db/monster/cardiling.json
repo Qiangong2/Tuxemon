@@ -1,26 +1,30 @@
 {
   "slug": "cardiling",
-  "category": "firebird",
+  "species": "firebird",
   "moveset": [
-    {
-      "level_learned": 1,
-      "technique": "fire_claw"
-    },
     {
       "level_learned": 1,
       "technique": "wing_tip"
     },
     {
-      "level_learned": 4,
-      "technique": "one_two"
+      "level_learned": 1,
+      "technique": "arcane_eye"
     },
     {
       "level_learned": 7,
-      "technique": "saber"
+      "technique": "tinder"
+    },
+    {
+      "level_learned": 10,
+      "technique": "breathe_fire"
     },
     {
       "level_learned": 13,
-      "technique": "breathe_fire"
+      "technique": "fire_claw"
+    },
+    {
+      "level_learned": 19,
+      "technique": "saber"
     },
     {
       "level_learned": 25,
@@ -55,12 +59,30 @@
   ],
   "history": [
     {
-      "mon_slug": "cardiwing",
-      "evo_stage": "stage1"
+      "slug": "cardiling",
+      "stage": "basic",
+      "evolves_from": [],
+      "evolves_into": [
+        "cardiwing"
+      ]
     },
     {
-      "mon_slug": "cardinale",
-      "evo_stage": "stage2"
+      "slug": "cardiwing",
+      "stage": "stage1",
+      "evolves_from": [
+        "cardiling"
+      ],
+      "evolves_into": [
+        "cardinale"
+      ]
+    },
+    {
+      "slug": "cardinale",
+      "stage": "stage2",
+      "evolves_from": [
+        "cardiwing"
+      ],
+      "evolves_into": []
     }
   ],
   "terrains": [
@@ -75,15 +97,20 @@
   "shape": "flier",
   "stage": "basic",
   "types": [
-    "fire"
+    "fire",
+    "sky"
   ],
-  "possible_genders": [
-    "male",
-    "female"
-  ],
+  "gender_weights": {
+    "male": 0.5,
+    "female": 0.5
+  },
   "txmn_id": 62,
   "height": 30,
   "weight": 2,
+  "sounds": {
+    "combat_call": "sound_woosh_1",
+    "faint_call": "sound_woosh_1_faint"
+  },
   "catch_rate": 100.0,
   "lower_catch_resistance": 0.95,
   "upper_catch_resistance": 1.25

@@ -24,6 +24,7 @@
   "slug": "energy_beam",
   "sort": "damage",
   "modifiers": [],
+  "behaviors": {},
   "target": {
     "enemy_monster": true,
     "enemy_team": false,
@@ -38,8 +39,7 @@
     "fury"
   ],
   "types": [
-    "earth",
-    "fire"
+    "normal"
   ],
   "use_failure": "combat_miss",
   "use_success": null,

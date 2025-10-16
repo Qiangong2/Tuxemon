@@ -1,6 +1,6 @@
 {
   "slug": "puparmor",
-  "category": "fortified",
+  "species": "fortified",
   "moveset": [
     {
       "level_learned": 1,
@@ -8,7 +8,7 @@
     },
     {
       "level_learned": 1,
-      "technique": "wallow"
+      "technique": "frighten"
     },
     {
       "level_learned": 4,
@@ -28,11 +28,11 @@
     },
     {
       "level_learned": 16,
-      "technique": "viper"
+      "technique": "lineage"
     },
     {
       "level_learned": 19,
-      "technique": "lineage"
+      "technique": "viper"
     },
     {
       "level_learned": 22,
@@ -41,10 +41,6 @@
     {
       "level_learned": 25,
       "technique": "eyebite"
-    },
-    {
-      "level_learned": 55,
-      "technique": "tornado"
     }
   ],
   "evolutions": [
@@ -55,32 +51,56 @@
   ],
   "history": [
     {
-      "mon_slug": "cataspike",
-      "evo_stage": "basic"
+      "slug": "puparmor",
+      "stage": "stage1",
+      "evolves_from": [
+        "cataspike"
+      ],
+      "evolves_into": [
+        "weavifly"
+      ]
     },
     {
-      "mon_slug": "weavifly",
-      "evo_stage": "stage2"
+      "slug": "cataspike",
+      "stage": "basic",
+      "evolves_from": [],
+      "evolves_into": [
+        "puparmor"
+      ]
+    },
+    {
+      "slug": "weavifly",
+      "stage": "stage2",
+      "evolves_from": [
+        "puparmor"
+      ],
+      "evolves_into": []
     }
   ],
   "terrains": [],
   "tags": [
     "sharp",
     "bug",
-    "bomber"
+    "bomber",
+    "shielded"
   ],
   "shape": "blob",
   "stage": "stage1",
   "types": [
-    "metal"
+    "metal",
+    "venom"
   ],
-  "possible_genders": [
-    "male",
-    "female"
-  ],
+  "gender_weights": {
+    "male": 0.5,
+    "female": 0.5
+  },
   "txmn_id": 34,
   "height": 35,
   "weight": 8.5,
+  "sounds": {
+    "combat_call": "sound_insekt001",
+    "faint_call": "sound_insekt001_faint"
+  },
   "catch_rate": 70.0,
   "lower_catch_resistance": 0.9,
   "upper_catch_resistance": 1.15

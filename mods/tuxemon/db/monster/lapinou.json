@@ -1,6 +1,6 @@
 {
   "slug": "lapinou",
-  "category": "thlay",
+  "species": "thlay",
   "moveset": [
     {
       "level_learned": 1,
@@ -52,7 +52,14 @@
     }
   ],
   "evolutions": [],
-  "history": [],
+  "history": [
+    {
+      "slug": "lapinou",
+      "stage": "standalone",
+      "evolves_from": [],
+      "evolves_into": []
+    }
+  ],
   "terrains": [],
   "tags": [
     "ground",
@@ -61,15 +68,19 @@
   "shape": "varmint",
   "stage": "standalone",
   "types": [
-    "metal"
+    "normal"
   ],
-  "possible_genders": [
-    "male",
-    "female"
-  ],
+  "gender_weights": {
+    "male": 0.5,
+    "female": 0.5
+  },
   "txmn_id": 113,
   "height": 60,
   "weight": 8,
+  "sounds": {
+    "combat_call": "sound_cat_purr_twit5",
+    "faint_call": "sound_cat_purr_twit5_faint"
+  },
   "catch_rate": 100.0,
   "lower_catch_resistance": 0.95,
   "upper_catch_resistance": 1.05

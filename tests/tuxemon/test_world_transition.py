@@ -3,19 +3,15 @@
 from unittest import TestCase
 from unittest.mock import MagicMock, patch
 
-from pygame.surface import Surface
-
 from tuxemon.client import LocalPygameClient
 from tuxemon.movement import MovementManager
-from tuxemon.states.world.world_transition import WorldTransition
+from tuxemon.world.transition import WorldTransition
 
 
 class TestTransition(TestCase):
     def setUp(self):
         self.mock_world = MagicMock()
         self.mock_world.client = MagicMock(spec=LocalPygameClient)
-        self.mock_world.client.screen = MagicMock(spec=Surface)
-        self.mock_world.client.screen.get_size.return_value = (800, 600)
         self.mock_world.client.movement_manager = MagicMock(
             spec=MovementManager
         )
@@ -30,6 +26,7 @@ class TestTransition(TestCase):
         self.assertEqual(self.transition.transition_alpha, 0)
         self.assertFalse(self.transition.in_transition)
 
+    @patch("tuxemon.prepare.SCREEN_SIZE", (800, 600))
     def test_set_transition_surface_size(self):
         color = (0, 0, 0, 255)
         self.transition.set_transition_surface(color)
@@ -53,6 +50,7 @@ class TestTransition(TestCase):
         self.transition.set_transition_state(False)
         self.assertFalse(self.transition.in_transition)
 
+    @patch("tuxemon.prepare.SCREEN_SIZE", (800, 600))
     def test_set_transition_surface(self):
         mock_color = (255, 0, 0)
         self.transition.set_transition_surface(mock_color)

@@ -24,10 +24,11 @@
   "power": 0,
   "range": "special",
   "recharge": 2,
-  "sfx": "sfx_blaster",
+  "sfx": "sfx_freeze",
   "slug": "ice_shield",
   "sort": "damage",
   "modifiers": [],
+  "behaviors": {},
   "target": {
     "enemy_monster": true,
     "enemy_team": false,
@@ -43,7 +44,7 @@
     "shielded"
   ],
   "types": [
-    "water"
+    "frost"
   ],
   "use_failure": "combat_miss",
   "use_success": null,

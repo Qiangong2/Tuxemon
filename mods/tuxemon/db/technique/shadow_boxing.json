@@ -13,10 +13,11 @@
   "power": 1.25,
   "range": "touch",
   "recharge": 1,
-  "sfx": "sfx_blaster",
+  "sfx": "sfx_pulse",
   "slug": "shadow_boxing",
   "sort": "damage",
   "modifiers": [],
+  "behaviors": {},
   "target": {
     "enemy_monster": true,
     "enemy_team": false,
@@ -31,8 +32,7 @@
     "darkness"
   ],
   "types": [
-    "fire",
-    "wood"
+    "heroic"
   ],
   "use_failure": "combat_miss",
   "use_success": null,

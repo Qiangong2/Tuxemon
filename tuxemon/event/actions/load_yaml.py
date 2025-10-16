@@ -7,9 +7,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import final
 
-from tuxemon import prepare
+from tuxemon.constants.asset_loader import fetch_asset
 from tuxemon.event.eventaction import EventAction
-from tuxemon.map_loader import YAMLEventLoader
+from tuxemon.map.map_loader import YAMLEventLoader
 from tuxemon.session import Session
 
 logger = logging.getLogger(__name__)
@@ -37,7 +37,7 @@ class LoadYamlAction(EventAction):
 
     def start(self, session: Session) -> None:
         client = session.client
-        yaml_path = Path(prepare.fetch("maps", f"{self.file}.yaml"))
+        yaml_path = Path(fetch_asset("maps", f"{self.file}.yaml"))
 
         _events = list(client.map_manager.events)
         _inits = list(client.map_manager.inits)

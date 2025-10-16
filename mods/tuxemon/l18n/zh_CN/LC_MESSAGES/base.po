@@ -3,7 +3,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Tuxemon\n"
 "Report-Msgid-Bugs-To: \n"
-"PO-Revision-Date: 2023-01-18 01:47+0000\n"
+"PO-Revision-Date: 2023-09-27 08:59+0000\n"
 "Last-Translator: David Liang <2188741623@qq.com>\n"
 "Language-Team: Chinese (Simplified) <https://hosted.weblate.org/projects/tuxemon/tuxemon/zh_Hans/>\n"
 "Language: zh_CN\n"
@@ -11,7 +11,7 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
-"X-Generator: Weblate 4.15.1-dev\n"
+"X-Generator: Weblate 5.1-dev\n"
 
 # # ITEM TRANSLATIONS ##
 # Apple
@@ -54,7 +54,7 @@ msgid "super_potion"
 msgstr "超级治疗药水"
 
 msgid "super_potion_description"
-msgstr "回复一只精灵150点生命."
+msgstr "回复一只精灵100点生命."
 
 # Imperial Potion
 msgid "imperial_potion"
@@ -188,7 +188,7 @@ msgid "combat_state_recover_success"
 msgstr "{user}恢复健康了!"
 
 msgid "combat_state_recover_failure"
-msgstr "{user}不能再愈合了."
+msgstr "{target}不能再愈合了."
 
 msgid "combat_status_damage"
 msgstr "{name}的{status}造成了伤害!"
@@ -1523,9 +1523,6 @@ msgstr "弃权"
 
 msgid "menu_storage_take_monster"
 msgstr "你把{name}加入到了你的队伍!"
-
-msgid "menu_storage_monsters_full"
-msgstr "你的队伍已经满了,你不能再从仓库里拿任何东西了."
 
 msgid "menu_storage_empty_kennel"
 msgstr "这个仓库是空的,没有精灵可拿."
@@ -6891,9 +6888,6 @@ msgstr "看到了{param}只精灵,共有{all}"
 msgid "tuxepedia_data_caught"
 msgstr "捉住了{param}只精灵,共有{all}"
 
-msgid "player_start_adventure"
-msgstr "冒险开始了{date}天."
-
 msgid "player_walked"
 msgstr "行走的路程 {distance} {unit}"
 
@@ -6919,9 +6913,6 @@ msgstr "有进化型"
 
 msgid "yes_evolutions"
 msgstr "进化型"
-
-msgid "tuxepedia_capture"
-msgstr "捕获了{doc}天"
 
 msgid "tuxepedia_exp"
 msgstr "需要{exp_lv}经验到等级{lv}"

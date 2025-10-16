@@ -12,15 +12,16 @@
     }
   ],
   "flip_axes": "",
-  "speed": "fast",
+  "speed": "extremely_fast",
   "potency": 1,
   "power": 0,
   "range": "special",
   "recharge": 2,
-  "sfx": "sfx_blaster",
+  "sfx": "sfx_squeak",
   "slug": "evasion",
   "sort": "meta",
   "modifiers": [],
+  "behaviors": {},
   "target": {
     "enemy_monster": false,
     "enemy_team": false,
@@ -35,7 +36,7 @@
     "speed"
   ],
   "types": [
-    "earth"
+    "heroic"
   ],
   "use_failure": "combat_miss",
   "use_success": null,

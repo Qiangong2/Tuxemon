@@ -1,6 +1,6 @@
 {
   "slug": "brewdin",
-  "category": "genie",
+  "species": "genie",
   "moveset": [
     {
       "level_learned": 1,
@@ -56,7 +56,14 @@
     }
   ],
   "evolutions": [],
-  "history": [],
+  "history": [
+    {
+      "slug": "brewdin",
+      "stage": "standalone",
+      "evolves_from": [],
+      "evolves_into": []
+    }
+  ],
   "terrains": [
     "ruins",
     "urban"
@@ -70,14 +77,19 @@
   "shape": "varmint",
   "stage": "standalone",
   "types": [
-    "metal"
+    "water",
+    "shadow"
   ],
-  "possible_genders": [
-    "neuter"
-  ],
+  "gender_weights": {
+    "neuter": 1.0
+  },
   "txmn_id": 215,
   "height": 22,
   "weight": 1,
+  "sounds": {
+    "combat_call": "sfx_bubbles",
+    "faint_call": "sfx_bubbles"
+  },
   "catch_rate": 100.0,
   "lower_catch_resistance": 0.9,
   "upper_catch_resistance": 1.15

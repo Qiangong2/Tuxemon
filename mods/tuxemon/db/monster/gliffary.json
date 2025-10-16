@@ -1,6 +1,6 @@
 {
   "slug": "gliffary",
-  "category": "toothsome",
+  "species": "toothsome",
   "moveset": [
     {
       "level_learned": 1,
@@ -27,12 +27,23 @@
       "technique": "orbs"
     },
     {
+      "level_learned": 22,
+      "technique": "cavity"
+    },
+    {
       "level_learned": 40,
       "technique": "divinity_beam"
     }
   ],
   "evolutions": [],
-  "history": [],
+  "history": [
+    {
+      "slug": "gliffary",
+      "stage": "standalone",
+      "evolves_from": [],
+      "evolves_into": []
+    }
+  ],
   "terrains": [],
   "tags": [
     "mental",
@@ -43,14 +54,18 @@
   "shape": "sprite",
   "stage": "standalone",
   "types": [
-    "fire"
+    "cosmic"
   ],
-  "possible_genders": [
-    "neuter"
-  ],
+  "gender_weights": {
+    "neuter": 1.0
+  },
   "txmn_id": 315,
   "height": 50,
   "weight": 1.5,
+  "sounds": {
+    "combat_call": "sound_robot2",
+    "faint_call": "sound_robot2_faint"
+  },
   "catch_rate": 100.0,
   "lower_catch_resistance": 0.95,
   "upper_catch_resistance": 1.05

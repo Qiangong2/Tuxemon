@@ -3,6 +3,7 @@
 import logging
 import sys
 from pathlib import Path
+from typing import Optional
 
 from tuxemon.platform import get_system_storage_dirs, get_user_storage_dir
 
@@ -26,7 +27,14 @@ BASEDIR = Path(sys.path[0]).resolve()
 logger.debug(f"basedir: {BASEDIR}")
 
 # mods
-mods_folder = (LIBDIR.parent / "mods").resolve()
+# For cx_freeze builds, LIBDIR is in lib/tuxemon, so we need to go up two levels
+# For normal installs, LIBDIR is in tuxemon, so we go up one level
+if hasattr(sys, "frozen") and sys.frozen:
+    # cx_freeze build: exe.win-amd64-3.12\lib\tuxemon -> exe.win-amd64-3.12\mods
+    mods_folder = (LIBDIR.parent.parent / "mods").resolve()
+else:
+    # normal install: tuxemon -> mods
+    mods_folder = (LIBDIR.parent / "mods").resolve()
 logger.debug(f"mods: {mods_folder}")
 
 # mods subfolders
@@ -75,3 +83,57 @@ system_installed_folders = [
     path.resolve() for path in get_system_storage_dirs()
 ]
 logger.debug(f"system folders: {system_installed_folders}")
+
+
+# --- Methods ---
+
+
+def get_active_mod_paths() -> list[Path]:
+    """
+    Scans the mods folder and returns a list of paths to all active mod directories.
+    """
+    active_mod_paths = []
+    # Iterate through all subdirectories in the mods folder
+    for mod_dir in mods_folder.iterdir():
+        # Check if the entry is a directory and not a hidden or special folder
+        if mod_dir.is_dir() and not mod_dir.name.startswith((".", "__")):
+            active_mod_paths.append(mod_dir)
+    return active_mod_paths
+
+
+def get_plugin_paths(
+    base_path: Path, category: str, subfolder: Optional[str] = None
+) -> list[Path]:
+    """
+    Return a list of plugin directories from core and active mods for the given category and optional subfolder.
+    """
+    plugin_paths = [base_path]
+    for mod_path in get_active_mod_paths():
+        mod_plugin_path = mod_path / (subfolder or "") / category
+        if mod_plugin_path.is_dir():
+            plugin_paths.append(mod_plugin_path)
+    return plugin_paths
+
+
+def get_mod_name_from_path(file_path: Path) -> Optional[str]:
+    """
+    Extracts the mod name from a given file path.
+
+    The mod name is assumed to be the directory immediately following
+    the "mods" directory.
+    """
+    try:
+        mod_index = file_path.parts.index("mods")
+        if mod_index + 1 < len(file_path.parts):
+            return file_path.parts[mod_index + 1]
+        else:
+            logger.warning(f"Path ends after 'mods' folder: {file_path}")
+            return None
+    except ValueError:
+        logger.error(f"The path does not contain a 'mods' folder: {file_path}")
+        return None
+    except IndexError:
+        logger.error(
+            f"Path is too short to contain a mod name after 'mods': {file_path}"
+        )
+        return None

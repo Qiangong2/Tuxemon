@@ -1,6 +1,6 @@
 {
   "slug": "teddisun",
-  "category": "cute_teddy",
+  "species": "cute_teddy",
   "moveset": [
     {
       "level_learned": 1,
@@ -52,7 +52,14 @@
     }
   ],
   "evolutions": [],
-  "history": [],
+  "history": [
+    {
+      "slug": "teddisun",
+      "stage": "standalone",
+      "evolves_from": [],
+      "evolves_into": []
+    }
+  ],
   "terrains": [
     "mountains",
     "ruins"
@@ -66,15 +73,20 @@
   "shape": "humanoid",
   "stage": "standalone",
   "types": [
-    "fire"
+    "cosmic",
+    "normal"
   ],
-  "possible_genders": [
-    "male",
-    "female"
-  ],
+  "gender_weights": {
+    "male": 0.5,
+    "female": 0.5
+  },
   "txmn_id": 335,
   "height": 110,
   "weight": 60,
+  "sounds": {
+    "combat_call": "sound_whistle",
+    "faint_call": "sound_whistle"
+  },
   "catch_rate": 100.0,
   "lower_catch_resistance": 0.95,
   "upper_catch_resistance": 1.25

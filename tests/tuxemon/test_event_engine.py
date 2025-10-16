@@ -5,17 +5,17 @@ from unittest.mock import MagicMock
 
 from tuxemon.client import LocalPygameClient
 from tuxemon.event.eventaction import ActionManager
-from tuxemon.event.eventcondition import ConditionManager
 from tuxemon.event.eventengine import EventEngine
-from tuxemon.map_manager import MapManager
+from tuxemon.event.running import ConditionEvaluator
+from tuxemon.map.map_manager import MapManager
 from tuxemon.session import Session, local_session
 
 
 class TestEventEngine(unittest.TestCase):
     def setUp(self):
         action = MagicMock(spec=ActionManager)
-        condition = MagicMock(spec=ConditionManager)
-        self.eng = EventEngine(local_session, action, condition)
+        evaluator = MagicMock(spec=ConditionEvaluator)
+        self.eng = EventEngine(local_session, action, evaluator)
 
     def test_init(self):
         self.assertIsNone(self.eng.current_map)

@@ -13,10 +13,11 @@
   "power": 2.2,
   "range": "melee",
   "recharge": 2,
-  "sfx": "sfx_blaster",
+  "sfx": "sfx_kick",
   "slug": "saber",
   "sort": "damage",
   "modifiers": [],
+  "behaviors": {},
   "target": {
     "enemy_monster": true,
     "enemy_team": false,
@@ -31,7 +32,7 @@
     "steel"
   ],
   "types": [
-    "fire"
+    "metal"
   ],
   "use_failure": "combat_miss",
   "use_success": null,

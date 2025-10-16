@@ -17,10 +17,11 @@
   "power": 0.0,
   "range": "special",
   "recharge": 3,
-  "sfx": "sfx_blaster",
+  "sfx": "sfx_bounce",
   "slug": "diet",
   "sort": "damage",
   "modifiers": [],
+  "behaviors": {},
   "target": {
     "enemy_monster": false,
     "enemy_team": false,
@@ -29,13 +30,13 @@
     "own_team": false,
     "own_trainer": false
   },
-  "category": "animal",
+  "category": "condition_imposer",
   "tags": [
     "food",
     "soldier"
   ],
   "types": [
-    "aether"
+    "normal"
   ],
   "use_failure": "combat_miss",
   "use_success": null,

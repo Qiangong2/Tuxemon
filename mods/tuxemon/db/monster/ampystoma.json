@@ -1,6 +1,6 @@
 {
   "slug": "ampystoma",
-  "category": "lightning_salamander",
+  "species": "lightning_salamander",
   "moveset": [
     {
       "level_learned": 1,
@@ -58,8 +58,20 @@
   "evolutions": [],
   "history": [
     {
-      "mon_slug": "axolightl",
-      "evo_stage": "basic"
+      "slug": "ampystoma",
+      "stage": "stage1",
+      "evolves_from": [
+        "axolightl"
+      ],
+      "evolves_into": []
+    },
+    {
+      "slug": "axolightl",
+      "stage": "basic",
+      "evolves_from": [],
+      "evolves_into": [
+        "ampystoma"
+      ]
     }
   ],
   "terrains": [
@@ -70,20 +82,26 @@
     "light",
     "weather",
     "water",
-    "electricity"
+    "electricity",
+    "amphibian"
   ],
   "shape": "brute",
   "stage": "stage1",
   "types": [
+    "lightning",
     "water"
   ],
-  "possible_genders": [
-    "male",
-    "female"
-  ],
+  "gender_weights": {
+    "male": 0.5,
+    "female": 0.5
+  },
   "txmn_id": 280,
   "height": 180,
   "weight": 80,
+  "sounds": {
+    "combat_call": "sound_retro_beep_06",
+    "faint_call": "sound_retro_beep_06_faint"
+  },
   "catch_rate": 70.0,
   "lower_catch_resistance": 0.95,
   "upper_catch_resistance": 1.05

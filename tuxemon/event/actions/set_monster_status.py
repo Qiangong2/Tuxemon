@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import logging
-import uuid
 from dataclasses import dataclass
 from typing import Optional, final
+from uuid import UUID
 
 from tuxemon.event import get_monster_by_iid
 from tuxemon.event.eventaction import EventAction
@@ -32,7 +32,6 @@ class SetMonsterStatusAction(EventAction):
             variable is specified, all monsters get/lose status.
         status: Status to set. If no status is specified, the status is
             cleared.
-
     """
 
     name = "set_monster_status"
@@ -59,10 +58,10 @@ class SetMonsterStatusAction(EventAction):
             for mon in player.monsters:
                 self.set_status(mon, self.status, steps)
         else:
-            if self.variable not in player.game_variables:
+            if not player.game_variables.has(self.variable):
                 logger.error(f"Game variable {self.variable} not found")
                 return
-            monster_id = uuid.UUID(player.game_variables[self.variable])
+            monster_id = UUID(player.game_variables.get(self.variable))
             monster = get_monster_by_iid(session, monster_id)
             if monster is None:
                 logger.error("Monster not found")

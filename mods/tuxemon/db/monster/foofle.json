@@ -1,6 +1,6 @@
 {
   "slug": "foofle",
-  "category": "woolly",
+  "species": "woolly",
   "moveset": [
     {
       "level_learned": 1,
@@ -52,7 +52,14 @@
     }
   ],
   "evolutions": [],
-  "history": [],
+  "history": [
+    {
+      "slug": "foofle",
+      "stage": "standalone",
+      "evolves_from": [],
+      "evolves_into": []
+    }
+  ],
   "terrains": [],
   "tags": [
     "love"
@@ -60,15 +67,19 @@
   "shape": "varmint",
   "stage": "standalone",
   "types": [
-    "earth"
+    "normal"
   ],
-  "possible_genders": [
-    "male",
-    "female"
-  ],
+  "gender_weights": {
+    "male": 0.5,
+    "female": 0.5
+  },
   "txmn_id": 110,
   "height": 53,
   "weight": 8,
+  "sounds": {
+    "combat_call": "sound_monster_17",
+    "faint_call": "sound_monster_17_faint"
+  },
   "catch_rate": 100.0,
   "lower_catch_resistance": 0.95,
   "upper_catch_resistance": 1.05

@@ -24,10 +24,11 @@
   "power": 0,
   "range": "special",
   "recharge": 3,
-  "sfx": "sfx_blaster",
+  "sfx": "sfx_squeak",
   "slug": "clamp_on",
   "sort": "damage",
   "modifiers": [],
+  "behaviors": {},
   "target": {
     "enemy_monster": true,
     "enemy_team": false,
@@ -43,7 +44,7 @@
     "fury"
   ],
   "types": [
-    "aether"
+    "normal"
   ],
   "use_failure": "combat_miss",
   "use_success": null,

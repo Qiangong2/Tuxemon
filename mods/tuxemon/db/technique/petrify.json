@@ -12,15 +12,16 @@
     }
   ],
   "flip_axes": "",
-  "speed": "fast",
+  "speed": "very_fast",
   "potency": 1,
   "power": 0,
   "range": "special",
   "recharge": 2,
-  "sfx": "sfx_blaster",
+  "sfx": "sfx_crumble1",
   "slug": "petrify",
   "sort": "damage",
   "modifiers": [],
+  "behaviors": {},
   "target": {
     "enemy_monster": true,
     "enemy_team": false,
@@ -34,7 +35,7 @@
     "rock"
   ],
   "types": [
-    "aether"
+    "earth"
   ],
   "use_failure": "combat_miss",
   "use_success": null,

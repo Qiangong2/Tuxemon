@@ -19,15 +19,16 @@
     }
   ],
   "flip_axes": "x",
-  "speed": "fast",
+  "speed": "very_fast",
   "potency": 1,
   "power": 0,
   "range": "special",
   "recharge": 3,
-  "sfx": "sfx_forcefield",
+  "sfx": "sfx_pulse",
   "slug": "energy_field",
   "sort": "damage",
   "modifiers": [],
+  "behaviors": {},
   "target": {
     "enemy_monster": true,
     "enemy_team": false,
@@ -41,7 +42,7 @@
     "machine"
   ],
   "types": [
-    "aether"
+    "lightning"
   ],
   "use_failure": "combat_miss",
   "use_success": null,

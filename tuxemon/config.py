@@ -11,6 +11,7 @@ import yaml
 
 from tuxemon.animation import Animation
 from tuxemon.constants import paths
+from tuxemon.constants.dialog_speed import DIALOG_SPEED_PROFILES
 from tuxemon.platform.const import buttons, events
 
 Animation.default_transition = "out_quint"
@@ -86,6 +87,16 @@ class TuxemonConfig:
         self.skip_titlescreen: bool = game["skip_titlescreen"]
         self.compress_save: Optional[str] = game["compress_save"] or None
 
+        thin_font_file = game.get("thin_font_file")
+        if game["locale"] == "zh_CN":
+            thin_font_file = "SourceHanSerifCN-Bold.otf"
+        elif game["locale"] == "ja":
+            thin_font_file = "SourceHanSerifJP-Bold.otf"
+        else:
+            thin_font_file = "Pizel.ttf"
+
+        game["thin_font_file"] = thin_font_file
+
         # [gameplay]
         gameplay = self.config["gameplay"]
         self.items_consumed_on_failure: bool = gameplay[
@@ -95,9 +106,9 @@ class TuxemonConfig:
             "encounter_rate_modifier"
         ]
         self.dialog_speed: str = gameplay["dialog_speed"]
-        if self.dialog_speed not in ("slow", "max"):
+        if self.dialog_speed not in DIALOG_SPEED_PROFILES:
             raise ValueError(
-                "Invalid value for dialog_speed. Allowed: 'slow', 'max'"
+                f"Invalid value for dialog_speed. Allowed: {', '.join(DIALOG_SPEED_PROFILES.keys())}"
             )
         self.unit_measure: str = gameplay["unit_measure"]
         if self.unit_measure not in ("metric", "imperial"):
@@ -118,10 +129,16 @@ class TuxemonConfig:
             "combat_click_to_continue"
         ]
 
+        # [graphics]
+        graphics = self.config["graphics"]
+        self.dialog_box_style: str = graphics["dialog_box_style"]
+        self.menu_border: str = graphics["menu_border"]
+        self.menu_cursor: str = graphics["menu_cursor"]
+        self.menu_sound: str = graphics["menu_sound"]
+
         # [player]
         player = self.config["player"]
         self.player_animation_speed: float = player["animation_speed"]
-        self.player_npc: str = player["player_npc"]
         self.player_walkrate: float = player["player_walkrate"]
         self.player_runrate: float = player["player_runrate"]
 
@@ -136,6 +153,13 @@ class TuxemonConfig:
         self.load_config()
         self.input.config = self.config
         self.input.reload_input_map()
+
+        self.locale.slug = self.config["game"]["locale"]
+        self.locale.translation_mode = self.config["game"]["translation_mode"]
+        self.locale.font_file = self.config["game"]["language_font"]
+        self.locale.thin_font_file = self.config["game"].get(
+            "thin_font_file", "Pizel.ttf"
+        )
 
     def update_attribute(
         self, section: str, attribute: str, value: str
@@ -162,11 +186,16 @@ class TuxemonConfig:
         self.locale.slug = value
         if value == "zh_CN":
             self.locale.font_file = "SourceHanSerifCN-Bold.otf"
+            thin_font = "SourceHanSerifCN-Bold.otf"
         elif value == "ja":
             self.locale.font_file = "SourceHanSerifJP-Bold.otf"
+            thin_font = "SourceHanSerifJP-Bold.otf"
         else:
             self.locale.font_file = "PressStart2P.ttf"
+            thin_font = "Pizel.ttf"
+        self.locale.thin_font_file = thin_font
         self.config["game"]["language_font"] = self.locale.font_file
+        self.config["game"]["thin_font_file"] = thin_font
         self.save_config()
         self.reload_config()
 
@@ -184,6 +213,7 @@ class ControllerConfig:
         self.overlay: bool = display["controller_overlay"]
         self.transparency: int = display["controller_transparency"]
         self.hide_mouse: bool = display["hide_mouse"]
+        self.show_input_visualizer: bool = display["show_input_visualizer"]
 
 
 class LocaleConfig:
@@ -194,6 +224,7 @@ class LocaleConfig:
         self.slug: str = game["locale"]
         self.translation_mode: str = game["translation_mode"]
         self.font_file: str = game["font_file"]
+        self.thin_font_file: str = game.get("thin_font_file")
 
 
 class InputConfig:
@@ -295,6 +326,7 @@ def generate_default_config() -> dict[str, Any]:
             "controller_overlay": False,
             "controller_transparency": 45,
             "hide_mouse": True,
+            "show_input_visualizer": False,
         },
         "game": {
             "data": "tuxemon",
@@ -308,6 +340,7 @@ def generate_default_config() -> dict[str, Any]:
             "translation_mode": "none",
             "font_file": "PressStart2P.ttf",
             "language_font": "PressStart2P.ttf",
+            "thin_font_file": "Pizel.ttf",
         },
         "gameplay": {
             "items_consumed_on_failure": True,
@@ -319,9 +352,14 @@ def generate_default_config() -> dict[str, Any]:
             "music_volume": 0.5,
             "combat_click_to_continue": False,
         },
+        "graphics": {
+            "dialog_box_style": "default",
+            "menu_border": "gfx/borders/borders.png",
+            "menu_cursor": "gfx/arrow.png",
+            "menu_sound": "sound_menu_select",
+        },
         "player": {
             "animation_speed": 0.15,
-            "player_npc": "npc_red",
             "player_walkrate": 3.75,
             "player_runrate": 7.35,
         },

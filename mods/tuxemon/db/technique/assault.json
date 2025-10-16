@@ -13,10 +13,11 @@
   "power": 1.7,
   "range": "melee",
   "recharge": 2,
-  "sfx": "sfx_blaster",
+  "sfx": "sfx_kick",
   "slug": "assault",
   "sort": "damage",
   "modifiers": [],
+  "behaviors": {},
   "target": {
     "enemy_monster": true,
     "enemy_team": false,
@@ -31,8 +32,7 @@
     "fury"
   ],
   "types": [
-    "wood",
-    "earth"
+    "normal"
   ],
   "use_failure": "combat_miss",
   "use_success": null,

@@ -15,15 +15,16 @@
     }
   ],
   "flip_axes": "",
-  "speed": "normal",
+  "speed": "extremely_slow",
   "potency": 1,
   "power": 2.25,
   "range": "melee",
   "recharge": 2,
-  "sfx": "sfx_blaster",
+  "sfx": "sfx_sand",
   "slug": "mudslide",
   "sort": "damage",
   "modifiers": [],
+  "behaviors": {},
   "target": {
     "enemy_monster": true,
     "enemy_team": false,

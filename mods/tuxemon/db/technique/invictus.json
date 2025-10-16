@@ -22,15 +22,16 @@
     }
   ],
   "flip_axes": "xy",
-  "speed": "normal",
+  "speed": "slow",
   "potency": 1,
   "power": 1.25,
   "range": "touch",
   "recharge": 2,
-  "sfx": "sfx_blaster",
+  "sfx": "sfx_bite",
   "slug": "invictus",
   "sort": "damage",
   "modifiers": [],
+  "behaviors": {},
   "target": {
     "enemy_monster": true,
     "enemy_team": false,
@@ -47,8 +48,7 @@
     "fury"
   ],
   "types": [
-    "fire",
-    "wood"
+    "heroic"
   ],
   "use_failure": "combat_miss",
   "use_success": null,

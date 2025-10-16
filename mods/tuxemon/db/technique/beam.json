@@ -24,6 +24,7 @@
   "slug": "beam",
   "sort": "damage",
   "modifiers": [],
+  "behaviors": {},
   "target": {
     "enemy_monster": true,
     "enemy_team": false,
@@ -37,7 +38,7 @@
     "light"
   ],
   "types": [
-    "metal"
+    "heroic"
   ],
   "use_failure": "combat_miss",
   "use_success": null,

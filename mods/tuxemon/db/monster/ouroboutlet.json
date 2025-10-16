@@ -1,6 +1,6 @@
 {
   "slug": "ouroboutlet",
-  "category": "infinite_energy",
+  "species": "infinite_energy",
   "moveset": [
     {
       "level_learned": 1,
@@ -38,8 +38,21 @@
   "evolutions": [],
   "history": [
     {
-      "mon_slug": "pythwire",
-      "evo_stage": "basic"
+      "slug": "ouroboutlet",
+      "stage": "stage1",
+      "evolves_from": [
+        "pythwire"
+      ],
+      "evolves_into": []
+    },
+    {
+      "slug": "pythwire",
+      "stage": "basic",
+      "evolves_from": [],
+      "evolves_into": [
+        "ouroboutlet",
+        "sockeserp"
+      ]
     }
   ],
   "terrains": [
@@ -51,15 +64,19 @@
   "shape": "serpent",
   "stage": "stage1",
   "types": [
-    "metal",
-    "fire"
+    "lightning",
+    "metal"
   ],
-  "possible_genders": [
-    "neuter"
-  ],
+  "gender_weights": {
+    "neuter": 1.0
+  },
   "txmn_id": 90,
   "height": 62,
   "weight": 4,
+  "sounds": {
+    "combat_call": "sound_misc_07",
+    "faint_call": "sound_misc_07_faint"
+  },
   "catch_rate": 70.0,
   "lower_catch_resistance": 0.9,
   "upper_catch_resistance": 1.15

@@ -54,8 +54,8 @@ class SpawnMonsterAction(EventAction):
 
     def start(self, session: Session) -> None:
         player = session.player
-        mother_id = UUID(player.game_variables["breeding_mother"])
-        father_id = UUID(player.game_variables["breeding_father"])
+        mother_id = UUID(player.game_variables.get("breeding_mother"))
+        father_id = UUID(player.game_variables.get("breeding_father"))
 
         mother = get_monster_by_iid(
             session, mother_id
@@ -81,14 +81,13 @@ class SpawnMonsterAction(EventAction):
         # Get the basic form of the seed monster
         seed_slug = seed.slug
         if seed.history:
-            seed_slug = next(
-                (
-                    element.mon_slug
-                    for element in seed.history
-                    if element.evo_stage.basic
-                ),
-                seed_slug,
-            )
+            basic_forms = [
+                element.slug
+                for element in seed.history
+                if element.stage == EvolutionStage.basic
+            ]
+            if basic_forms:
+                seed_slug = random.choice(basic_forms)
 
         level = (father.level + mother.level) // 2
 
@@ -113,6 +112,8 @@ class SpawnMonsterAction(EventAction):
             f"Taste inherited from parents: warm='{taste_warm}', cold='{taste_cold}'"
         )
         child.set_stats()
+        child.mother_iid = mother_id
+        child.father_iid = father_id
 
         # Add the child to the character's monsters
         character = get_npc(session, self.character)

@@ -13,6 +13,8 @@ import logging
 import typing
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import fields
+from enum import Enum
+from functools import lru_cache
 from operator import add, eq, floordiv, ge, gt, le, lt, mul, ne, sub
 from typing import (
     TYPE_CHECKING,
@@ -26,10 +28,12 @@ from typing import (
 
 from tuxemon import prepare
 from tuxemon.compat.rect import ReadOnlyRect
+from tuxemon.constants.asset_loader import fetch_asset
 from tuxemon.db import Comparison
 from tuxemon.locale import T
 from tuxemon.math import Vector2
 from tuxemon.ui.dialogue import calc_dialog_rect
+from tuxemon.ui.text_alignment import DialogPosition
 from tuxemon.ui.text_formatter import TextFormatter
 
 if TYPE_CHECKING:
@@ -39,8 +43,8 @@ if TYPE_CHECKING:
     from tuxemon.item.item import Item
     from tuxemon.session import Session
     from tuxemon.sprite import Sprite
-    from tuxemon.state import State
-    from tuxemon.states.choice.choice_state import MenuStateConfig
+    from tuxemon.state.state import State
+    from tuxemon.states.choice_state import MenuStateConfig
     from tuxemon.technique.technique import Technique
     from tuxemon.ui.menu_options import MenuOptions
 
@@ -101,7 +105,7 @@ def transform_resource_filename(*filename: str) -> str:
     Returns:
         The absolute path of the resource.
     """
-    return prepare.fetch(*filename)
+    return fetch_asset(*filename)
 
 
 def get_screen_rect(sprite: Sprite, internal_rect: Rect) -> Rect:
@@ -144,6 +148,32 @@ def scale(number: int) -> int:
     return prepare.SCALE * number
 
 
+TEnum = TypeVar("TEnum", bound=Enum)
+
+
+def safe_enum_value(
+    enum_class: type[TEnum],
+    value: Optional[str],
+    default: TEnum,
+    raise_on_error: bool = False,
+) -> TEnum:
+    """
+    Attempts to convert a string to an enum member.
+    Raises or falls back to default on failure.
+    """
+    try:
+        return enum_class(value)
+    except (ValueError, TypeError) as e:
+        if raise_on_error:
+            raise ValueError(
+                f"Invalid value for {enum_class.__name__}: {value!r}"
+            ) from e
+        logger.warning(
+            f"Invalid value for {enum_class.__name__}: {value!r}, using default: {default}"
+        )
+        return default
+
+
 def fix_measure(measure: int, percentage: float) -> int:
     """it returns the correct measure based on percentage"""
     return round(measure * percentage)
@@ -154,9 +184,10 @@ def open_dialog(
     text: Sequence[str],
     avatar: Optional[Sprite] = None,
     box_style: Optional[dict[str, Any]] = None,
-    position: str = "bottom",
+    position: DialogPosition = DialogPosition.BOTTOM,
     target_coords: Optional[Union[tuple[int, int], Rect]] = None,
     custom_rect: Optional[Rect] = None,
+    on_complete: Optional[Callable[[], None]] = None,
 ) -> State:
     """
     Open a dialog with the standard window size or a custom size/position.
@@ -186,7 +217,7 @@ def open_dialog(
         dialog_rect = custom_rect
     else:
         dialog_rect = calc_dialog_rect(
-            client.screen.get_rect(), position, target_coords=target_coords
+            prepare.SCREEN_RECT, position, target_coords=target_coords
         )
 
     return client.push_state(
@@ -195,6 +226,7 @@ def open_dialog(
         avatar=avatar,
         rect=dialog_rect,
         box_style=box_style,
+        on_complete=on_complete,
     )
 
 
@@ -334,21 +366,29 @@ def get_types_tuple(
         return (param_type,)
 
 
+@lru_cache(maxsize=None)
+def get_cached_type_info(cls: type) -> dict[str, tuple[type, ...]]:
+    type_hints = typing.get_type_hints(cls)
+    return {
+        field.name: tuple(
+            t
+            for t in get_types_tuple(type_hints[field.name])
+            if isinstance(t, type)
+        )
+        for field in fields(cls)
+        if field.init
+    }
+
+
 def cast_dataclass_parameters(self: Any) -> None:
     """
     Takes a dataclass object and casts its __init__ values to the correct type
     """
-    type_hints = typing.get_type_hints(self.__class__)
-    for field in fields(self):
-        if field.init:
-            field_name = field.name  # e.g "map_name"
-            type_hint = type_hints[field_name]  # e.g. Optional[str]
-            constructors = get_types_tuple(
-                type_hint
-            )  # e.g. (<class 'str'>, <class 'NoneType'>)
-            old_value = getattr(self, field_name)
-            new_value = cast_value(((constructors, field_name), old_value))
-            setattr(self, field_name, new_value)
+    field_info = get_cached_type_info(self.__class__)
+    for field_name, constructors in field_info.items():
+        old_value = getattr(self, field_name)
+        new_value = cast_value(((constructors, field_name), old_value))
+        setattr(self, field_name, new_value)
 
 
 def show_result_as_dialog(
@@ -454,3 +494,42 @@ def compare(
         return bool(ne(value1, value2))
     else:
         raise ValueError(f"{key} isn't among {list(Comparison)}")
+
+
+def parse_flag(value: Optional[str]) -> bool:
+    """
+    Convert a string flag to a boolean.
+
+    Accepted truthy values: "true", "1", "yes" (case-insensitive).
+    All other values (including None) return False.
+    """
+    return str(value or "").strip().lower() in {"true", "1", "yes"}
+
+
+def check_condition(value: str, dataset: set[str]) -> bool:
+    """
+    Check if a condition is satisfied against a set of values.
+
+    - If the input starts with '!', it asserts that the value is NOT in the dataset.
+    - Otherwise, it asserts that the value IS in the dataset.
+    """
+    value = value.strip().lower()
+    if not value:
+        logging.debug("Empty condition skipped.")
+        return False
+
+    if value.startswith("!"):
+        result = value[1:] not in dataset
+        logging.debug(f"Checking NOT '{value[1:]}' in {dataset}: {result}")
+        return result
+
+    result = value in dataset
+    logging.debug(f"Checking '{value}' in {dataset}: {result}")
+    return result
+
+
+def format_playtime(seconds: float) -> str:
+    """Convert seconds into a human-readable hours and minutes format."""
+    minutes, sec = divmod(int(seconds), 60)
+    hours, min = divmod(minutes, 60)
+    return f"{hours}h {min}m"

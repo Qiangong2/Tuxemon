@@ -55,7 +55,7 @@ msgid "super_potion"
 msgstr "Super Poción"
 
 msgid "super_potion_description"
-msgstr "Cura a un monstruo 150 HP."
+msgstr "Cura a un monstruo 100 HP."
 
 # Imperial Potion
 msgid "imperial_potion"
@@ -166,7 +166,7 @@ msgid "combat_state_recover_success"
 msgstr "¡{user} recuperó salud!"
 
 msgid "combat_state_recover_failure"
-msgstr "{user} no puede curarse más."
+msgstr "{target} no puede curarse más."
 
 msgid "combat_status_damage"
 msgstr "¡{name} sufrió {status} de daño!"
@@ -1720,9 +1720,6 @@ msgstr "Lo siento, pero he de irme ya."
 
 msgid "omnichannelarrives"
 msgstr "¡DETENTE!"
-
-msgid "omnichannelarrives2"
-msgstr "<<MISSING>>"
 
 msgid "yesmaam"
 msgstr "Sí, señora."

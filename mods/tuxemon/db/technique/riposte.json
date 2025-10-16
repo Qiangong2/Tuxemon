@@ -12,15 +12,16 @@
     }
   ],
   "flip_axes": "",
-  "speed": "fast",
+  "speed": "extremely_fast",
   "potency": 1,
   "power": 0,
   "range": "special",
   "recharge": 1,
-  "sfx": "sfx_blaster",
+  "sfx": "sfx_kick",
   "slug": "riposte",
   "sort": "meta",
   "modifiers": [],
+  "behaviors": {},
   "target": {
     "enemy_monster": false,
     "enemy_team": false,
@@ -36,7 +37,7 @@
     "shielded"
   ],
   "types": [
-    "fire"
+    "normal"
   ],
   "use_failure": "combat_miss",
   "use_success": null,

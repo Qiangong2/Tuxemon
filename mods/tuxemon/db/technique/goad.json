@@ -15,15 +15,16 @@
     }
   ],
   "flip_axes": "",
-  "speed": "fast",
+  "speed": "very_fast",
   "potency": 0.8,
   "power": 1.75,
   "range": "melee",
   "recharge": 2,
-  "sfx": "sfx_blaster",
+  "sfx": "sfx_kick",
   "slug": "goad",
   "sort": "damage",
   "modifiers": [],
+  "behaviors": {},
   "target": {
     "enemy_monster": true,
     "enemy_team": false,
@@ -38,7 +39,7 @@
     "shielded"
   ],
   "types": [
-    "water"
+    "normal"
   ],
   "use_failure": "combat_miss",
   "use_success": null,

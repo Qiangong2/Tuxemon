@@ -55,7 +55,7 @@ msgid "super_potion"
 msgstr "Superpoción"
 
 msgid "super_potion_description"
-msgstr "Sana a un monstruo en 150 HP."
+msgstr "Sana a un monstruo en 100 HP."
 
 # Imperial Potion
 msgid "imperial_potion"
@@ -1509,7 +1509,7 @@ msgid "combat_state_recover_success"
 msgstr "¡{user} recuperó la salud!"
 
 msgid "combat_state_recover_failure"
-msgstr "{user} no puede sanar más."
+msgstr "{target} no puede sanar más."
 
 msgid "combat_state_lifeleech_success"
 msgstr "¡{user} perdió salud por absorbe-vidas!"

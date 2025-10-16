@@ -70,13 +70,12 @@ jobs:
           if_false: 'latest'
 
       - name: Update GitHub release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           prerelease: ${{ env.IS_RELEASE == 'false' }}
           name: ${{ steps.release_title.outputs.value }}
           tag_name: ${{ steps.release_tag.outputs.value }}
-          # TODO: Add windows artifact again when #1229 is fixed
-          # **/artifacts/tuxemon_windows_installer/*.exe
           files: |
+            **/artifacts/tuxemon_windows_installer/*.exe
             **/Tuxemon-x86_64/Tuxemon.flatpak

@@ -1,6 +1,6 @@
 {
   "slug": "pairagrim",
-  "category": "bird",
+  "species": "bird",
   "moveset": [
     {
       "level_learned": 1,
@@ -46,8 +46,20 @@
   "evolutions": [],
   "history": [
     {
-      "mon_slug": "pairagrin",
-      "evo_stage": "basic"
+      "slug": "pairagrim",
+      "stage": "stage1",
+      "evolves_from": [
+        "pairagrin"
+      ],
+      "evolves_into": []
+    },
+    {
+      "slug": "pairagrin",
+      "stage": "basic",
+      "evolves_from": [],
+      "evolves_into": [
+        "pairagrim"
+      ]
     }
   ],
   "terrains": [],
@@ -57,15 +69,19 @@
   "shape": "flier",
   "stage": "stage1",
   "types": [
-    "wood"
+    "sky"
   ],
-  "possible_genders": [
-    "male",
-    "female"
-  ],
+  "gender_weights": {
+    "male": 0.5,
+    "female": 0.5
+  },
   "txmn_id": 182,
   "height": 110,
   "weight": 10,
+  "sounds": {
+    "combat_call": "sound_woosh_2",
+    "faint_call": "sound_woosh_2_faint"
+  },
   "catch_rate": 70.0,
   "lower_catch_resistance": 0.95,
   "upper_catch_resistance": 1.05

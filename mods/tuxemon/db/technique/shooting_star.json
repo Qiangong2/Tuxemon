@@ -19,10 +19,11 @@
   "power": 0,
   "range": "special",
   "recharge": 2,
-  "sfx": "sfx_blaster",
+  "sfx": "sfx_shine",
   "slug": "shooting_star",
   "sort": "damage",
   "modifiers": [],
+  "behaviors": {},
   "target": {
     "enemy_monster": false,
     "enemy_team": false,
@@ -38,7 +39,7 @@
     "darkness"
   ],
   "types": [
-    "aether"
+    "cosmic"
   ],
   "use_failure": "shooting_star_fail",
   "use_success": null,

@@ -15,7 +15,7 @@
     }
   ],
   "flip_axes": "",
-  "speed": "normal",
+  "speed": "slow",
   "potency": 1,
   "power": 1.25,
   "range": "ranged",
@@ -24,6 +24,7 @@
   "slug": "biting_winds",
   "sort": "damage",
   "modifiers": [],
+  "behaviors": {},
   "target": {
     "enemy_monster": true,
     "enemy_team": false,
@@ -37,8 +38,7 @@
     "weather"
   ],
   "types": [
-    "earth",
-    "water"
+    "sky"
   ],
   "use_failure": "combat_miss",
   "use_success": null,

@@ -13,10 +13,11 @@
   "power": 2.5,
   "range": "melee",
   "recharge": 4,
-  "sfx": "sfx_blaster",
+  "sfx": "sfx_flames1",
   "slug": "pyrokinesis",
   "sort": "damage",
   "modifiers": [],
+  "behaviors": {},
   "target": {
     "enemy_monster": true,
     "enemy_team": false,
@@ -31,7 +32,8 @@
     "mental"
   ],
   "types": [
-    "fire"
+    "fire",
+    "cosmic"
   ],
   "use_failure": "combat_miss",
   "use_success": null,

@@ -21,10 +21,11 @@
   "power": 0,
   "range": "special",
   "recharge": 2,
-  "sfx": "sfx_bubbles",
+  "sfx": "sfx_shine",
   "slug": "life_surge",
   "sort": "damage",
   "modifiers": [],
+  "behaviors": {},
   "target": {
     "enemy_monster": true,
     "enemy_team": false,
@@ -38,7 +39,7 @@
     "healing"
   ],
   "types": [
-    "aether"
+    "normal"
   ],
   "use_failure": "combat_miss",
   "use_success": null,

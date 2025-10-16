@@ -31,6 +31,7 @@
   "slug": "fester",
   "sort": "damage",
   "modifiers": [],
+  "behaviors": {},
   "target": {
     "enemy_monster": true,
     "enemy_team": true,
@@ -44,8 +45,7 @@
     "toxic"
   ],
   "types": [
-    "earth",
-    "wood"
+    "venom"
   ],
   "use_failure": "combat_miss",
   "use_success": null,
