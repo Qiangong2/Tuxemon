@@ -1,12 +1,12 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Optional, final
 
-from tuxemon.db import SeenStatus, db
-from tuxemon.event import get_npc
+from tuxemon.database.runtime import db
+from tuxemon.db import SeenStatus
 from tuxemon.event.eventaction import EventAction
 from tuxemon.monster import Monster
 from tuxemon.session import Session
@@ -44,7 +44,7 @@ class AddMonsterAction(EventAction):
     def start(self, session: Session) -> None:
         player = session.player
         self.npc_slug = self.npc_slug or "player"
-        trainer = get_npc(session, self.npc_slug)
+        trainer = session.get_npc(self.npc_slug)
         if not trainer:
             raise ValueError(f"NPC '{self.npc_slug}' not found")
 
@@ -62,7 +62,7 @@ class AddMonsterAction(EventAction):
         monster.set_capture(today_ordinal())
 
         if self.exp is not None:
-            monster.experience_modifier = self.exp
+            monster.set_experience_modifier(self.exp)
         if self.money is not None:
             monster.money_modifier = self.money
 

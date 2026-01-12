@@ -4,11 +4,16 @@
   "moveset": [
     {
       "level_learned": 1,
+      "technique": "struggle",
+      "learning_method": "fallback"
+    },
+    {
+      "level_learned": 1,
       "technique": "goad"
     },
     {
       "level_learned": 1,
-      "technique": "flood"
+      "technique": "snowball"
     },
     {
       "level_learned": 4,
@@ -16,7 +21,7 @@
     },
     {
       "level_learned": 7,
-      "technique": "grinding"
+      "technique": "lock_horns"
     },
     {
       "level_learned": 13,
@@ -28,7 +33,7 @@
     },
     {
       "level_learned": 19,
-      "technique": "font"
+      "technique": "horn"
     },
     {
       "level_learned": 25,
@@ -86,8 +91,14 @@
   "height": 180,
   "weight": 102,
   "sounds": {
-    "combat_call": "sound_whistle",
-    "faint_call": "sound_whistle"
+    "combat_call": {
+      "sfx": "sound_whistle",
+      "volume": 1.5
+    },
+    "faint_call": {
+      "sfx": "sound_whistle_faint",
+      "volume": 1.5
+    }
   },
   "catch_rate": 70.0,
   "lower_catch_resistance": 0.95,

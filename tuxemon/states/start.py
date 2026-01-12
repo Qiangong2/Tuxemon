@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 """This module contains the Start state."""
 from __future__ import annotations
 
@@ -12,13 +12,14 @@ import pygame_menu
 from pygame.surface import Surface
 from pygame_menu import locals
 
-from tuxemon import prepare
-from tuxemon.db import db
+from tuxemon.database.runtime import db
 from tuxemon.launcher import GameLauncher
 from tuxemon.locale import T
 from tuxemon.menu.menu import PygameMenuState
 from tuxemon.platform.const import buttons
+from tuxemon.platform.const.graphics import BG_START_SCREEN, BLACK_COLOR
 from tuxemon.platform.events import PlayerInput
+from tuxemon.prepare import SCREEN_SIZE
 from tuxemon.save import get_index_of_latest_save
 from tuxemon.session import local_session
 from tuxemon.state.state import State
@@ -41,7 +42,7 @@ class BackgroundState(State):
     name: ClassVar[str] = "BackgroundState"
 
     def draw(self, surface: Surface) -> None:
-        surface.fill(prepare.BLACK_COLOR)
+        surface.fill(BLACK_COLOR)
 
 
 class StartState(PygameMenuState):
@@ -55,25 +56,27 @@ class StartState(PygameMenuState):
     ) -> None:
         # If there is a save, then move the cursor to "Load game" first
         index = get_index_of_latest_save()
-        config = prepare.CONFIG
 
         def new_game() -> None:
             launcher = GameLauncher(self.client)
             launcher.launch(
                 session=local_session,
-                meta=db.mod_metadata.get_mod_metadata(config.mods[0]),
+                meta=db.mod_metadata.get_mod_metadata(
+                    self.client.config.mods[0]
+                ),
                 remove_states=["StartState"],
             )
 
         def change_state(
-            state: Union[State, str],
-            **change_state_kwargs: Any,
-        ) -> Callable[[], State]:
-            return partial(
-                self.client.push_state,
-                state,
-                **change_state_kwargs,
-            )
+            state: Union[State, str], **kwargs: Any
+        ) -> Callable[[], None]:
+            def _change() -> None:
+                self.unsubscribe(
+                    "afk.threshold_reached", self._on_afk_threshold
+                )
+                self.client.push_state(state, **kwargs)
+
+            return _change
 
         def exit_game() -> None:
             self.client.quit()
@@ -85,7 +88,7 @@ class StartState(PygameMenuState):
                 font_size=self.font_type.big,
                 button_id="menu_load",
             )
-        if len(config.mods) == 1:
+        if len(self.client.config.mods) == 1:
             menu.add.button(
                 title=T.translate("menu_new_game"),
                 action=new_game,
@@ -95,10 +98,18 @@ class StartState(PygameMenuState):
         else:
             menu.add.button(
                 title=T.translate("menu_new_game"),
-                action=change_state("ModsChoice", mods=config.mods),
+                action=change_state(
+                    "ModsChoice", mods=self.client.config.mods
+                ),
                 font_size=self.font_type.big,
                 button_id="menu_mod_choice",
             )
+        menu.add.button(
+            title=T.translate("menu_battle"),
+            action=change_state("DifficultyBattleState"),
+            font_size=self.font_type.big,
+            button_id="menu_battle",
+        )
         menu.add.button(
             title=T.translate("menu_minigame"),
             action=change_state("DifficultySelectState"),
@@ -119,16 +130,27 @@ class StartState(PygameMenuState):
         )
 
     def __init__(self) -> None:
-        width, height = prepare.SCREEN_SIZE
+        width, height = SCREEN_SIZE
 
-        theme = self._setup_theme(prepare.BG_START_SCREEN)
+        theme = self._setup_theme(BG_START_SCREEN)
         theme.scrollarea_position = locals.POSITION_EAST
         theme.widget_alignment = locals.ALIGN_CENTER
 
         super().__init__(height=height, width=width)
-
+        self.client.afk_manager.add_threshold("IntroState", 15.0)
+        self.event_bus.subscribe(
+            "afk.threshold_reached", self._on_afk_threshold, priority=10
+        )
         self.add_menu_items(self.menu)
         self.reset_theme()
+
+    def _on_afk_threshold(self, level: str) -> None:
+        if level == "IntroState":
+            self.client.replace_state("IntroState")
+
+    def shutdown(self) -> None:
+        self.unsubscribe("afk.threshold_reached", self._on_afk_threshold)
+        super().shutdown()
 
     def process_event(self, event: PlayerInput) -> Optional[PlayerInput]:
         if (
@@ -168,9 +190,9 @@ class ModsChoice(PygameMenuState):
 
     def __init__(self, mods: list[str]) -> None:
         self.mods = mods
-        width, height = prepare.SCREEN_SIZE
+        width, height = SCREEN_SIZE
 
-        theme = self._setup_theme(prepare.BG_START_SCREEN)
+        theme = self._setup_theme(BG_START_SCREEN)
         theme.scrollarea_position = locals.POSITION_EAST
         theme.widget_alignment = locals.ALIGN_CENTER
 

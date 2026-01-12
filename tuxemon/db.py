@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 import logging
@@ -28,25 +28,14 @@ from pydantic import (
     model_validator,
 )
 
-from tuxemon import prepare
-from tuxemon.constants.asset_loader import (
-    fetch_asset,
-    fetch_mod_asset_roots,
-)
-from tuxemon.constants.paths import mods_folder
 from tuxemon.database.config import EntryNotFoundError
 from tuxemon.database.data import ModData
-from tuxemon.database.loader import ModelLoader
-from tuxemon.database.utils import load_config
-from tuxemon.database.validator import Validator
+from tuxemon.database.registry import validator as has
 from tuxemon.formula import config_monster
-from tuxemon.locale import T
+from tuxemon.platform.const import sizes
 from tuxemon.surfanim import FlipAxes
 
 logger = logging.getLogger(__name__)
-
-# Load the default translator for data validation
-T.initialize_translations()
 
 
 class Direction(str, Enum):
@@ -61,7 +50,6 @@ class Orientation(str, Enum):
     vertical = "vertical"
 
 
-# ItemSort defines the sort of item an item is.
 class ItemSort(str, Enum):
     potion = "potion"
     utility = "utility"
@@ -71,6 +59,8 @@ class ItemSort(str, Enum):
 class PlagueType(str, Enum):
     inoculated = "inoculated"
     infected = "infected"
+    carrier = "carrier"
+    recovered = "recovered"
 
 
 class GenderType(str, Enum):
@@ -85,6 +75,14 @@ class SkinSprite(str, Enum):
     dark = "dark"
     albino = "albino"
     orc = "orc"
+
+
+class ItemRarity(str, Enum):
+    COMMON = "common"
+    UNCOMMON = "uncommon"
+    RARE = "rare"
+    EPIC = "epic"
+    LEGENDARY = "legendary"
 
 
 class ItemCategory(str, Enum):
@@ -163,6 +161,23 @@ class TargetType(str, Enum):
     own_trainer = "own_trainer"
 
 
+class Temperature(str, Enum):
+    freezing = "freezing"
+    cold = "cold"
+    mild = "mild"
+    warm = "warm"
+    hot = "hot"
+    scorching = "scorching"
+
+
+class Wind(str, Enum):
+    calm = "calm"
+    breezy = "breezy"
+    windy = "windy"
+    gusty = "gusty"
+    stormy = "stormy"
+
+
 class EffectPhase(Enum):
     CHECK_PARTY_HP = "check_party_hp"
     DEFAULT = "default"
@@ -176,6 +191,7 @@ class EffectPhase(Enum):
     PERFORM_TECH = "perform_tech"
     PRE_CHECKING = "pre_checking"
     SWAP_MONSTER = "swap_monster"
+    ON_STEP_INTERVAL = "on_step_interval"
 
 
 class Acquisition(str, Enum):
@@ -187,6 +203,18 @@ class Acquisition(str, Enum):
     PURCHASED = "purchased"
     RESCUED = "rescued"
     CREATED = "created"
+
+
+class ExperienceMethod(Enum):
+    DEFAULT = "default"
+    XP_EQUAL = "xp_equal"
+    XP_TRANSMITTER = "xp_transmitter"
+    XP_FEEDER = "xp_feeder"
+    XP_OVERKILL = "xp_overkill"
+    XP_DAMAGE_PROP = "xp_damage_prop"
+    XP_BOND = "xp_bond"
+    XP_STAGE = "xp_stage"
+    XP_SURVIVOR = "xp_survivor"
 
 
 # TODO: Automatically generate state enum through discovery
@@ -219,24 +247,110 @@ class ColorModel(BaseModel):
     alpha: int = Field(255, ge=0, le=255)
 
 
-class CommonCondition(BaseModel):
-    type: str = Field(..., description="The name of the condition")
-    parameters: Sequence[str] = Field(
-        [], description="The parameters that must be met"
+class BoundingBox(BaseModel):
+    x: int = Field(
+        ...,
+        description="The X-coordinate of the top-left corner of the bounding box.",
     )
-    operator: str = Field(..., description="The operator 'is' or 'not'.")
+    y: int = Field(
+        ...,
+        description="The Y-coordinate of the top-left corner of the bounding box.",
+    )
+    width: int = Field(
+        ...,
+        description="The horizontal size of the bounding box. Must be a positive integer.",
+        gt=0,
+    )
+    height: int = Field(
+        ...,
+        description="The vertical size of the bounding box. Must be a positive integer.",
+        gt=0,
+    )
 
-    @field_validator("operator")
-    def operator_must_be_is_or_not(cls: CommonCondition, v: str) -> str:
-        if v not in ["is", "not"]:
-            raise ValueError('operator must be either "is" or "not"')
-        return v
+
+class Operator(str, Enum):
+    IS = "is"
+    NOT = "not"
 
 
-class CommonEffect(BaseModel):
-    type: str = Field(..., description="The name of the condition")
+class ParameterizableRule(BaseModel):
+    """
+    Base model for any component (condition or action) that requires type,
+    parameters, and an optional name.
+    """
+
+    type: str = Field(
+        ..., description="The functional type or command of the rule."
+    )
     parameters: Sequence[str] = Field(
-        [], description="The parameters that must be met"
+        default_factory=list,
+        description="A list of string arguments for the rule type.",
+    )
+    name: str = Field(
+        "unnamed_rule",
+        description="User-defined name or identifier for the rule.",
+    )
+
+
+class LogicCondition(ParameterizableRule):
+    """The generic, non-spatial condition model with operator validation."""
+
+    operator: Operator = Field(
+        ..., description="Logical operator: 'is' or 'not'"
+    )
+
+
+class SpatialCondition(LogicCondition):
+    """Represents a condition that inherits generic logic and adds a spatial component."""
+
+    box: BoundingBox = Field(
+        ..., description="The spatial bounding box for this condition."
+    )
+
+
+class Behavior(BaseModel):
+    type: str = Field(..., description="Behavior type identifier.")
+    args: Sequence[str] = Field(default_factory=list)
+    name: str = Field("unnamed_behavior")
+
+
+class EventObject(BaseModel):
+    """The main container entity for a game/map event."""
+
+    id: int = Field(
+        ...,
+        description="The unique, optional database ID of the event object.",
+    )
+    name: str = Field(
+        ..., description="The displayed, human-readable name of the event."
+    )
+    priority: int = Field(
+        ...,
+        description="Order of evaluation relative to other EventObjects. Higher number (e.g., 10) is higher priority.",
+        ge=0,
+    )
+    timeout: float | None = Field(
+        None,
+        description="Maximum duration (in seconds) this event is allowed to run. None = no timeout.",
+    )
+    delay: float | None = Field(
+        None,
+        description="Delay before the event starts processing (in seconds). None = no delay.",
+    )
+    box: BoundingBox = Field(
+        ..., description="The spatial bounding box of the event."
+    )
+    conds: Sequence[SpatialCondition] = Field(
+        default_factory=list,
+        description="A sequence of conditions (spatial or logic) that must all be met to trigger the actions.",
+    )
+    acts: Sequence[ParameterizableRule] = Field(
+        default_factory=list,
+        description="A sequence of actions/effects to execute when conditions are met.",
+    )
+    behavs: Sequence[Behavior] = Field(
+        default_factory=list,
+        description="Behavior definitions attached to this event.",
     )
 
 
@@ -245,7 +359,7 @@ class BaseComparison(BaseModel):
         ...,
         description="The type of comparison to perform (e.g., greater_than, equal_to).",
     )
-    target_value: Optional[int] = Field(
+    target_value: int | None = Field(
         None,
         description="An optional fixed numeric value to compare against (e.g., stat must be greater than 50).",
     )
@@ -256,7 +370,7 @@ class StatsComparison(BaseComparison):
         ...,
         description="The primary stat being evaluated for the evolution condition (e.g., speed, defense).",
     )
-    target_stat: Optional[StatType] = Field(
+    target_stat: StatType | None = Field(
         None,
         description="An optional secondary stat to compare against the primary stat (e.g., compare speed to defense).",
     )
@@ -272,19 +386,19 @@ class BondComparison(BaseComparison):
 
 
 class PartyConditionsModel(BaseModel):
-    monster_slugs: Optional[dict[str, int]] = Field(
+    monster_slugs: dict[str, int] | None = Field(
         None,
         description="A dictionary specifying required monsters and their minimum counts by slug.",
     )
-    monster_types: Optional[dict[str, int]] = Field(
+    monster_types: dict[str, int] | None = Field(
         None,
         description="A dictionary specifying required monster types and their minimum counts.",
     )
-    genders: Optional[dict[GenderType, int]] = Field(
+    genders: dict[GenderType, int] | None = Field(
         None,
         description="A dictionary specifying required genders and their minimum counts.",
     )
-    alignment: Optional[str] = Field(
+    alignment: str | None = Field(
         None,
         description="The elemental alignment the party must lean toward for evolution to occur.",
     )
@@ -299,9 +413,9 @@ class PartyConditionsModel(BaseModel):
                     raise ValueError(
                         f"Monster slug '{slug}' does not exist in the database."
                     )
-                if not (0 <= count < prepare.PARTY_LIMIT):
+                if not (0 <= count < sizes.PARTY_LIMIT):
                     raise ValueError(
-                        f"Count for monster slug '{slug}' must be between 0 and {prepare.PARTY_LIMIT - 1}."
+                        f"Count for monster slug '{slug}' must be between 0 and {sizes.PARTY_LIMIT - 1}."
                     )
         return v
 
@@ -311,9 +425,9 @@ class PartyConditionsModel(BaseModel):
     ) -> Optional[dict[str, int]]:
         if v:
             for type_, count in v.items():
-                if not (0 <= count < prepare.PARTY_LIMIT):
+                if not (0 <= count < sizes.PARTY_LIMIT):
                     raise ValueError(
-                        f"Count for monster type '{type_}' must be between 0 and {prepare.PARTY_LIMIT - 1}."
+                        f"Count for monster type '{type_}' must be between 0 and {sizes.PARTY_LIMIT - 1}."
                     )
         return v
 
@@ -323,9 +437,9 @@ class PartyConditionsModel(BaseModel):
     ) -> Optional[dict[GenderType, int]]:
         if v:
             for gender, count in v.items():
-                if not (0 <= count < prepare.PARTY_LIMIT):
+                if not (0 <= count < sizes.PARTY_LIMIT):
                     raise ValueError(
-                        f"Count for gender '{gender}' must be between 0 and {prepare.PARTY_LIMIT - 1}."
+                        f"Count for gender '{gender}' must be between 0 and {sizes.PARTY_LIMIT - 1}."
                     )
         return v
 
@@ -342,6 +456,19 @@ class Behaviors(BaseModel):
     show_dialog_on_failure: bool = Field(
         True, description="Whether to show a dialogue after a failed use."
     )
+
+
+class MenuAction(BaseModel):
+    key: str = Field(..., description="Internal action slug/key.")
+    display_text: str = Field(
+        ..., description="Translation key for the menu label."
+    )
+
+    @field_validator("display_text")
+    def translation_exists(cls, v: str) -> str:
+        if has.translation(v):
+            return v
+        raise ValueError(f"no translation exists with msgid: {v}")
 
 
 class ItemBehaviors(Behaviors):
@@ -373,6 +500,83 @@ class TechBehaviors(Behaviors):
         False,
         description="Whether this technique can be used in the overworld.",
     )
+    bypasses_selection: bool = Field(
+        False,
+        description="Whether this technique skips target selection and applies directly to the user's monster.",
+    )
+
+
+class StatusBehaviors(Behaviors):
+    """Behaviors specific to statuses."""
+
+    persists_after_combat: bool = Field(
+        False,
+        description="Whether this status effect remains active after combat ends.",
+    )
+
+
+class SoundProperties(BaseModel):
+    sfx: str | None = Field(..., description="Sound effect to play")
+    volume: float = Field(..., ge=0.0, description="Playback volume")
+
+    @field_validator("sfx")
+    def sfx_exists(cls, v: str | None) -> str | None:
+        if not v:
+            return v
+
+        if has.db_entry("sounds", v):
+            return v
+        raise ValueError(f"the sound {v} doesn't exist in the db")
+
+
+class MusicProperties(BaseModel):
+    music: str | None = Field(..., description="Music to play")
+    volume: float = Field(..., ge=0.0, description="Playback volume")
+
+    @field_validator("music")
+    def music_exists(cls, v: str | None) -> str | None:
+        if not v:
+            return v
+
+        if has.db_entry("music", v):
+            return v
+        raise ValueError(f"the music {v} doesn't exist in the db")
+
+
+class VisualProperties(BaseModel):
+    animation: str | None = Field(
+        ..., description="The slug or path of the animation to play."
+    )
+    flip_axes: FlipAxes = Field(
+        ...,
+        description="Axes (X and/or Y) along which the visual should be flipped.",
+    )
+    loop: int = Field(
+        ...,
+        description=(
+            "Number of times the visual should loop. "
+            "-1 means infinite looping, 0 means play once, "
+            "any positive integer means loop that many times."
+        ),
+    )
+
+    @field_validator("animation")
+    def animation_exists(cls, v: str | None) -> str | None:
+        if not v:
+            return v
+
+        item_file = f"animations/item/{v}_00.png"
+        technique_file = f"animations/technique/{v}_00.png"
+
+        if has.db_entry("animation", v) and (
+            has.size(item_file, sizes.NATIVE_RESOLUTION)
+            or has.size(technique_file, sizes.NATIVE_RESOLUTION)
+        ):
+            return v
+
+        raise ValueError(
+            f"the animation {v} doesn't exist in item/ or technique/ db"
+        )
 
 
 class DynamicMenuEntry(BaseModel):
@@ -403,8 +607,8 @@ class ItemModel(BaseModel, BaseLookupModel):
         "item_confirm_cancel",
         description="Translation key for the label used when canceling item usage.",
     )
-    menu_actions: Sequence[dict[str, str]] = Field(
-        [],
+    menu_actions: Sequence[MenuAction] = Field(
+        default_factory=list,
         description="Custom list of menu actions (key, display_text) for this item.",
     )
     use_failure: str = Field(
@@ -420,24 +624,36 @@ class ItemModel(BaseModel, BaseLookupModel):
         ..., description="State(s) where this item can be used."
     )
     behaviors: ItemBehaviors
-    conditions: Sequence[CommonCondition] = Field(
-        [], description="Conditions that must be met"
+    conditions: Sequence[LogicCondition] = Field(
+        default_factory=list, description="Conditions that must be met"
     )
-    effects: Sequence[CommonEffect] = Field(
+    effects: Sequence[ParameterizableRule] = Field(
         ..., description="Effects this item will have"
     )
-    flip_axes: FlipAxes = Field(
-        FlipAxes.NONE,
-        description="Axes along which item animation should be flipped",
+    visuals: VisualProperties = Field(
+        ..., description="Configuration for the item's visual display."
     )
-    animation: Optional[str] = Field(
-        None, description="Animation to play for this item"
+    sound: SoundProperties = Field(
+        ..., description="Configuration for the item's sound playback."
     )
     dynamic_menu: Optional[DynamicMenuEntry] = Field(
         None,
         description="Item adds a button to a specific menu (world, phone, etc.).",
     )
+    rarity: ItemRarity = Field(
+        ItemRarity.COMMON,
+        description="The rarity tier for display and loot logic.",
+    )
     cost: int = Field(0, description="The standard cost of the item.", ge=0)
+    reward_method: ExperienceMethod = Field(
+        ExperienceMethod.DEFAULT,
+        description="Method applied by a held item to calculate experience gained as a battle reward.",
+    )
+    money_multiplier: float = Field(
+        1.0,
+        description="Multiplier applied by a held item to calculate money gained as a battle reward.",
+        ge=0,
+    )
     max_wear: int = Field(
         0,
         description="The maximum wear threshold before the item breaks or becomes unusable.",
@@ -450,8 +666,21 @@ class ItemModel(BaseModel, BaseLookupModel):
         le=1.0,
     )
     modifiers: list[Modifier] = Field(..., description="Various modifiers")
+    stat_modifiers: dict[str, StatModel] = Field(
+        default_factory=dict,
+        description="Dictionary of stat modifiers keyed by stat name (e.g., 'speed', 'hp')",
+    )
     immunity_to_status: Sequence[str] = Field(
-        [], description="Statuses this item grants immunity to"
+        default_factory=list,
+        description="Statuses this item grants immunity to",
+    )
+    granted_techniques: Sequence[str] = Field(
+        default_factory=list,
+        description="Technique slugs granted to the holder while this item is equipped.",
+    )
+    granted_statuses: Sequence[str] = Field(
+        default_factory=list,
+        description="Status slugs granted to the holder while this item is equipped.",
     )
 
     @classmethod
@@ -462,45 +691,50 @@ class ItemModel(BaseModel, BaseLookupModel):
         except EntryNotFoundError:
             raise RuntimeError(f"Item {slug} not found")
 
-    # Validate fields that refer to translated text
     @field_validator("use_item", "use_success", "use_failure")
-    def translation_exists(cls: ItemModel, v: str) -> str:
+    def translation_exists(cls, v: str) -> str:
         if has.translation(v):
             return v
         raise ValueError(f"no translation exists with msgid: {v}")
 
     @field_validator("slug")
-    def translation_exists_item(cls: ItemModel, v: str) -> str:
+    def translation_exists_item(cls, v: str) -> str:
         if has.translation(v):
             return v
         raise ValueError(f"no translation exists with msgid: {v}")
 
-    # Validate resources that should exist
     @field_validator("sprite")
-    def file_exists(cls: ItemModel, v: str) -> str:
-        if has.file(v) and has.size(v, prepare.ITEM_SIZE):
+    def file_exists(cls, v: str) -> str:
+        if has.file(v) and has.size(v, sizes.ITEM_SIZE):
             return v
         raise ValueError(f"the sprite {v} doesn't exist in the db")
 
-    @field_validator("animation")
-    def animation_exists(cls: ItemModel, v: Optional[str]) -> Optional[str]:
-        file: str = f"animations/item/{v}_00.png"
-        if (
-            not v
-            or has.db_entry("animation", v)
-            and has.size(file, prepare.NATIVE_RESOLUTION)
-        ):
-            return v
-        raise ValueError(f"the animation {v} doesn't exist in the db")
-
     @field_validator("immunity_to_status")
-    def status_exists(cls: ItemModel, v: Sequence[str]) -> Sequence[str]:
+    def status_exists(cls, v: Sequence[str]) -> Sequence[str]:
         if v:
             for status in v:
                 if status != "all" and not has.db_entry("status", status):
                     raise ValueError(
                         f"A status {status} doesn't exist in the db"
                     )
+        return v
+
+    @field_validator("granted_techniques")
+    def techniques_exist(cls, v: Sequence[str]) -> Sequence[str]:
+        for tech in v:
+            if not has.db_entry("technique", tech):
+                raise ValueError(
+                    f"Technique {tech} does not exist in the database"
+                )
+        return v
+
+    @field_validator("granted_statuses")
+    def statuses_exist(cls, v: Sequence[str]) -> Sequence[str]:
+        for status in v:
+            if not has.db_entry("status", status):
+                raise ValueError(
+                    f"Status {status} does not exist in the database"
+                )
         return v
 
 
@@ -531,7 +765,7 @@ class ShapeModel(BaseModel, BaseLookupModel):
             raise RuntimeError(f"Shape {slug} not found")
 
     @field_validator("slug")
-    def translation_exists_shape(cls: ShapeModel, v: str) -> str:
+    def translation_exists_shape(cls, v: str) -> str:
         if has.translation(v):
             return v
         raise ValueError(f"no translation exists with msgid: {v}")
@@ -542,6 +776,7 @@ class LearningMethod(str, Enum):
     TM = "tm"
     EVENT = "event"
     EVOLUTION = "evolution"
+    FALLBACK = "fallback"
 
 
 class MonsterMovesetItemModel(BaseModel):
@@ -566,7 +801,7 @@ class MonsterMovesetItemModel(BaseModel):
     )
 
     @field_validator("technique")
-    def technique_exists(cls: MonsterMovesetItemModel, v: str) -> str:
+    def technique_exists(cls, v: str) -> str:
         if has.db_entry("technique", v):
             return v
         raise ValueError(f"the technique {v} doesn't exist in the db")
@@ -609,13 +844,12 @@ class MonsterEvolutionItemModel(BaseModel):
     monster_slug: str = Field(
         ..., description="The monster slug that this evolution item applies to"
     )
-    # optional fields
-    at_level: Optional[int] = Field(
+    at_level: int | None = Field(
         None,
         description="The level at which the monster evolves.",
         ge=0,
     )
-    element: Optional[str] = Field(
+    element: str | None = Field(
         None,
         description="The element type that the monster must match to evolve.",
     )
@@ -640,7 +874,7 @@ class MonsterEvolutionItemModel(BaseModel):
         description="How the monster was obtained (e.g. caught, bred, traded, gifted).",
     )
     variables: Sequence[dict[str, str]] = Field(
-        [],
+        default_factory=list,
         description="The game variables that must exist and match a specific value for the monster to evolve.",
         min_length=1,
     )
@@ -653,19 +887,17 @@ class MonsterEvolutionItemModel(BaseModel):
             "and the target stat or value."
         ),
     )
-    steps: Optional[int] = Field(
+    steps: int | None = Field(
         None,
         description="The minimum number of steps the monster must have walked to evolve.",
     )
-    tech: Optional[str] = Field(
+    tech: str | None = Field(
         None,
         description="The technique that a monster in the party must have for the evolution to occur.",
     )
     moves: Sequence[str] = Field(
-        [],
+        default_factory=list,
         description="The techniques that the monster must have learned for the evolution to occur.",
-        min_length=1,
-        max_length=prepare.MAX_MOVES,
     )
     bond: Optional[BondComparison] = Field(
         None,
@@ -679,11 +911,11 @@ class MonsterEvolutionItemModel(BaseModel):
         None,
         description="A dictionary of taste values required for the monster to evolve (e.g., {'cold': 'value', 'warm': 'value'}).",
     )
-    probability: Optional[float] = Field(
+    probability: float | None = Field(
         None,
         description="Chance (0.0 to 1.0) that this evolution occurs when conditions are met.",
     )
-    held_item: Optional[str] = Field(
+    held_item: str | None = Field(
         None, description="Item slug the monster must be holding to evolve."
     )
     party_conditions: Optional[PartyConditionsModel] = Field(
@@ -692,9 +924,7 @@ class MonsterEvolutionItemModel(BaseModel):
     )
 
     @field_validator("moves")
-    def move_exists(
-        cls: MonsterEvolutionItemModel, v: Sequence[str]
-    ) -> Sequence[str]:
+    def move_exists(cls, v: Sequence[str]) -> Sequence[str]:
         if v:
             for element in v:
                 if not has.db_entry("technique", element):
@@ -703,10 +933,14 @@ class MonsterEvolutionItemModel(BaseModel):
                     )
         return v
 
+    @field_validator("moves")
+    def validate_moves(cls, v: Sequence[str]) -> Sequence[str]:
+        if not v:
+            raise ValueError(f"Moves must contain at least 1 technique")
+        return v
+
     @field_validator("tech")
-    def technique_exists(
-        cls: MonsterEvolutionItemModel, v: Optional[str]
-    ) -> Optional[str]:
+    def technique_exists(cls, v: str | None) -> str | None:
         if not v or has.db_entry("technique", v):
             return v
         raise ValueError(f"the technique {v} doesn't exist in the db")
@@ -715,7 +949,7 @@ class MonsterEvolutionItemModel(BaseModel):
     def validate_tastes(
         cls, v: Optional[dict[str, str]]
     ) -> Optional[dict[str, str]]:
-        if v:  # Only proceed if the tastes dictionary is not None
+        if v:
             for taste_value in v.values():
                 if not has.db_entry("taste", taste_value):
                     raise ValueError(
@@ -724,22 +958,20 @@ class MonsterEvolutionItemModel(BaseModel):
         return v
 
     @field_validator("element")
-    def element_exists(
-        cls: MonsterEvolutionItemModel, v: Optional[str]
-    ) -> Optional[str]:
+    def element_exists(cls, v: str | None) -> str | None:
         if not v or has.db_entry("element", v):
             return v
         raise ValueError(f"the element {v} doesn't exist in the db")
 
     @field_validator("monster_slug")
-    def monster_exists(cls: MonsterEvolutionItemModel, v: str) -> str:
+    def monster_exists(cls, v: str) -> str:
         if has.db_entry("monster", v):
             return v
         raise ValueError(f"the monster {v} doesn't exist in the db")
 
     @field_validator("item")
     def validate_item_and_weights(
-        cls: MonsterEvolutionItemModel, v: Optional[dict[str, float]]
+        cls, v: Optional[dict[str, float]]
     ) -> Optional[dict[str, float]]:
         if v is None:
             return v
@@ -767,9 +999,7 @@ class MonsterEvolutionItemModel(BaseModel):
         return normalized
 
     @field_validator("held_item")
-    def held_item_exists(
-        cls: MonsterEvolutionItemModel, v: Optional[str]
-    ) -> Optional[str]:
+    def held_item_exists(cls, v: str | None) -> str | None:
         if not v or has.db_entry("item", v):
             return v
         raise ValueError(f"the held item {v} doesn't exist in the db")
@@ -793,11 +1023,11 @@ class FlairModel(BaseModel, BaseLookupModel):
         0,
         description="The drawing order for flairs within the same layer. Lower numbers are drawn first.",
     )
-    x_offset: Optional[int] = Field(
+    x_offset: int | None = Field(
         None,
         description="The horizontal offset of the flair from the sprite's origin.",
     )
-    y_offset: Optional[int] = Field(
+    y_offset: int | None = Field(
         None,
         description="The vertical offset of the flair from the sprite's origin.",
     )
@@ -805,7 +1035,7 @@ class FlairModel(BaseModel, BaseLookupModel):
         None,
         description="Specifies which sprite type this flair applies to (e.g., 'front', 'back', 'menu01'). If None, applies to all.",
     )
-    sprite_type_override: Optional[str] = Field(
+    sprite_type_override: str | None = Field(
         None,
         description="Overrides the default sprite type used in the file path (e.g., 'universal').",
     )
@@ -843,44 +1073,30 @@ class MonsterSpritesModel(BaseModel):
     menu1: str = Field(..., description="The menu1 sprite")
     menu2: str = Field(..., description="The menu2 sprite")
 
-    # Validate resources that should exist
     @field_validator("front", "back")
-    def battle_exists(cls: MonsterSpritesModel, v: str) -> str:
-        if has.file(f"{v}.png") and has.size(f"{v}.png", prepare.MONSTER_SIZE):
+    def battle_exists(cls, v: str) -> str:
+        if has.file(f"{v}.png") and has.size(f"{v}.png", sizes.MONSTER_SIZE):
             return v
         raise ValueError(f"no resource exists with path: {v}")
 
     @field_validator("menu1", "menu2")
-    def menu_exists(cls: MonsterSpritesModel, v: str) -> str:
+    def menu_exists(cls, v: str) -> str:
         if has.file(f"{v}.png") and has.size(
-            f"{v}.png", prepare.MONSTER_SIZE_MENU
+            f"{v}.png", sizes.MONSTER_SIZE_MENU
         ):
             return v
         raise ValueError(f"no resource exists with path: {v}")
 
 
 class MonsterSoundsModel(BaseModel):
-    combat_call: Optional[str] = Field(
-        None, description="The sound used when entering combat"
+    combat_call: Optional[SoundProperties] = Field(
+        None, description="Sound configuration used when entering combat"
     )
-    faint_call: Optional[str] = Field(
-        None, description="The sound used when the monster faints"
+    faint_call: Optional[SoundProperties] = Field(
+        None, description="Sound configuration used when the monster faints"
     )
 
-    @field_validator("combat_call")
-    def combat_call_exists(cls: MonsterSoundsModel, v: str) -> str:
-        if v and has.db_entry("sounds", v):
-            return v
-        raise ValueError(f"the sound {v} doesn't exist in the db")
 
-    @field_validator("faint_call")
-    def faint_call_exists(cls: MonsterSoundsModel, v: str) -> str:
-        if v and has.db_entry("sounds", v):
-            return v
-        raise ValueError(f"the sound {v} doesn't exist in the db")
-
-
-# Validate assignment allows us to assign a default inside a validator
 class MonsterModel(BaseModel, BaseLookupModel, validate_assignment=True):
     table_name: ClassVar[str] = "monster"
     slug: str = Field(..., description="The slug of the monster")
@@ -895,22 +1111,22 @@ class MonsterModel(BaseModel, BaseLookupModel, validate_assignment=True):
         True,
         description="Whether or not this monster will be picked by random",
     )
-
-    # Optional fields
     sprites: Annotated[
         Optional[MonsterSpritesModel], Field(validate_default=True)
     ] = None
     terrains: Sequence[str] = Field(
         ..., description="The terrains of the monster"
     )
-    types: Sequence[str] = Field([], description="The type(s) of this monster")
+    types: Sequence[str] = Field(
+        default_factory=list, description="The type(s) of this monster"
+    )
     shape: str = Field(..., description="The shape of the monster")
     tags: Sequence[str] = Field(..., description="The tags of the monster")
     catch_rate: float = Field(
         ...,
         description="The catch rate of the monster",
-        ge=prepare.CATCH_RATE_RANGE[0],
-        le=prepare.CATCH_RATE_RANGE[1],
+        ge=config_monster.catch_rate_range[0],
+        le=config_monster.catch_rate_range[1],
     )
     gender_weights: dict[GenderType, float] = Field(
         ..., description="Weighted gender probabilities for this monster"
@@ -918,29 +1134,37 @@ class MonsterModel(BaseModel, BaseLookupModel, validate_assignment=True):
     lower_catch_resistance: float = Field(
         ...,
         description="The lower catch resistance of the monster",
-        ge=prepare.CATCH_RESISTANCE_RANGE[0],
-        le=prepare.CATCH_RESISTANCE_RANGE[1],
+        ge=config_monster.catch_resistance_range[0],
+        le=config_monster.catch_resistance_range[1],
     )
     upper_catch_resistance: float = Field(
         ...,
         description="The upper catch resistance of the monster",
-        ge=prepare.CATCH_RESISTANCE_RANGE[0],
-        le=prepare.CATCH_RESISTANCE_RANGE[1],
+        ge=config_monster.catch_resistance_range[0],
+        le=config_monster.catch_resistance_range[1],
     )
     moveset: Sequence[MonsterMovesetItemModel] = Field(
-        [], description="The moveset of this monster", min_length=1
+        default_factory=list,
+        description="The moveset of this monster",
+        min_length=1,
     )
     history: Sequence[MonsterHistoryItemModel] = Field(
-        [], description="The evolution history of this monster"
+        default_factory=list,
+        description="The evolution history of this monster",
     )
     evolutions: Sequence[MonsterEvolutionItemModel] = Field(
-        [], description="The evolutions this monster has"
+        default_factory=list, description="The evolutions this monster has"
     )
     flairs: set[str] = Field(
         default_factory=set, description="The flairs this monster has"
     )
     sounds: MonsterSoundsModel = Field(
         description="The sounds this monster has"
+    )
+    max_moves: int = Field(
+        default=config_monster.max_moves,
+        description="Maximum number of moves this monster can know",
+        ge=1,
     )
 
     @classmethod
@@ -951,11 +1175,9 @@ class MonsterModel(BaseModel, BaseLookupModel, validate_assignment=True):
         except EntryNotFoundError:
             raise RuntimeError(f"Monster {slug} not found")
 
-    # Set the default sprites based on slug. Specifying 'always' is needed
-    # because by default pydantic doesn't validate null fields.
     @field_validator("sprites")
     def set_default_sprites(
-        cls: MonsterModel, v: str, info: ValidationInfo
+        cls, v: str, info: ValidationInfo
     ) -> Union[str, MonsterSpritesModel]:
         slug = info.data.get("slug")
         default = MonsterSpritesModel(
@@ -967,15 +1189,13 @@ class MonsterModel(BaseModel, BaseLookupModel, validate_assignment=True):
         return v or default
 
     @field_validator("species")
-    def translation_exists_species(cls: MonsterModel, v: str) -> str:
+    def translation_exists_species(cls, v: str) -> str:
         if has.translation(f"cat_{v}"):
             return v
         raise ValueError(f"no translation exists with msgid: {v}")
 
     @field_validator("types")
-    def element_exists(
-        cls: MonsterModel, elements: Sequence[str]
-    ) -> Sequence[str]:
+    def element_exists(cls, elements: Sequence[str]) -> Sequence[str]:
         if not elements:
             return elements
 
@@ -1007,13 +1227,13 @@ class MonsterModel(BaseModel, BaseLookupModel, validate_assignment=True):
         return v
 
     @field_validator("shape")
-    def shape_exists(cls: MonsterModel, v: str) -> str:
+    def shape_exists(cls, v: str) -> str:
         if has.db_entry("shape", v):
             return v
         raise ValueError(f"the shape {v} doesn't exist in the db")
 
     @field_validator("terrains")
-    def terrain_exists(cls: MonsterModel, v: Sequence[str]) -> Sequence[str]:
+    def terrain_exists(cls, v: Sequence[str]) -> Sequence[str]:
         if v:
             for terrain in v:
                 if not has.db_entry("terrain", terrain):
@@ -1023,7 +1243,7 @@ class MonsterModel(BaseModel, BaseLookupModel, validate_assignment=True):
         return v
 
     @field_validator("flairs")
-    def flair_exists(cls: MonsterModel, v: Sequence[str]) -> Sequence[str]:
+    def flair_exists(cls, v: Sequence[str]) -> Sequence[str]:
         if v:
             for flair in v:
                 if not has.db_entry("flair", flair):
@@ -1032,17 +1252,25 @@ class MonsterModel(BaseModel, BaseLookupModel, validate_assignment=True):
                     )
         return v
 
+    @model_validator(mode="after")
+    def must_have_fallback(self) -> MonsterModel:
+        if not any(
+            m.learning_method == LearningMethod.FALLBACK for m in self.moveset
+        ):
+            raise ValueError(
+                "Monster must define at least one fallback technique."
+            )
+        return self
+
 
 class StatModel(BaseModel):
     value: float = Field(
         0.0,
         description="Direct value adjustment (used when step is not provided)",
     )
-    step: Optional[int] = Field(
+    step: int | None = Field(
         None,
         description="Optional step delta to apply (e.g., +2 step to speed)",
-        ge=-6,
-        le=6,
     )
     max_deviation: int = Field(
         0,
@@ -1064,6 +1292,14 @@ class StatModel(BaseModel):
         "nonlinear",
         description="Defines how step scaling is applied: 'linear' for base*(1+step), 'nonlinear' for tiered scaling",
     )
+
+    @field_validator("step")
+    def validate_step(cls, v: int | None) -> int | None:
+        if v is None:
+            return None
+        if not (-6 <= v <= 6):
+            raise ValueError("step must be between -6 and 6")
+        return v
 
 
 class Range(str, Enum):
@@ -1087,15 +1323,53 @@ class TechCategory(str, Enum):
     notype = "notype"
 
 
+class StackingMode(str, Enum):
+    ADDITIVE = "additive"
+    MULTIPLICATIVE = "multiplicative"
+    OVERRIDE = "override"
+
+
+class ModifierAttribute(str, Enum):
+    TYPE = "type"
+    TAG = "tag"
+    TERRAIN = "terrain"
+    SHAPE = "shape"
+    STAGE = "stage"
+    SPECIES = "species"
+    STAT = "stat"
+    STAT_MAX = "stat_max"
+    STAT_MIN = "stat_min"
+
+
 class Modifier(BaseModel):
-    attribute: str = Field(
+    attribute: ModifierAttribute = Field(
         ..., description="Attribute being modified (type, etc.)"
     )
     values: Sequence[str] = Field(
-        [],
-        description="Values associated with the modification (eg. fire, etc.)",
+        default_factory=list,
+        description="Values associated with the modification (e.g. fire, etc.)",
     )
     multiplier: float = Field(1.0, description="Multiplier", ge=0.0, le=2.0)
+    priority: int = Field(
+        0, description="Priority of the modifier. Higher wins."
+    )
+    stacking: StackingMode = Field(
+        StackingMode.MULTIPLICATIVE,
+        description="How this modifier stacks with others.",
+    )
+    max_stacks: int | None = Field(
+        None, description="Maximum number of stackable modifiers of this type"
+    )
+    condition_name: str | None = Field(
+        None,
+        description="Name of a predefined condition function to determine applicability",
+    )
+    source: str | None = Field(
+        None, description="Origin of the modifier (e.g. move, item, ability)"
+    )
+    turns_remaining: int | None = Field(
+        None, description="Number of turns before modifier expires"
+    )
 
 
 class SpeedLabel(str, Enum):
@@ -1171,7 +1445,7 @@ class TargetModel(BaseModel):
         "own_team",
         "own_trainer",
     )
-    def validate_bool_field(cls: TargetModel, v: bool) -> bool:
+    def validate_bool_field(cls, v: bool) -> bool:
         if not isinstance(v, bool):
             raise ValueError(f"One of the targets {v} isn't a boolean")
         return v
@@ -1189,35 +1463,33 @@ class TechniqueModel(BaseModel, BaseLookupModel):
     tags: Sequence[str] = Field(
         ..., description="The tags of the technique", min_length=1
     )
-    conditions: Sequence[CommonCondition] = Field(
-        [], description="Conditions that must be met"
+    conditions: Sequence[LogicCondition] = Field(
+        default_factory=list, description="Conditions that must be met"
     )
-    effects: Sequence[CommonEffect] = Field(
+    effects: Sequence[ParameterizableRule] = Field(
         ..., description="Effects this technique uses"
     )
-    flip_axes: FlipAxes = Field(
-        ...,
-        description="Axes along which technique animation should be flipped",
-    )
     target: TargetModel
-    animation: Optional[str] = Field(
-        None, description="Animation to play for this technique"
+    visuals: VisualProperties = Field(
+        ..., description="Configuration for the technique's visual display."
     )
-    sfx: str = Field(
-        ..., description="Sound effect to play when this technique is used"
+    sound: SoundProperties = Field(
+        ..., description="Configuration for the technique's sound playback."
     )
     modifiers: list[Modifier] = Field(..., description="Various modifiers")
-
-    # Optional fields
-    use_tech: Optional[str] = Field(
+    stat_modifiers: dict[str, StatModel] = Field(
+        default_factory=dict,
+        description="Dictionary of stat modifiers keyed by stat name (e.g., 'speed', 'hp')",
+    )
+    use_tech: str | None = Field(
         None,
         description="Slug of what string to display when technique is used",
     )
-    use_success: Optional[str] = Field(
+    use_success: str | None = Field(
         None,
         description="Slug of what string to display when technique succeeds",
     )
-    use_failure: Optional[str] = Field(
+    use_failure: str | None = Field(
         None,
         description="Slug of what string to display when technique fails",
     )
@@ -1229,16 +1501,18 @@ class TechniqueModel(BaseModel, BaseLookupModel):
         "item_confirm_cancel",
         description="Translation key for the label used when canceling tech usage.",
     )
-    menu_actions: Sequence[dict[str, str]] = Field(
-        [],
+    menu_actions: Sequence[MenuAction] = Field(
+        default_factory=list,
         description="Custom list of menu actions (key, display_text) for this technique.",
     )
-    types: Sequence[str] = Field([], description="Type(s) of the technique")
+    types: Sequence[str] = Field(
+        default_factory=list, description="Type(s) of the technique"
+    )
     power: float = Field(
         ...,
         description="Power of the technique",
-        ge=prepare.POWER_RANGE[0],
-        le=prepare.POWER_RANGE[1],
+        ge=sizes.POWER_RANGE[0],
+        le=sizes.POWER_RANGE[1],
     )
     speed: SpeedLabel = Field(
         default=SpeedLabel.NORMAL,
@@ -1250,28 +1524,28 @@ class TechniqueModel(BaseModel, BaseLookupModel):
     healing_power: float = Field(
         0.0,
         description="Value of healing power.",
-        ge=prepare.HEALING_POWER_RANGE[0],
-        le=prepare.HEALING_POWER_RANGE[1],
+        ge=sizes.HEALING_POWER_RANGE[0],
+        le=sizes.HEALING_POWER_RANGE[1],
     )
     recharge: int = Field(
         0,
         description="Recharge of this technique",
-        ge=prepare.RECHARGE_RANGE[0],
-        le=prepare.RECHARGE_RANGE[1],
+        ge=sizes.RECHARGE_RANGE[0],
+        le=sizes.RECHARGE_RANGE[1],
     )
     range: Range = Field(..., description="The attack range of this technique")
     tech_id: int = Field(..., description="The id of this technique")
     accuracy: float = Field(
         ...,
         description="The accuracy of the technique",
-        ge=prepare.ACCURACY_RANGE[0],
-        le=prepare.ACCURACY_RANGE[1],
+        ge=sizes.ACCURACY_RANGE[0],
+        le=sizes.ACCURACY_RANGE[1],
     )
     potency: float = Field(
         ...,
         description="How potent the technique is",
-        ge=prepare.POTENCY_RANGE[0],
-        le=prepare.POTENCY_RANGE[1],
+        ge=sizes.POTENCY_RANGE[0],
+        le=sizes.POTENCY_RANGE[1],
     )
 
     @classmethod
@@ -1283,42 +1557,19 @@ class TechniqueModel(BaseModel, BaseLookupModel):
             raise RuntimeError(f"Technique {slug} not found")
 
     @field_validator("use_tech", "use_success", "use_failure")
-    def translation_exists(
-        cls: TechniqueModel, v: Optional[str]
-    ) -> Optional[str]:
+    def translation_exists(cls, v: str | None) -> str | None:
         if not v or has.translation(v):
             return v
         raise ValueError(f"no translation exists with msgid: {v}")
 
     @field_validator("slug")
-    def translation_exists_tech(cls: TechniqueModel, v: str) -> str:
+    def translation_exists_tech(cls, v: str) -> str:
         if has.translation(v):
             return v
         raise ValueError(f"no translation exists with msgid: {v}")
 
-    @field_validator("animation")
-    def animation_exists(
-        cls: TechniqueModel, v: Optional[str]
-    ) -> Optional[str]:
-        file: str = f"animations/technique/{v}_00.png"
-        if (
-            not v
-            or has.db_entry("animation", v)
-            and has.size(file, prepare.NATIVE_RESOLUTION)
-        ):
-            return v
-        raise ValueError(f"the animation {v} doesn't exist in the db")
-
-    @field_validator("sfx")
-    def sfx_tech_exists(cls: TechniqueModel, v: str) -> str:
-        if has.db_entry("sounds", v):
-            return v
-        raise ValueError(f"the sound {v} doesn't exist in the db")
-
     @field_validator("types")
-    def element_exists(
-        cls: TechniqueModel, elements: Sequence[str]
-    ) -> Sequence[str]:
+    def element_exists(cls, elements: Sequence[str]) -> Sequence[str]:
         if not elements:
             return elements
 
@@ -1335,26 +1586,32 @@ class TechniqueModel(BaseModel, BaseLookupModel):
         return elements
 
 
+class StepEffectType(str, Enum):
+    NONE = "none"
+    FLAT_DAMAGE = "flat_damage"
+    PERCENT_MAX_HP_DAMAGE = "percent_max_hp_damage"
+    PERCENT_CURRENT_HP_DAMAGE = "percent_current_hp_damage"
+    PERCENT_MAX_HP_HEAL = "percent_max_hp_heal"
+    PERCENT_CURRENT_HP_HEAL = "percent_current_hp_heal"
+
+
 class StatusModel(BaseModel, BaseLookupModel):
     table_name: ClassVar[str] = "status"
     slug: str = Field(..., description="The slug of the status")
     sort: TechSort = Field(..., description="The sort of status this is")
+    behaviors: StatusBehaviors
     icon: str = Field(..., description="The icon to use for the condition")
-    conditions: Sequence[CommonCondition] = Field(
-        [], description="Conditions that must be met"
+    conditions: Sequence[LogicCondition] = Field(
+        default_factory=list, description="Conditions that must be met"
     )
-    effects: Sequence[CommonEffect] = Field(
+    effects: Sequence[ParameterizableRule] = Field(
         ..., description="Effects this status uses"
     )
-    flip_axes: FlipAxes = Field(
-        ...,
-        description="Axes along which status animation should be flipped",
+    visuals: VisualProperties = Field(
+        ..., description="Configuration for the status's visual display."
     )
-    animation: Optional[str] = Field(
-        None, description="Animation to play for this status"
-    )
-    sfx: str = Field(
-        ..., description="Sound effect to play when this status is used"
+    sound: SoundProperties = Field(
+        ..., description="Configuration for the status's sound playback."
     )
     bond: bool = Field(
         False,
@@ -1363,37 +1620,47 @@ class StatusModel(BaseModel, BaseLookupModel):
     duration: int = Field(
         0, description="How many turns the status is supposed to last"
     )
+    step_interval: int = Field(
+        0,
+        description="The number of steps between out-of-battle effect triggers.",
+    )
+    step_effect_value: float = Field(
+        0.0,
+        description="The value (flat or percentage) used for the step-interval effect.",
+    )
+    step_effect_type: StepEffectType = Field(
+        StepEffectType.NONE,
+        description="The type of effect triggered by the step interval.",
+    )
     modifiers: list[Modifier] = Field(..., description="Various modifiers")
-
-    # Optional fields
-    category: Optional[CategoryStatus] = Field(
+    category: CategoryStatus | None = Field(
         None, description="Category status: positive or negative"
     )
-    on_positive_status: Optional[ResponseStatus] = Field(
+    on_positive_status: ResponseStatus | None = Field(
         None,
         description="Determines the response when a positive status is applied",
     )
-    on_negative_status: Optional[ResponseStatus] = Field(
+    on_negative_status: ResponseStatus | None = Field(
         None,
         description="Determines the response when a negative status is applied",
     )
-    on_tech_use: Optional[str] = Field(
+    on_tech_use: str | None = Field(
         None,
         description="Status applied after using a technique",
     )
-    on_item_use: Optional[str] = Field(
+    on_item_use: str | None = Field(
         None,
         description="Status applied after using an item",
     )
-    gain_cond: Optional[str] = Field(
+    gain_cond: str | None = Field(
         None,
         description="Slug of what string to display when status is gained",
     )
-    use_success: Optional[str] = Field(
+    use_success: str | None = Field(
         None,
         description="Slug of what string to display when status succeeds",
     )
-    use_failure: Optional[str] = Field(
+    use_failure: str | None = Field(
         None,
         description="Slug of what string to display when status fails",
     )
@@ -1411,50 +1678,29 @@ class StatusModel(BaseModel, BaseLookupModel):
         except EntryNotFoundError:
             raise RuntimeError(f"Status {slug} not found")
 
-    # Validate resources that should exist
     @field_validator("icon")
-    def file_exists(cls: StatusModel, v: str) -> str:
-        if has.file(v) and has.size(v, prepare.STATUS_ICON_SIZE):
+    def file_exists(cls, v: str) -> str:
+        if has.file(v) and has.size(v, sizes.STATUS_ICON_SIZE):
             return v
         raise ValueError(f"the icon {v} doesn't exist in the db")
 
-    # Validate fields that refer to translated text
     @field_validator("gain_cond", "use_success", "use_failure")
-    def translation_exists(
-        cls: StatusModel, v: Optional[str]
-    ) -> Optional[str]:
+    def translation_exists(cls, v: str | None) -> str | None:
         if not v or has.translation(v):
             return v
         raise ValueError(f"no translation exists with msgid: {v}")
 
     @field_validator("slug")
-    def translation_exists_cond(cls: StatusModel, v: str) -> str:
+    def translation_exists_cond(cls, v: str) -> str:
         if has.translation(v):
             return v
         raise ValueError(f"no translation exists with msgid: {v}")
 
-    @field_validator("animation")
-    def animation_exists(cls: StatusModel, v: Optional[str]) -> Optional[str]:
-        file: str = f"animations/technique/{v}_00.png"
-        if (
-            not v
-            or has.db_entry("animation", v)
-            and has.size(file, prepare.NATIVE_RESOLUTION)
-        ):
-            return v
-        raise ValueError(f"the animation {v} doesn't exist in the db")
-
     @field_validator("on_tech_use", "on_item_use")
-    def status_exists(cls: StatusModel, v: Optional[str]) -> Optional[str]:
+    def status_exists(cls, v: str | None) -> str | None:
         if not v or has.db_entry("status", v) or has.db_entry("technique", v):
             return v
         raise ValueError(f"the status {v} doesn't exist in the db")
-
-    @field_validator("sfx")
-    def sfx_cond_exists(cls: StatusModel, v: str) -> str:
-        if has.db_entry("sounds", v):
-            return v
-        raise ValueError(f"the sound {v} doesn't exist in the db")
 
 
 class PartyMemberModel(BaseModel):
@@ -1468,13 +1714,13 @@ class PartyMemberModel(BaseModel):
     )
     gender: GenderType = Field(..., description="Gender of the monster")
     variables: Sequence[dict[str, str]] = Field(
-        [],
+        default_factory=list,
         description="Sequence of variables that affect the presence of the monster.",
         min_length=1,
     )
 
     @field_validator("slug")
-    def monster_exists(cls: PartyMemberModel, v: str) -> str:
+    def monster_exists(cls, v: str) -> str:
         if has.db_entry("monster", v):
             return v
         raise ValueError(f"the monster {v} doesn't exist in the db")
@@ -1484,13 +1730,13 @@ class BagItemModel(BaseModel):
     slug: str = Field(..., description="Slug of the item")
     quantity: int = Field(..., description="Quantity of the item")
     variables: Sequence[dict[str, str]] = Field(
-        [],
+        default_factory=list,
         description="List of variables that affect the item.",
         min_length=1,
     )
 
     @field_validator("slug")
-    def item_exists(cls: BagItemModel, v: str) -> str:
+    def item_exists(cls, v: str) -> str:
         if has.db_entry("item", v):
             return v
         raise ValueError(f"the item {v} doesn't exist in the db")
@@ -1500,6 +1746,12 @@ class TemplateModel(BaseModel):
     slug: str = Field(
         ..., description="Slug uniquely identifying the template"
     )
+
+    @field_validator("slug")
+    def template_exists(cls, v: str) -> str:
+        if has.db_entry("template", v):
+            return v
+        raise ValueError(f"the template {v} doesn't exist in the db")
 
 
 class NpcTemplateModel(TemplateModel):
@@ -1511,37 +1763,40 @@ class NpcTemplateModel(TemplateModel):
     )
 
     @field_validator("combat_front")
-    def combat_file_exists(cls: NpcTemplateModel, v: str) -> str:
-        file: str = f"gfx/sprites/player/{v}.png"
+    def combat_file_exists(cls, v: str) -> str:
+        file = f"gfx/sprites/player/{v}.png"
         if has.file(file):
             return v
         raise ValueError(f"{file} doesn't exist in the db")
 
     @field_validator("sprite_name")
-    def sprite_exists(cls: NpcTemplateModel, v: str) -> str:
-        sprite = f"sprites/{v}_front.png"
-        sprite = f"sprites/{v}_back.png"
-        sprite = f"sprites/{v}_right.png"
-        sprite = f"sprites/{v}_left.png"
-        sprite_obj: str = f"sprites_obj/{v}.png"
-        if (
-            has.file(sprite)
-            and has.size(sprite, prepare.SPRITE_SIZE)
-            or has.file(sprite_obj)
-            and has.size(sprite_obj, prepare.NATIVE_RESOLUTION)
-        ):
-            return v
-        raise ValueError(f"the sprite {v} doesn't exist in the db")
+    def sprite_exists(cls, v: str) -> str:
+        front = f"sprites/{v}_front.png"
+        back = f"sprites/{v}_back.png"
+        right = f"sprites/{v}_right.png"
+        left = f"sprites/{v}_left.png"
 
-    @field_validator("slug")
-    def template_exists(cls: NpcTemplateModel, v: str) -> str:
-        if has.db_entry("template", v):
+        sprite_obj = f"sprites_obj/{v}.png"
+
+        directional_ok = (
+            has.file(front)
+            and has.file(back)
+            and has.file(right)
+            and has.file(left)
+            and has.size(front, sizes.SPRITE_SIZE)
+        )
+
+        object_ok = has.file(sprite_obj) and has.size(
+            sprite_obj, sizes.NATIVE_RESOLUTION
+        )
+
+        if directional_ok or object_ok:
             return v
-        raise ValueError(f"the template {v} doesn't exist in the db")
+
+        raise ValueError(f"the sprite {v} doesn't exist in the db")
 
 
 class DialogueContent(BaseModel):
-    # This model holds all dialogue types
     greeting: Optional[Union[str, list[str]]] = Field(
         None, description="Greeting dialogue"
     )
@@ -1608,7 +1863,7 @@ class NpcCombatModel(BaseModel):
         False,
         description="Whether the NPC allows the player to forfeit during combat",
     )
-    switch_logic: Optional[str] = Field(
+    switch_logic: str | None = Field(
         None,
         description=(
             "Defines how the NPC selects a replacement monster when one faints. "
@@ -1617,18 +1872,36 @@ class NpcCombatModel(BaseModel):
     )
 
 
+class NpcAudioModel(BaseModel):
+    battle_music: Optional[BattleMusicModel] = Field(
+        None,
+        description="Battle music configuration for the NPC; defaults to empty if not set",
+    )
+
+
 class NpcModel(BaseModel, BaseLookupModel):
     table_name: ClassVar[str] = "npc"
     slug: str = Field(..., description="Slug of the name of the NPC")
+    persistence: bool = Field(
+        False,
+        description="Whether this NPC should be retained and saved across sessions.",
+    )
     template: NpcTemplateModel
     combat: NpcCombatModel
     monsters: Sequence[PartyMemberModel] = Field(
-        [], description="List of monsters in the NPCs party"
+        default_factory=list, description="List of monsters in the NPCs party"
     )
     items: Sequence[BagItemModel] = Field(
-        [], description="List of items in the NPCs bag"
+        default_factory=list, description="List of items in the NPCs bag"
     )
-    speech: NpcSpeech
+    speech: NpcSpeech = Field(
+        ...,
+        description="Dialogue configuration for the NPC, including default lines and location-based overrides",
+    )
+    audio: NpcAudioModel = Field(
+        ...,
+        description="Audio configuration for the NPC, including music themes, sound effects, and ambient sounds",
+    )
 
     @classmethod
     def lookup(cls, slug: str, db: ModData) -> NpcModel:
@@ -1652,6 +1925,7 @@ class BattleHudModel(BaseModel):
     tray_opponent: str = Field(
         ..., description="Sprite used for tray opponent background"
     )
+
     hp_bar_player: bool = Field(
         True, description="Whether draw or not player HP Bar"
     )
@@ -1662,13 +1936,52 @@ class BattleHudModel(BaseModel):
         True, description="Whether draw or not player EXP Bar"
     )
 
+    tray_center_offset: int = Field(
+        13, description="Horizontal offset for the tray center point"
+    )
+    icon_spacing_offset: int = Field(
+        8, description="Spacing offset between party icons"
+    )
+    animation_duration: float = Field(
+        2.0, description="Duration of the tray slide-in animation"
+    )
+    animation_delay: float = Field(
+        1.5, description="Delay before the tray starts sliding"
+    )
+    # Bars
+    hp_bar_width: int = Field(
+        70, ge=1, description="Default width (scaled units) of the HP bar."
+    )
+    hp_bar_height: int = Field(
+        8, ge=1, description="Default height (scaled units) of the HP bar."
+    )
+    hp_player_top: int = Field(
+        18,
+        description="Vertical offset from the top of the player's HUD sprite to place the HP bar.",
+    )
+    hp_opponent_top: int = Field(
+        12,
+        description="Vertical offset from the top of the opponent's HUD sprite to place the HP bar.",
+    )
+    exp_bar_height: int = Field(
+        6, ge=1, description="Default height (scaled units) of the EXP bar."
+    )
+    exp_bar_top: int = Field(
+        31,
+        description="Vertical offset from the top of the player's HUD sprite to place the EXP bar.",
+    )
+    bar_right_padding: int = Field(
+        8,
+        description="Horizontal padding between the right edge of the HUD sprite and the bar's right edge.",
+    )
+
     @field_validator(
         "hud_player",
         "hud_opponent",
         "tray_player",
         "tray_opponent",
     )
-    def file_exists(cls: BattleHudModel, v: str) -> str:
+    def file_exists(cls, v: str) -> str:
         if has.file(v):
             return v
         raise ValueError(f"no resource exists with path: {v}")
@@ -1697,8 +2010,8 @@ class BattleIconsModel(BaseModel):
         "icon_status",
         "icon_empty",
     )
-    def file_exists(cls: BattleIconsModel, v: str) -> str:
-        if has.file(v) and has.size(v, prepare.ICON_SIZE):
+    def file_exists(cls, v: str) -> str:
+        if has.file(v) and has.size(v, sizes.ICON_SIZE):
             return v
         raise ValueError(f"no resource exists with path: {v}")
 
@@ -1712,34 +2025,63 @@ class BattleGraphicsModel(BaseModel):
     background: str = Field(..., description="Sprite used for background")
     hud: BattleHudModel
     icons: BattleIconsModel
+    island_offset_y: int = Field(
+        50, description="Vertical shift for islands relative to HUD home"
+    )
+    enemy_base_offset: int = Field(
+        12, description="Vertical offset for enemy relative to island bottom"
+    )
+    monster_base_offset: int = Field(
+        24,
+        description="Vertical offset for wild monsters relative to island bottom",
+    )
+    player_base_offset: int = Field(
+        6, description="Vertical offset for player relative to island center"
+    )
+    entry_jump_distance: int = Field(
+        50, description="Vertical 'bounce' during entry."
+    )
+    entry_duration: float = Field(
+        3.0, description="Seconds for the entry transition."
+    )
 
     @field_validator("island_back", "island_front")
-    def island_exists(cls: BattleGraphicsModel, v: str) -> str:
-        if has.file(v) and has.size(v, prepare.ISLAND_SIZE):
+    def island_exists(cls, v: str) -> str:
+        if has.file(v) and has.size(v, sizes.ISLAND_SIZE):
             return v
         raise ValueError(f"no resource exists with path: {v}")
 
     @field_validator("background")
-    def background_exists(cls: BattleGraphicsModel, v: str) -> str:
-        if has.file(v) and has.size(v, prepare.BATTLE_BG_SIZE):
+    def background_exists(cls, v: str) -> str:
+        if has.file(v) and has.size(v, sizes.BATTLE_BG_SIZE):
             return v
         raise ValueError(f"no resource exists with path: {v}")
 
     @field_validator("menu")
-    def check_state(cls: BattleGraphicsModel, v: str) -> str:
+    def check_state(cls, v: str) -> str:
         states = [state.name for state in State]
         if v in states:
             return v
         raise ValueError(f"state isn't among: {states}")
 
 
+class BattleMusicModel(BaseModel):
+    battle: MusicProperties = Field(
+        ..., description="Music configuration used when fighting"
+    )
+    victory_music: MusicProperties = Field(
+        ..., description="Music configuration used when winning"
+    )
+    defeat_music: MusicProperties = Field(
+        ..., description="Music configuration used when losing"
+    )
+
+
 class EnvironmentModel(BaseModel, BaseLookupModel):
     table_name: ClassVar[str] = "environment"
     slug: str = Field(..., description="Slug of the name of the environment")
-    battle_music: str = Field(
-        ..., description="Filename of the music to use for this environment"
-    )
     battle_graphics: BattleGraphicsModel
+    battle_music: BattleMusicModel
 
     @classmethod
     def lookup(cls, slug: str, db: ModData) -> EnvironmentModel:
@@ -1750,12 +2092,6 @@ class EnvironmentModel(BaseModel, BaseLookupModel):
             )
         except EntryNotFoundError:
             raise RuntimeError(f"Encounter {slug} not found")
-
-    @field_validator("battle_music")
-    def battle_music_exists(cls: EnvironmentModel, v: str) -> str:
-        if has.db_entry("music", v):
-            return v
-        raise ValueError(f"the music {v} doesn't exist in the db")
 
 
 class HeldItemProbability(BaseModel):
@@ -1782,13 +2118,12 @@ class EncounterItemModel(BaseModel):
         ..., description="Probability of encountering this monster."
     )
     held_items: Sequence[HeldItemProbability] = Field(
-        [],
+        default_factory=list,
         description="A list of items that will be held with their probabilities.",
     )
-    level_range: Sequence[int] = Field(
+    level_range: tuple[int, int] = Field(
         ...,
         description="Minimum and maximum levels at which this encounter can occur.",
-        max_length=2,
     )
     variables: Sequence[dict[str, str]] = Field(
         ...,
@@ -1799,19 +2134,19 @@ class EncounterItemModel(BaseModel):
         description="Modifier for the experience points required to defeat this wild monster.",
         gt=0.0,
     )
-    level_offset: Optional[int] = Field(
+    level_offset: int | None = Field(
         None,
         description="Offset (+/- levels) to apply to the monster's level.",
     )
-    level_offset_range: Optional[tuple[int, int]] = Field(
+    level_offset_range: tuple[int, int] | None = Field(
         None,
         description="Range of offset (+/- levels) to apply randomly to base level.",
     )
-    min_player_level: Optional[int] = Field(
+    min_player_level: int | None = Field(
         None,
         description="Minimum average level of player's party for this encounter.",
     )
-    max_player_level: Optional[int] = Field(
+    max_player_level: int | None = Field(
         None,
         description="Maximum average level of player's party for this encounter.",
     )
@@ -1823,32 +2158,143 @@ class EncounterItemModel(BaseModel):
         False,
         description="If true, allows scaling to override a monster's declared level_range and match party average directly.",
     )
-    scaling_offset_range: Optional[tuple[int, int]] = Field(
+    scaling_offset_range: tuple[int, int] | None = Field(
         None,
         description="Range used for random offset when scaling level overrides are applied (e.g. [-3, +4])",
     )
 
     @field_validator("monster")
-    def monster_exists(cls: EncounterItemModel, v: str) -> str:
+    def monster_exists(cls, v: str) -> str:
         if has.db_entry("monster", v):
             return v
         raise ValueError(f"the monster {v} doesn't exist in the db")
+
+    @field_validator("level_range")
+    def validate_level_range(cls, v: tuple[int, int]) -> tuple[int, int]:
+        min_allowed, max_allowed = config_monster.level_range
+        min_level, max_level = v
+
+        if min_level > max_level:
+            raise ValueError("level_range must be (min, max) with min <= max")
+
+        if min_level < min_allowed or max_level > max_allowed:
+            raise ValueError(
+                f"level_range {v} must be within allowed range "
+                f"{config_monster.level_range}"
+            )
+
+        return v
+
+    @field_validator("level_offset_range")
+    def validate_level_offset_range(
+        cls, v: tuple[int, int] | None
+    ) -> tuple[int, int] | None:
+        if v is None:
+            return v
+
+        min_allowed, max_allowed = config_monster.level_range
+        off_min, off_max = v
+
+        if off_min > off_max:
+            raise ValueError(
+                "level_offset_range must be (min, max) with min <= max"
+            )
+
+        if off_min < -(max_allowed - min_allowed) or off_max > (
+            max_allowed - min_allowed
+        ):
+            raise ValueError(
+                f"level_offset_range {v} would push levels outside allowed range "
+                f"{config_monster.level_range}"
+            )
+
+        return v
+
+    @field_validator("scaling_offset_range")
+    def validate_scaling_offset_range(
+        cls, v: tuple[int, int] | None
+    ) -> tuple[int, int] | None:
+        if v is None:
+            return v
+
+        off_min, off_max = v
+
+        if off_min > off_max:
+            raise ValueError(
+                "scaling_offset_range must be (min, max) with min <= max"
+            )
+
+        return v
+
+    @model_validator(mode="after")
+    def validate_scaling_logic(self) -> EncounterItemModel:
+        """
+        Ensures scaling + offsets cannot produce levels outside allowed range.
+        """
+        min_allowed, max_allowed = config_monster.level_range
+
+        if not self.scaling_enabled:
+            return self
+
+        if self.override_level_range:
+            if self.scaling_offset_range:
+                off_min, off_max = self.scaling_offset_range
+                if off_min < -(max_allowed - min_allowed) or off_max > (
+                    max_allowed - min_allowed
+                ):
+                    raise ValueError(
+                        f"scaling_offset_range {self.scaling_offset_range} would push "
+                        f"scaled levels outside allowed range {config_monster.level_range}"
+                    )
+            return self
+
+        min_level, max_level = self.level_range
+        if min_level < min_allowed or max_level > max_allowed:
+            raise ValueError(
+                f"scaling cannot use level_range {self.level_range} because it exceeds "
+                f"allowed global range {config_monster.level_range}"
+            )
+
+        return self
 
 
 class HordeEncounterModel(BaseModel):
     monsters: Sequence[EncounterItemModel] = Field(
         ..., description="The list of monsters that make up this horde."
     )
-    horde_level_range: Optional[Sequence[int]] = Field(
+    horde_level_range: tuple[int, int] | None = Field(
         None,
-        description="Optional: A base level range for the entire horde. If set, individual monster `level_range` can be ignored or used as a modification.",
-        max_length=2,
+        description="Optional: A base level range for the entire horde. "
+        "Monsters may have their own level ranges that differ.",
     )
-    horde_exp_mod: Optional[float] = Field(
+    horde_exp_mod: float | None = Field(
         None,
         description="Optional: A modifier for the experience points of the entire horde.",
         gt=0.0,
     )
+
+    @field_validator("horde_level_range")
+    def validate_horde_level_range(
+        cls, v: tuple[int, int] | None
+    ) -> tuple[int, int] | None:
+        if v is None:
+            return v
+
+        min_allowed, max_allowed = config_monster.level_range
+        min_level, max_level = v
+
+        if min_level > max_level:
+            raise ValueError(
+                "horde_level_range must be (min, max) with min <= max"
+            )
+
+        if min_level < min_allowed or max_level > max_allowed:
+            raise ValueError(
+                f"horde_level_range {v} must be within allowed range "
+                f"{config_monster.level_range}"
+            )
+
+        return v
 
 
 class EncounterType(str, Enum):
@@ -1866,16 +2312,16 @@ class EncounterModel(BaseModel, BaseLookupModel):
         description="The type of this encounter (single monster or a horde).",
     )
     monsters: Sequence[EncounterItemModel] = Field(
-        [], description="Monsters encounterable"
+        default_factory=list, description="Monsters encounterable"
     )
-    horde: Optional[HordeEncounterModel] = Field(
+    horde: HordeEncounterModel | None = Field(
         None, description="Horde data (for horde encounters)"
     )
     scaling_zone: bool = Field(
         False,
         description="If true, this zone applies level scaling to all monsters",
     )
-    scale_offset_range: Optional[tuple[int, int]] = Field(
+    scale_offset_range: tuple[int, int] | None = Field(
         None,
         description="Custom offset range applied when scaling override is active (e.g. -3 to +5)",
     )
@@ -1911,6 +2357,73 @@ class EncounterModel(BaseModel, BaseLookupModel):
             )
         return self
 
+    @model_validator(mode="after")
+    def validate_encounter_type(self) -> EncounterModel:
+        if self.encounter_type == EncounterType.HORDE:
+            if not self.horde:
+                raise ValueError(
+                    "EncounterType.HORDE requires a 'horde' definition"
+                )
+        else:
+            if not self.monsters:
+                raise ValueError(
+                    "EncounterType.SINGLE requires 'monsters' to be defined"
+                )
+
+        return self
+
+    @field_validator("scale_offset_range")
+    def validate_scale_offset_range(
+        cls, v: tuple[int, int] | None
+    ) -> tuple[int, int] | None:
+        if v is None:
+            return v
+
+        off_min, off_max = v
+        if off_min > off_max:
+            raise ValueError(
+                "scale_offset_range must be (min, max) with min <= max"
+            )
+
+        min_allowed, max_allowed = config_monster.level_range
+        max_offset = max_allowed - min_allowed
+
+        if off_min < -max_offset or off_max > max_offset:
+            raise ValueError(
+                f"scale_offset_range {v} would push scaled levels outside allowed range "
+                f"{config_monster.level_range}"
+            )
+
+        return v
+
+    @model_validator(mode="after")
+    def validate_scaling_zone_logic(self) -> EncounterModel:
+        min_allowed, max_allowed = config_monster.level_range
+
+        if not self.scaling_zone:
+            return self
+
+        if self.override_level_range:
+            if self.scale_offset_range:
+                off_min, off_max = self.scale_offset_range
+                max_offset = max_allowed - min_allowed
+                if off_min < -max_offset or off_max > max_offset:
+                    raise ValueError(
+                        f"scale_offset_range {self.scale_offset_range} would push "
+                        f"scaled levels outside allowed range {config_monster.level_range}"
+                    )
+            return self
+
+        for m in self.monsters:
+            min_level, max_level = m.level_range
+            if min_level < min_allowed or max_level > max_allowed:
+                raise ValueError(
+                    f"Monster {m.monster} has level_range {m.level_range} outside "
+                    f"global allowed range {config_monster.level_range} while scaling_zone=True"
+                )
+
+        return self
+
 
 class DialogueModel(BaseModel, BaseLookupModel):
     table_name: ClassVar[str] = "dialogue"
@@ -1933,9 +2446,9 @@ class DialogueModel(BaseModel, BaseLookupModel):
             raise RuntimeError(f"Dialogue {slug} not found")
 
     @field_validator("border_slug")
-    def file_exists(cls: DialogueModel, v: str) -> str:
+    def file_exists(cls, v: str) -> str:
         file: str = f"gfx/borders/{v}.png"
-        if has.file(file) and has.size(file, prepare.BORDERS_SIZE):
+        if has.file(file) and has.size(file, sizes.BORDERS_SIZE):
             return v
         raise ValueError(f"no resource exists with path: {file}")
 
@@ -1945,7 +2458,7 @@ class ElementItemModel(BaseModel):
     multiplier: float = Field(1.0, description="Multiplier against the type")
 
     @field_validator("against")
-    def element_exists(cls: ElementItemModel, v: str) -> str:
+    def element_exists(cls, v: str) -> str:
         if not v or has.db_entry("element", v):
             return v
         raise ValueError(f"the element {v} doesn't exist in the db")
@@ -1966,26 +2479,26 @@ class ElementModel(BaseModel, BaseLookupModel):
             raise RuntimeError(f"Element {slug} not found")
 
     @field_validator("slug")
-    def translation_exists_element(cls: ElementModel, v: str) -> str:
+    def translation_exists_element(cls, v: str) -> str:
         if has.translation(v):
             return v
         raise ValueError(f"no translation exists with msgid: {v}")
 
     @field_validator("slug")
-    def sound_call_exists(cls: ElementModel, v: str) -> str:
+    def sound_call_exists(cls, v: str) -> str:
         if has.db_entry("sounds", f"sound_{v}_call"):
             return v
         raise ValueError(f"the sound {v} doesn't exist in the db")
 
     @field_validator("slug")
-    def sound_faint_exists(cls: ElementModel, v: str) -> str:
+    def sound_faint_exists(cls, v: str) -> str:
         if has.db_entry("sounds", f"sound_{v}_faint"):
             return v
         raise ValueError(f"the sound {v} doesn't exist in the db")
 
     @field_validator("icon")
-    def file_exists(cls: ElementModel, v: str) -> str:
-        if has.file(v) and has.size(v, prepare.ELEMENT_SIZE):
+    def file_exists(cls, v: str) -> str:
+        if has.file(v) and has.size(v, sizes.ELEMENT_SIZE):
             return v
         raise ValueError(f"the icon {v} doesn't exist in the db")
 
@@ -2016,7 +2529,7 @@ class TasteModel(BaseModel, BaseLookupModel):
             raise RuntimeError(f"Taste {slug} not found")
 
     @field_validator("name")
-    def translation_exists_taste(cls: TasteModel, v: str) -> str:
+    def translation_exists_taste(cls, v: str) -> str:
         if has.translation(v):
             return v
         raise ValueError(f"no translation exists with msgid: {v}")
@@ -2027,30 +2540,30 @@ class EconomyEntityModel(BaseModel):
     cost: int = Field(..., description="Cost of the entity")
     inventory: int = Field(-1, description="Quantity of the entity")
     variables: Sequence[dict[str, str]] = Field(
-        [],
+        default_factory=list,
         description="List of variables that affect the entity in the economy.",
         min_length=1,
     )
 
 
 class EconomyItemModel(EconomyEntityModel):
-    name: str = Field(..., description="Name of the entity")
+    slug: str = Field(..., description="Slug of the Item")
     inventory: int = Field(-1, description="Quantity of the entity")
 
-    @field_validator("name")
-    def item_exists(cls: EconomyEntityModel, v: str) -> str:
+    @field_validator("slug")
+    def item_exists(cls, v: str) -> str:
         if has.db_entry("item", v):
             return v
         raise ValueError(f"the item {v} doesn't exist in the db")
 
 
 class EconomyMonsterModel(EconomyEntityModel):
-    name: str = Field(..., description="Name of the entity")
+    slug: str = Field(..., description="Slug of the Monster")
     inventory: int = Field(1, description="Quantity of the entity", gt=0)
     level: int = Field(..., description="Level of the entity", gt=0)
 
-    @field_validator("name")
-    def monster_exists(cls: EconomyEntityModel, v: str) -> str:
+    @field_validator("slug")
+    def monster_exists(cls, v: str) -> str:
         if has.db_entry("monster", v):
             return v
         raise ValueError(f"the monster {v} doesn't exist in the db")
@@ -2073,8 +2586,8 @@ class EconomyModel(BaseModel, BaseLookupModel):
             raise RuntimeError(f"Economy {slug} not found")
 
     @field_validator("background")
-    def background_exists(cls: EconomyModel, v: str) -> str:
-        if has.file(v) and has.size(v, prepare.NATIVE_RESOLUTION):
+    def background_exists(cls, v: str) -> str:
+        if has.file(v) and has.size(v, sizes.NATIVE_RESOLUTION):
             return v
         raise ValueError(f"no resource exists with path: {v}")
 
@@ -2110,7 +2623,7 @@ class FactionRelationStatus(str, Enum):
 class RankRequirement(BaseModel):
     min_reputation: int = 0
     variables: Sequence[dict[str, Any]] = Field(
-        [],
+        default_factory=list,
         description="List of variables that affect the requirement.",
         min_length=1,
     )
@@ -2119,23 +2632,23 @@ class RankRequirement(BaseModel):
 class RankStep(BaseModel):
     title: str
     threshold: int
-    requirement: Optional[RankRequirement] = None
+    requirement: RankRequirement | None = None
 
 
 class FactionModel(BaseModel, BaseLookupModel):
     table_name: ClassVar[str] = "faction"
 
     slug: str = Field(..., description="Unique ID of the faction")
-    kind: Optional[FactionKind] = Field(
+    kind: FactionKind | None = Field(
         FactionKind.TEAM, description="Faction type (gym, team, league, etc.)"
     )
-    alignment: Optional[FactionAlignment] = Field(
+    alignment: FactionAlignment | None = Field(
         None, description="Faction alignment: heroic, villainous, rogue, etc."
     )
-    badge_id: Optional[str] = Field(
+    badge_id: str | None = Field(
         None, description="Associated badge ID if applicable"
     )
-    leader_char: Optional[str] = Field(
+    leader_char: str | None = Field(
         None, description="Slug of the faction leader NPC"
     )
     ranks: list[RankStep] = Field(
@@ -2170,13 +2683,13 @@ class FactionModel(BaseModel, BaseLookupModel):
             raise RuntimeError(f"Mission {slug} not found")
 
     @field_validator("slug")
-    def translation_exists_faction(cls: FactionModel, v: str) -> str:
+    def translation_exists_faction(cls, v: str) -> str:
         if has.translation(v):
             return v
         raise ValueError(f"no translation exists with msgid: {v}")
 
     @field_validator("members")
-    def member_exists(cls: FactionModel, v: Sequence[str]) -> Sequence[str]:
+    def member_exists(cls, v: Sequence[str]) -> Sequence[str]:
         for npc_slug in v:
             if not has.db_entry("npc", npc_slug):
                 raise ValueError(
@@ -2185,7 +2698,7 @@ class FactionModel(BaseModel, BaseLookupModel):
         return v
 
     @field_validator("leader_char")
-    def leader_exists(cls: FactionModel, v: Optional[str]) -> Optional[str]:
+    def leader_exists(cls, v: str | None) -> str | None:
         if v:
             if not has.db_entry("npc", v):
                 raise ValueError(f"The npc '{v}' doesn't exist in the db")
@@ -2217,6 +2730,15 @@ class FactionModel(BaseModel, BaseLookupModel):
 
         return values
 
+    @model_validator(mode="after")
+    def validate_unique_rank_thresholds(self) -> FactionModel:
+        thresholds = [rank.threshold for rank in self.ranks]
+        if len(thresholds) != len(set(thresholds)):
+            raise ValueError(
+                "All rank thresholds must be unique within a faction."
+            )
+        return self
+
 
 class MissionStepModel(BaseModel):
     slug: str = Field(..., description="Unique identifier for the step")
@@ -2243,11 +2765,11 @@ class MissionStepModel(BaseModel):
         default_factory=list,
         description="Slugs of next steps unlocked when this is completed",
     )
-    step_items_needed: dict[str, Optional[int]] = Field(
+    step_items_needed: dict[str, int | None] = Field(
         default_factory=dict,
         description="Items required to complete this step. Quantity is optional; None means at least one.",
     )
-    step_monsters_needed: dict[str, Optional[int]] = Field(
+    step_monsters_needed: dict[str, int | None] = Field(
         default_factory=dict,
         description="Monsters required to complete this step. Level is optional; None means any level.",
     )
@@ -2269,11 +2791,11 @@ class MissionModel(BaseModel, BaseLookupModel):
         default_factory=list,
         description="List of missions that this one unlocks",
     )
-    required_items: dict[str, Optional[int]] = Field(
+    required_items: dict[str, int | None] = Field(
         default_factory=dict,
         description="Items required to begin the mission with optional quantity. None means at least one.",
     )
-    required_monsters: dict[str, Optional[int]] = Field(
+    required_monsters: dict[str, int | None] = Field(
         default_factory=dict,
         description="Monsters required to begin the mission with optional minimum level. None means any level.",
     )
@@ -2302,21 +2824,19 @@ class MissionModel(BaseModel, BaseLookupModel):
             raise RuntimeError(f"Mission {slug} not found")
 
     @field_validator("slug")
-    def translation_exists_mission(cls: MissionModel, v: str) -> str:
+    def translation_exists_mission(cls, v: str) -> str:
         if has.translation(v):
             return v
         raise ValueError(f"no translation exists with msgid: {v}")
 
     @field_validator("description")
-    def translation_exists_desc(cls: MissionModel, v: str) -> str:
+    def translation_exists_desc(cls, v: str) -> str:
         if has.translation(v):
             return v
         raise ValueError(f"no translation exists with msgid: {v}")
 
     @field_validator("required_items")
-    def item_exists(
-        cls: MissionModel, v: dict[str, Optional[int]]
-    ) -> dict[str, Optional[int]]:
+    def item_exists(cls, v: dict[str, int | None]) -> dict[str, int | None]:
         for item_slug in v.keys():
             if not has.db_entry("item", item_slug):
                 raise ValueError(
@@ -2325,9 +2845,7 @@ class MissionModel(BaseModel, BaseLookupModel):
         return v
 
     @field_validator("required_monsters")
-    def monster_exists(
-        cls: MissionModel, v: dict[str, Optional[int]]
-    ) -> dict[str, Optional[int]]:
+    def monster_exists(cls, v: dict[str, int | None]) -> dict[str, int | None]:
         for monster_slug in v.keys():
             if not has.db_entry("monster", monster_slug):
                 raise ValueError(
@@ -2341,7 +2859,7 @@ class MusicModel(BaseModel):
     file: str = Field(..., description="File for the music")
 
     @field_validator("file")
-    def file_exists(cls: MusicModel, v: str) -> str:
+    def file_exists(cls, v: str) -> str:
         file: str = f"music/{v}"
         if has.file(file):
             return v
@@ -2353,7 +2871,7 @@ class SoundModel(BaseModel):
     file: str = Field(..., description="File for the sound")
 
     @field_validator("file")
-    def file_exists(cls: SoundModel, v: str) -> str:
+    def file_exists(cls, v: str) -> str:
         file: str = f"sounds/{v}"
         if has.file(file):
             return v
@@ -2365,12 +2883,16 @@ class AnimationModel(BaseModel, BaseLookupModel):
     slug: str = Field(..., description="Unique slug for the animation")
     file: str = Field(..., description="File of the animation")
     duration: float = Field(
-        default=0.09,
+        default=0.1,
         description="Duration (in seconds) for each frame of the animation.",
     )
-    loop: bool = Field(
-        default=False,
-        description="Whether the animation should repeat after finishing.",
+    loop: int = Field(
+        default=-1,
+        description=(
+            "Number of times the visual should loop. "
+            "-1 means infinite looping, 0 means play once, "
+            "any positive integer means loop that many times."
+        ),
     )
     rate: float = Field(
         default=1.0,
@@ -2390,7 +2912,7 @@ class AnimationModel(BaseModel, BaseLookupModel):
             raise RuntimeError(f"Animation {slug} not found")
 
     @field_validator("file")
-    def file_exists(cls: AnimationModel, v: str, info: ValidationInfo) -> str:
+    def file_exists(cls, v: str, info: ValidationInfo) -> str:
         slug = info.data.get("slug")
         file: str = f"animations/{v}/{slug}_00.png"
         if has.file(file):
@@ -2408,9 +2930,7 @@ class TerrainModel(BaseModel, BaseLookupModel):
     table_name: ClassVar[str] = "terrain"
     slug: str = Field(..., description="Slug of the terrain")
     name: str = Field(..., description="Name of the terrain condition")
-    element_modifier: dict[str, float] = Field(
-        ..., description="Modifiers for elemental techniques in this terrain"
-    )
+    modifiers: list[Modifier] = Field(..., description="Various modifiers")
 
     @classmethod
     def lookup(cls, slug: str, db: ModData) -> TerrainModel:
@@ -2421,7 +2941,7 @@ class TerrainModel(BaseModel, BaseLookupModel):
             raise RuntimeError(f"Terrain {slug} not found")
 
     @field_validator("name")
-    def translation_exists_item(cls: TerrainModel, v: str) -> str:
+    def translation_exists_item(cls, v: str) -> str:
         if has.translation(v):
             return v
         raise ValueError(f"no translation exists with msgid: {v}")
@@ -2431,10 +2951,15 @@ class WeatherModel(BaseModel, BaseLookupModel):
     table_name: ClassVar[str] = "weather"
     slug: str = Field(..., description="Slug of the weather")
     name: str = Field(..., description="Name of the weather condition")
-    element_modifier: dict[str, float] = Field(
+    temperature: Temperature = Field(
         ...,
-        description="Modifiers for elemental techniques during this weather",
+        description="The general temperature category for this weather state.",
     )
+    wind: Wind = Field(
+        ...,
+        description="The general wind intensity level for this weather state.",
+    )
+    modifiers: list[Modifier] = Field(..., description="Various modifiers")
 
     @classmethod
     def lookup(cls, slug: str, db: ModData) -> WeatherModel:
@@ -2445,7 +2970,7 @@ class WeatherModel(BaseModel, BaseLookupModel):
             raise RuntimeError(f"Weather {slug} not found")
 
     @field_validator("name")
-    def translation_exists_item(cls: WeatherModel, v: str) -> str:
+    def translation_exists_item(cls, v: str) -> str:
         if has.translation(v):
             return v
         raise ValueError(f"no translation exists with msgid: {v}")
@@ -2485,14 +3010,3 @@ def load_model_map(
         module = import_module(module_name)
         model_map[table] = getattr(module, class_name)
     return model_map
-
-
-fetch_mod_asset_roots(prepare.CONFIG)
-path = fetch_asset(mods_folder.as_posix(), "db_config.yaml")
-config = load_config(path)
-model_map = load_model_map(config.model_map)
-loader = ModelLoader(model_map)
-# Global database container
-db = ModData(config, loader)
-# Validator container
-has = Validator(db)

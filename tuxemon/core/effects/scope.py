@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -17,8 +17,19 @@ if TYPE_CHECKING:
 @dataclass
 class ScopeEffect(CoreEffect):
     """
-    Scope: scan monster stats.
+    Applies the "scope" effect to a technique.
 
+    This effect scans the target monster's combat statistics and displays
+    them to the player. It is typically used for reconnaissance in battle,
+    allowing the user to evaluate the opponent's strengths and weaknesses.
+
+    **Example**
+
+    .. code-block:: json
+
+        "effects": [
+            "scope"
+        ]
     """
 
     name = "scope"

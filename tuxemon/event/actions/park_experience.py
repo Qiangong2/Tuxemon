@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 import logging
@@ -48,7 +48,7 @@ class ParkExperienceAction(EventAction):
 
         self.client.push_state("ParkState", session=session)
 
-    def update(self, session: Session) -> None:
+    def update(self, session: Session, dt: float) -> None:
         if self.option == "stop":
             try:
                 session.client.get_state_by_name("ParkState")

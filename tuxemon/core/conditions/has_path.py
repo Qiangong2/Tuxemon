@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -15,8 +15,22 @@ if TYPE_CHECKING:
 @dataclass
 class HasPathCondition(CoreCondition):
     """
-    Checks whether the creature has an evolution path that includes the specified
-    item slug.
+    Checks whether the target Monster has an evolution path that requires a specific item.
+
+    **Parameters**
+    - ``expected``: The slug of the item to check for in the Monster's evolution paths.
+
+    **Returns**
+    - ``True`` if any of the Monster's evolutions include the given item.
+    - ``False`` otherwise.
+
+    **Example**
+
+    .. code-block:: json
+
+        "conditions": [
+            "is has_path evolution_stone"
+        ]
     """
 
     name = "has_path"

@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -18,13 +18,25 @@ if TYPE_CHECKING:
 @dataclass
 class ElementalShieldBackEffect(CoreEffect):
     """
-    Elemental Shield:
-    Each time you are hit by a Special move the attacker takes damage equal to
-    your maximum HP divided by the divisor.
+    Applies the "elemental shield" status to a monster.
 
-    Parameters:
-        divisor: The divisor used to calculate the damage.
-        ranges: The ranges of moves that trigger the effect.
+    This effect reflects damage back to the attacker whenever the host is hit
+    by a qualifying Special move. The reflected damage is equal to the host's
+    maximum HP divided by the specified divisor.
+
+    **Parameters**
+
+    - ``divisor``: The divisor used to calculate reflected damage.
+    - ``ranges``: A colon-separated string of move ranges that trigger the effect
+      (e.g. ``"short:long"``).
+
+    **Example**
+
+    .. code-block:: json
+
+        "effects": [
+            "elemental_shield 4 short:long"
+        ]
     """
 
     name = "elemental_shield"
@@ -35,7 +47,7 @@ class ElementalShieldBackEffect(CoreEffect):
         self, session: Session, status: Status
     ) -> StatusEffectResult:
 
-        host = status.get_host()
+        host = status.host
 
         if not status.has_phase(EffectPhase.PERFORM_STATUS):
             return StatusEffectResult(name=status.name, success=False)

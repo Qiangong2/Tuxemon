@@ -1,17 +1,20 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
 from typing import Optional, final
-from uuid import UUID
 
-from tuxemon import prepare
-from tuxemon.event import get_monster_by_iid
 from tuxemon.event.eventaction import EventAction
+from tuxemon.platform.const.sizes import (
+    ACCURACY_RANGE,
+    POTENCY_RANGE,
+    POWER_RANGE,
+)
 from tuxemon.session import Session
 from tuxemon.technique.technique import Technique
+from tuxemon.tools import get_valid_uuid
 
 logger = logging.getLogger(__name__)
 
@@ -49,12 +52,14 @@ class AddTechAction(EventAction):
     def start(self, session: Session) -> None:
         player = session.player
 
-        if not player.game_variables.has(self.variable):
-            logger.error(f"Game variable '{self.variable}' not found")
-            return
+        monster_id = get_valid_uuid(player.game_variables, self.variable)
+        if monster_id is None:
+            logger.info(
+                f"No valid monster selected for variable '{self.variable}'"
+            )
+            return  # Exit early if no valid UUID
 
-        monster_id = UUID(player.game_variables.get(self.variable))
-        monster = get_monster_by_iid(session, monster_id)
+        monster = session.client.get_monster_by_iid(monster_id)
         if monster is None:
             logger.error("Monster not found")
             return
@@ -62,9 +67,9 @@ class AddTechAction(EventAction):
         tech = Technique.create(self.technique)
 
         overrides = {
-            "power": (self.power, prepare.POWER_RANGE),
-            "potency": (self.potency, prepare.POTENCY_RANGE),
-            "accuracy": (self.accuracy, prepare.ACCURACY_RANGE),
+            "power": (self.power, POWER_RANGE),
+            "potency": (self.potency, POTENCY_RANGE),
+            "accuracy": (self.accuracy, ACCURACY_RANGE),
         }
 
         for attr, (val, bounds) in overrides.items():
@@ -81,5 +86,5 @@ class AddTechAction(EventAction):
         if monster.moves.has_move(tech.slug):
             logger.warning(f"{monster.name} already knows {tech.name}")
         else:
-            monster.moves.learn(monster.instance_id, tech)
+            monster.moves.learn(monster, tech, ignore_eligibility=True)
             logger.info(f"{monster.name} learned {tech.name}!")

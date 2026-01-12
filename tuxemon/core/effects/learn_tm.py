@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -17,13 +17,24 @@ if TYPE_CHECKING:
 @dataclass
 class LearnTmEffect(CoreEffect):
     """
-    Teaches a specific technique (TM) to the target monster.
+    Applies the "learn_tm" effect to a monster.
 
-    This effect should be used when an item allows a monster to learn a fixed
-    technique, such as with a TM or scroll.
+    This effect teaches the target a specific technique defined by its slug.
+    It is typically used when an item (such as a TM or scroll) allows a
+    monster to learn a fixed move.
 
-    Parameters:
-        technique: Slug of the technique to be taught (e.g., "ram", "ice_beam").
+    **Parameters**
+
+    - ``technique``: The slug identifier of the technique to be taught
+      (e.g., ``ram``, ``ice_beam``).
+
+    **Example**
+
+    .. code-block:: json
+
+        "effects": [
+            "learn_tm ice_beam"
+        ]
     """
 
     name = "learn_tm"
@@ -35,5 +46,7 @@ class LearnTmEffect(CoreEffect):
         if target.moves.has_move(self.technique):
             return ItemEffectResult(name=item.name)
         tech = Technique.create(self.technique)
-        target.moves.learn(target.instance_id, tech)
+        learned = target.moves.learn(target, tech)
+        if not learned:
+            return ItemEffectResult(name=item.name)
         return ItemEffectResult(name=item.name, success=True)

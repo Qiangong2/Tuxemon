@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 import logging
@@ -12,10 +12,9 @@ import yaml
 
 from tuxemon.constants import paths
 from tuxemon.db import SeenStatus
-from tuxemon.event import get_npc
 from tuxemon.event.eventaction import EventAction
 from tuxemon.monster import Monster
-from tuxemon.prepare import PARTY_LIMIT
+from tuxemon.platform.const.sizes import PARTY_LIMIT
 from tuxemon.session import Session
 from tuxemon.time_handler import today_ordinal
 
@@ -88,7 +87,7 @@ class ReplacePartyFromYamlAction(EventAction):
 
     def start(self, session: Session) -> None:
 
-        character = get_npc(session, self.character)
+        character = session.get_npc(self.character)
         if character is None:
             logger.error("'wild_encounter' not found")
             return
@@ -125,8 +124,8 @@ class ReplacePartyFromYamlAction(EventAction):
             character.tuxepedia.add_entry(monster.slug, SeenStatus.caught)
 
             if "experience_modifier" in entry:
-                monster.experience_modifier = float(
-                    entry["experience_modifier"]
+                monster.set_experience_modifier(
+                    float(entry["experience_modifier"])
                 )
             if "money_modifier" in entry:
                 monster.money_modifier = float(entry["money_modifier"])

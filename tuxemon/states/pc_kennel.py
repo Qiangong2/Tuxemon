@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 import logging
@@ -13,21 +13,27 @@ import pygame_menu
 from pygame_menu import locals
 from pygame_menu.widgets.selection.highlight import HighlightSelection
 
-from tuxemon import prepare
 from tuxemon.animation import ScheduleType
 from tuxemon.locale import T
 from tuxemon.menu.interface import MenuItem
 from tuxemon.menu.menu import PygameMenuState
+from tuxemon.platform.const.graphics import BG_PC_KENNEL
+from tuxemon.platform.const.sizes import MAX_KENNEL, PARTY_LIMIT
+from tuxemon.prepare import SCALE, SCREEN_SIZE
 from tuxemon.state.state import State
 from tuxemon.states.monster_menu import MonsterMenuState
 from tuxemon.tools import fix_measure, open_choice_dialog, open_dialog
-from tuxemon.ui.menu_options import ChoiceOption, MenuOptions
+from tuxemon.ui.menu_options import (
+    MenuOptions,
+    create_choice_options,
+    create_yes_no_options,
+)
 
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from tuxemon.animation import Animation
-    from tuxemon.client import LocalPygameClient
+    from tuxemon.base_client import BaseClient
     from tuxemon.monster import Monster
     from tuxemon.npc import NPC
 
@@ -35,15 +41,13 @@ if TYPE_CHECKING:
 MenuGameObj = Callable[[], object]
 
 
-HIDDEN = "hidden_kennel"
-HIDDEN_LIST = [HIDDEN]
-MAX_BOX = prepare.MAX_KENNEL
+MAX_BOX = MAX_KENNEL
 
 
 class MonsterActionHandler:
     def __init__(
         self,
-        client: LocalPygameClient,
+        client: BaseClient,
         char: NPC,
         box_name: str,
         source_state: str,
@@ -56,43 +60,41 @@ class MonsterActionHandler:
 
     def pick(self, monster: Monster) -> None:
         self._clear_states("ChoiceState", "MonsterTakeState")
-        self.monster_boxes.remove_monster(monster)
-        self.char.party.add_monster(monster, len(self.char.monsters))
+        self.monster_boxes.remove_from_box("monster", None, monster)
+        self.char.party.insert_monster_to_party(
+            monster, len(self.char.monsters)
+        )
         open_dialog(
             self.client,
             [T.format("menu_storage_take_monster", {"name": monster.name})],
+            dialog_speed="max",
         )
 
     def move(self, monster: Monster, box_ids: list[str]) -> None:
         if len(box_ids) == 1:
             self.move_monster(monster, box_ids[0], box_ids)
         else:
-            options = []
-            for box in box_ids:
-                text = T.translate(box).upper()
-                action = partial(self.move_monster, monster, box, box_ids)
-                options.append(
-                    ChoiceOption(key=box, display_text=text, action=action)
-                )
+            actions = {
+                box: partial(self.move_monster, monster, box, box_ids)
+                for box in box_ids
+            }
+            options = create_choice_options(actions)
             open_choice_dialog(
-                self.client, menu=MenuOptions(options), escape_key_exits=True
+                self.client,
+                menu=MenuOptions(options),
+                escape_key_exits=True,
             )
 
     def release(self, monster: Monster) -> None:
-        options = [
-            ChoiceOption(
-                key="no",
-                display_text=T.translate("no").upper(),
-                action=partial(self.output, None),
-            ),
-            ChoiceOption(
-                key="yes",
-                display_text=T.translate("yes").upper(),
-                action=partial(self.output, monster),
-            ),
-        ]
+        options = create_yes_no_options(
+            yes_action=partial(self.output, monster),
+            no_action=partial(self.output, None),
+        )
+
         open_choice_dialog(
-            self.client, menu=MenuOptions(options), escape_key_exits=True
+            self.client,
+            menu=MenuOptions(options),
+            escape_key_exits=True,
         )
 
     def move_monster(
@@ -106,10 +108,13 @@ class MonsterActionHandler:
     def output(self, monster: Optional[Monster]) -> None:
         self._clear_states("ChoiceState", "MonsterTakeState")
         if monster is not None:
-            self.monster_boxes.remove_monster_from(self.box_name, monster)
+            self.monster_boxes.remove_from_box(
+                "monster", self.box_name, monster
+            )
             open_dialog(
                 self.client,
                 [T.format("tuxemon_released", {"name": monster.name})],
+                dialog_speed="max",
             )
 
     def info(self, mon: Monster) -> None:
@@ -134,22 +139,18 @@ class MonsterActionHandler:
         )
 
     def description_dialog(self, mon: Monster) -> None:
-        _info = T.translate("monster_menu_info").upper()
-        _tech = T.translate("monster_menu_tech").upper()
-        _item = T.translate("monster_menu_item").upper()
-        options = [
-            ChoiceOption(
-                key="info", display_text=_info, action=partial(self.info, mon)
-            ),
-            ChoiceOption(
-                key="tech", display_text=_tech, action=partial(self.tech, mon)
-            ),
-            ChoiceOption(
-                key="item", display_text=_item, action=partial(self.item, mon)
-            ),
-        ]
+        actions = {
+            "info": partial(self.info, mon),
+            "tech": partial(self.tech, mon),
+            "item": partial(self.item, mon),
+        }
+
+        options = create_choice_options(actions)
+
         open_choice_dialog(
-            self.client, menu=MenuOptions(options), escape_key_exits=True
+            self.client,
+            menu=MenuOptions(options),
+            escape_key_exits=True,
         )
 
     def swap(self, box_monster: Monster, party_monster: Monster) -> None:
@@ -159,8 +160,12 @@ class MonsterActionHandler:
             box_monster.instance_id, party_monster
         )
 
-        self.char.party.remove_monster(party_monster)
-        self.char.party.add_monster(swapped_out, len(self.char.monsters))
+        if self.char.party.replace_monster(party_monster, swapped_out):
+            logger.info(
+                f"{party_monster.name} swapped with {swapped_out.name}"
+            )
+        else:
+            logger.warning(f"Failed to swap {swapped_out.name}")
 
         open_dialog(
             self.client,
@@ -173,6 +178,7 @@ class MonsterActionHandler:
                     },
                 )
             ],
+            dialog_speed="max",
         )
 
     def _clear_states(self, *state_names: str) -> None:
@@ -188,110 +194,15 @@ class MonsterTakeState(PygameMenuState):
 
     name: ClassVar[str] = "MonsterTakeState"
 
-    def add_menu_items(
-        self,
-        menu: pygame_menu.Menu,
-        items: Sequence[Monster],
-    ) -> None:
-        self.monster_boxes = self.char.monster_boxes
-        self.box = self.monster_boxes.get_monsters(self.box_name)
-        handler = MonsterActionHandler(
-            self.client, self.char, self.box_name, self.name
-        )
-
-        def kennel_options(instance_id: str) -> None:
-            iid = UUID(instance_id)
-            mon = self.monster_boxes.get_monsters_by_iid(iid)
-            if mon is None:
-                logger.error(f"Monster {iid} not found")
-                return
-
-            box_ids = [
-                key
-                for key, value in self.monster_boxes.monster_boxes.items()
-                if len(value) < MAX_BOX and key not in HIDDEN_LIST
-            ]
-            kennels = [
-                key
-                for key in box_ids
-                if key != self.box_name
-                and self.monster_boxes.get_box_size(key, "monster")
-                < prepare.MAX_KENNEL
-            ]
-
-            swap_target = self.swap_target
-            if swap_target:
-                actions = {
-                    "swap": lambda: handler.swap(mon, swap_target),
-                }
-            else:
-                actions = {}
-                if len(self.char.monsters) < prepare.PARTY_LIMIT:
-                    actions["pick"] = lambda: handler.pick(mon)
-                if kennels:
-                    actions["move"] = lambda: handler.move(mon, kennels)
-                actions["release"] = lambda: handler.release(mon)
-
-            options = []
-            for action, func in actions.items():
-                if action == "move" and len(box_ids) < 2:
-                    continue
-                translated_action = T.translate(action).upper()
-                options.append(
-                    ChoiceOption(
-                        key=action,
-                        display_text=translated_action,
-                        action=func,
-                    )
-                )
-
-            open_choice_dialog(
-                self.client,
-                menu=MenuOptions(options),
-                escape_key_exits=True,
-            )
-
-        _sorted = sorted(items, key=lambda x: x.slug)
-        for monster in _sorted:
-            label = T.translate(monster.name).upper()
-            iid = monster.instance_id.hex
-            new_image = self._create_image(monster.sprite_handler.front_path)
-            new_image.scale(prepare.SCALE * 0.5, prepare.SCALE * 0.5)
-            menu.add.banner(
-                new_image,
-                partial(kennel_options, iid),
-                selection_effect=HighlightSelection(),
-            )
-            diff = round((monster.hp_ratio) * 100, 1)
-            level = f"Lv.{monster.level}"
-            menu.add.progress_bar(
-                level,
-                default=diff,
-                font_size=self.font_type.small,
-                align=locals.ALIGN_CENTER,
-            )
-            menu.add.button(
-                label,
-                partial(handler.description_dialog, monster),
-                font_size=self.font_type.small,
-                align=locals.ALIGN_CENTER,
-                selection_effect=HighlightSelection(),
-            )
-
-        box_label = T.translate(self.box_name).upper()
-        menu.set_title(
-            T.format(f"{box_label}: {len(self.box)}/{MAX_BOX}")
-        ).center_content()
-
     def __init__(
         self,
         box_name: str,
         character: NPC,
         swap_target: Optional[Monster] = None,
     ) -> None:
-        width, height = prepare.SCREEN_SIZE
+        width, height = SCREEN_SIZE
 
-        theme = self._setup_theme(prepare.BG_PC_KENNEL)
+        theme = self._setup_theme(BG_PC_KENNEL)
         theme.scrollarea_position = locals.POSITION_EAST
         theme.widget_alignment = locals.ALIGN_CENTER
 
@@ -328,6 +239,92 @@ class MonsterTakeState(PygameMenuState):
         self.add_menu_items(self.menu, menu_items_map)
         self.reset_theme()
 
+    def kennel_options(
+        self, instance_id: str, handler: MonsterActionHandler
+    ) -> None:
+        iid = UUID(instance_id)
+        mon = self.monster_boxes.get_monsters_by_iid(iid)
+        if mon is None:
+            logger.error(f"Monster {iid} not found")
+            return
+
+        box_ids = [
+            key
+            for key in self.monster_boxes.monster_boxes
+            if not self.monster_boxes.is_box_hidden(key, "monster")
+        ]
+        kennels = [
+            key
+            for key in box_ids
+            if key != self.box_name
+            and self.monster_boxes.get_box_size(key, "monster") < MAX_KENNEL
+        ]
+
+        swap_target = self.swap_target
+        if swap_target:
+            actions = {"swap": lambda: handler.swap(mon, swap_target)}
+        else:
+            actions = {}
+            if len(self.char.monsters) < PARTY_LIMIT:
+                actions["pick"] = lambda: handler.pick(mon)
+            if kennels:
+                actions["move"] = lambda: handler.move(mon, kennels)
+            actions["release"] = lambda: handler.release(mon)
+
+        filtered_actions = {
+            action: func
+            for action, func in actions.items()
+            if not (action == "move" and len(box_ids) < 2)
+        }
+
+        options = create_choice_options(filtered_actions)
+        open_choice_dialog(
+            self.client,
+            menu=MenuOptions(options),
+            escape_key_exits=True,
+        )
+
+    def add_menu_items(
+        self, menu: pygame_menu.Menu, items: Sequence[Monster]
+    ) -> None:
+        self.monster_boxes = self.char.monster_boxes
+        self.box = self.monster_boxes.get_monsters(self.box_name)
+        handler = MonsterActionHandler(
+            self.client, self.char, self.box_name, self.name
+        )
+
+        _sorted = sorted(items, key=lambda x: x.slug)
+        for monster in _sorted:
+            label = T.translate(monster.name).upper()
+            iid = monster.instance_id.hex
+            new_image = self._create_image(monster.sprite_handler.front_path)
+            new_image.scale(SCALE * 0.5, SCALE * 0.5)
+            menu.add.banner(
+                new_image,
+                partial(self.kennel_options, iid, handler),
+                selection_effect=HighlightSelection(),
+            )
+            diff = round((monster.hp_ratio) * 100, 1)
+            level = f"Lv.{monster.level}"
+            menu.add.progress_bar(
+                level,
+                default=diff,
+                font_size=self.font_type.small,
+                align=locals.ALIGN_CENTER,
+            )
+            menu.add.button(
+                label,
+                partial(handler.description_dialog, monster),
+                font_size=self.font_type.small,
+                align=locals.ALIGN_CENTER,
+                selection_effect=HighlightSelection(),
+            )
+
+        box_label = T.translate(self.box_name).upper()
+        menu.set_title(
+            T.format(f"{box_label}: {len(self.box)}/{MAX_BOX}")
+        ).center_content()
+
 
 class MonsterBoxState(PygameMenuState):
     """Menu to choose a tuxemon box."""
@@ -335,7 +332,7 @@ class MonsterBoxState(PygameMenuState):
     name: ClassVar[str] = "MonsterBoxState"
 
     def __init__(self, character: NPC) -> None:
-        _, height = prepare.SCREEN_SIZE
+        _, height = SCREEN_SIZE
 
         super().__init__(height=height)
 
@@ -360,7 +357,7 @@ class MonsterBoxState(PygameMenuState):
             menu.add.button(label, callback)
             menu.add.vertical_fill()
 
-        width, height = prepare.SCREEN_SIZE
+        width, height = SCREEN_SIZE
         widgets_size = menu.get_size(widget=True)
         b_width, b_height = menu.get_scrollarea().get_border_size()
         menu.resize(
@@ -424,7 +421,8 @@ class MonsterStorageState(MonsterBoxState):
         menu_items_map = []
         monster_boxes = self.char.monster_boxes
         for box_name, monsters in monster_boxes.monster_boxes.items():
-            if box_name not in HIDDEN_LIST:
+            metadata = monster_boxes.metadata_manager.get(box_name, "monster")
+            if metadata is None or not metadata.is_hidden:
                 if not monsters:
                     menu_callback = partial(
                         open_dialog,
@@ -450,7 +448,8 @@ class MonsterDropOffState(MonsterBoxState):
         menu_items_map = []
         monster_boxes = self.char.monster_boxes
         for box_name, monsters in monster_boxes.monster_boxes.items():
-            if box_name not in HIDDEN_LIST:
+            metadata = monster_boxes.metadata_manager.get(box_name, "monster")
+            if metadata is None or not metadata.is_hidden:
                 if len(monsters) < MAX_BOX:
                     menu_callback = self.change_state(
                         "MonsterDropOff",
@@ -503,6 +502,7 @@ class MonsterDropOff(MonsterMenuState):
             open_dialog(
                 self.client,
                 [T.translate("menu_storage_infected_monster")],
+                dialog_speed="max",
             )
             return
 

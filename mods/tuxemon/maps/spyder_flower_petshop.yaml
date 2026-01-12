@@ -27,7 +27,7 @@ events:
     - open_shop spyder_flowerpetshop_titus,buy_monster
     conditions:
     - is char_facing_tile player
-    - is button_pressed K_RETURN
+    - is button_pressed INTERACT
     type: event
     x: 7
     y: 5
@@ -39,7 +39,7 @@ events:
     - open_shop spyder_flowerpetshop_titus,buy_monster
     conditions:
     - is char_facing_tile player
-    - is button_pressed K_RETURN
+    - is button_pressed INTERACT
     type: event
     x: 8
     y: 4
@@ -47,6 +47,7 @@ events:
     actions:
     - translated_dialog spyder_flower_petshopkeeper4
     - add_monster vivipere,5
+    - translated_dialog vivipere,,center,center,center
     - set_variable shows_vivicinder:yes
     - set_variable check_vivipere_morph:no
     conditions:
@@ -58,6 +59,7 @@ events:
     actions:
     - translated_dialog spyder_flower_petshopkeeper4
     - add_monster vivipere,5
+    - translated_dialog vivipere,,center,center,center
     - set_variable shows_vividactil:yes
     - set_variable check_vivipere_morph:no
     conditions:
@@ -69,6 +71,7 @@ events:
     actions:
     - translated_dialog spyder_flower_petshopkeeper4
     - add_monster vivipere,5
+    - translated_dialog vivipere,,center,center,center
     - set_variable shows_viviphyta:yes
     - set_variable check_vivipere_morph:no
     conditions:
@@ -80,6 +83,7 @@ events:
     actions:
     - translated_dialog spyder_flower_petshopkeeper4
     - add_monster vivipere,5
+    - translated_dialog vivipere,,center,center,center
     - set_variable shows_vivisource:yes
     conditions:
     - is variable_set check_vivisource_morph:yes
@@ -90,6 +94,7 @@ events:
     actions:
     - translated_dialog spyder_flower_petshopkeeper4
     - add_monster vivipere,5
+    - translated_dialog vivipere,,center,center,center
     - set_variable shows_viviteel:yes
     - set_variable check_vivipere_morph:no
     conditions:
@@ -101,6 +106,7 @@ events:
     actions:
     - translated_dialog spyder_flower_petshopkeeper4
     - add_monster vivipere,5
+    - translated_dialog vivipere,,center,center,center
     - set_variable shows_vivitrans:yes
     - set_variable check_vivipere_morph:no
     conditions:
@@ -112,6 +118,7 @@ events:
     actions:
     - translated_dialog spyder_flower_petshopkeeper4
     - add_monster vivipere,5
+    - translated_dialog vivipere,,center,center,center
     - set_variable shows_vivitron:yes
     - set_variable check_vivipere_morph:no
     conditions:
@@ -124,6 +131,7 @@ events:
     - translated_dialog spyder_flower_petshopkeeper1
     - translated_dialog spyder_flower_petshopkeeper2
     - add_monster vivipere,5
+    - translated_dialog vivipere,,center,center,center
     - set_variable flower_talkedpetshop:yes
     behav:
     - talk spyder_flowerpetshop_denzel
@@ -141,7 +149,7 @@ events:
     type: event
   Teleport Outside:
     actions:
-    - transition_teleport spyder_flower_city.tmx,7,25,0.3
+    - transition_teleport player,spyder_flower_city.tmx,7,25,0.3
     conditions:
     - is char_at player
     - is char_facing player,left
@@ -150,7 +158,7 @@ events:
     y: 6
   Teleport to Flower City:
     actions:
-    - transition_teleport spyder_flower_city.tmx,10,28,0.3
+    - transition_teleport player,spyder_flower_city.tmx,10,28,0.3
     - set_variable check_vivipere_morph:no
     conditions:
     - is char_at player

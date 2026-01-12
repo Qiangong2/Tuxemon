@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 import logging
@@ -20,7 +20,21 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class CaptureEffect(CoreEffect):
-    """Attempts to capture the target."""
+    """
+    Attempts to capture a target monster using a capture device.
+
+    This effect calculates capture probability based on the target's status
+    and the capture device modifier. It performs a shake check, determines
+    the number of shakes, and applies capture effects if successful.
+
+    **Example**
+
+    .. code-block:: json
+
+        "effects": [
+            "capture"
+        ]
+    """
 
     name = "capture"
 

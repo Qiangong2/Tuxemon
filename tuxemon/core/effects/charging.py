@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -16,7 +16,18 @@ if TYPE_CHECKING:
 @dataclass
 class ChargingEffect(CoreEffect):
     """
-    Charging status
+    Applies the "charging" status to a monster.
+
+    This effect clears existing statuses and, depending on the phase, applies
+    a follow-up status when the monster uses a technique or an item.
+
+    **Example**
+
+    .. code-block:: json
+
+        "effects": [
+            "charging"
+        ]
     """
 
     name = "charging"
@@ -24,7 +35,7 @@ class ChargingEffect(CoreEffect):
     def apply_status(
         self, session: Session, status: Status
     ) -> StatusEffectResult:
-        host = status.get_host()
+        host = status.host
         _statuses: list[Status] = []
         if status.has_phase(EffectPhase.PERFORM_TECH):
             host.status.clear_status(session)

@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 import logging
@@ -12,12 +12,11 @@ from pydantic import BaseModel, Field
 from pygame.surface import Surface
 
 from tuxemon.constants import paths
-from tuxemon.item.shop_utils import filter_party
+from tuxemon.formula import config_monster
 from tuxemon.locale import T
 from tuxemon.menu.interface import MenuItem
 from tuxemon.menu.quantity import QuantityAndCostMenu
 from tuxemon.monster import Monster
-from tuxemon.prepare import MAX_LEVEL
 from tuxemon.states.shop_base import ShopMenuState
 
 logger = logging.getLogger(__name__)
@@ -92,18 +91,25 @@ class ShopTrainingMenuState(ShopMenuState[Monster]):
     def _display_asset_description(self, asset: MenuItem[Monster]) -> None:
         """Displays the monster's description."""
         if asset.description:
-            self.dialog.alert(asset.description, dialog_speed="max")
+            self.dialog.alert(
+                asset.description, self.text_area, dialog_speed="max"
+            )
 
     def _filter_inventory(self) -> list[Monster]:
         """
         The training shop's inventory is the player's own party.
         """
-        return filter_party(self.buyer, self.seller, self.economy)
+        return self.applier.filter_monsters(
+            self.buyer,
+            self.seller,
+            self.economy,
+            self.client.shop_manager,
+        )
 
     def _populate_menu(self, inventory: list[Monster]) -> None:
         """Populates the menu with the player's monsters and their training costs."""
         for monster in inventory:
-            if monster.level >= MAX_LEVEL:
+            if monster.level >= config_monster.level_range[1]:
                 continue  # Skip monsters already at max level
 
             cost = self._calculate_training_cost(monster)
@@ -119,7 +125,7 @@ class ShopTrainingMenuState(ShopMenuState[Monster]):
         monster = menu_item.game_object
         available_money = self.seller_manager.get_money()
 
-        if monster.level >= MAX_LEVEL:
+        if monster.level >= config_monster.level_range[1]:
             return {
                 "callback": lambda quantity: None,
                 "max_quantity": 0,
@@ -128,7 +134,7 @@ class ShopTrainingMenuState(ShopMenuState[Monster]):
 
         total_cost = 0
         max_quantity = 0
-        for i in range(1, MAX_LEVEL - monster.level + 1):
+        for i in range(1, config_monster.level_range[1] - monster.level + 1):
             level_cost = self._get_level_cost(monster, monster.level + i)
             if total_cost + level_cost > available_money:
                 break
@@ -136,14 +142,14 @@ class ShopTrainingMenuState(ShopMenuState[Monster]):
             max_quantity = i
 
         def train_monster(quantity: int) -> None:
-            quantity = min(quantity, MAX_LEVEL - monster.level)
+            quantity = min(
+                quantity, config_monster.level_range[1] - monster.level
+            )
             cost = self._calculate_total_training_cost(monster, quantity)
             if quantity > 0 and cost <= available_money:
                 self.seller_manager.remove_money(cost)
                 monster.set_level(monster.level + quantity)
-                monster.moves.update_moves(
-                    monster.level, quantity, monster.stage
-                )
+                monster.moves.update_moves(monster, quantity)
                 self.reload_shop()
 
         base_cost = self._calculate_training_cost(monster)

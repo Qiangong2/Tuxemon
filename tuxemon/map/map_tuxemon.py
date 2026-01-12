@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 import logging
@@ -12,14 +12,13 @@ import pyscroll
 from pytmx import pytmx
 from pytmx.pytmx import TiledMap
 
-from tuxemon import prepare
 from tuxemon.graphics import scaled_image_loader
 from tuxemon.locale import T
+from tuxemon.prepare import SCREEN_SIZE
 
 if TYPE_CHECKING:
-    from tuxemon.db import Direction
-    from tuxemon.event import EventObject
-    from tuxemon.map.map import RegionProperties
+    from tuxemon.db import Direction, EventObject
+    from tuxemon.map.map_region import RegionProperties
 
 logger = logging.getLogger(__name__)
 
@@ -27,10 +26,10 @@ logger = logging.getLogger(__name__)
 @dataclass
 class MapConfig:
     slug: str = ""
-    edges: Optional[str] = None
+    edges: str | None = None
     inside: bool = False
-    scenario: Optional[str] = None
-    map_type: Optional[str] = None
+    scenario: str | None = None
+    map_type: str | None = None
     cardinal_directions: dict[str, str] = field(
         default_factory=lambda: {
             "north": "-",
@@ -68,7 +67,7 @@ class AbstractMap(ABC):
 
     @property
     @abstractmethod
-    def map_type(self) -> Optional[str]: ...
+    def map_type(self) -> str | None: ...
 
     @property
     @abstractmethod
@@ -88,11 +87,11 @@ class AbstractMap(ABC):
 
     @property
     @abstractmethod
-    def events(self) -> Sequence[Any]: ...
+    def events(self) -> Sequence[EventObject]: ...
 
     @property
     @abstractmethod
-    def inits(self) -> Sequence[Any]: ...
+    def inits(self) -> Sequence[EventObject]: ...
 
     @property
     @abstractmethod
@@ -128,13 +127,27 @@ class AbstractMap(ABC):
 
     @property
     @abstractmethod
-    def scenario(self) -> Optional[str]: ...
+    def scenario(self) -> str | None: ...
 
     @abstractmethod
     def initialize_renderer(self) -> None: ...
 
     @abstractmethod
     def reload_tiles(self) -> None: ...
+
+    @abstractmethod
+    def add_events(self, new_events: Sequence[EventObject]) -> None:
+        """Append new events to the existing events list."""
+
+    @abstractmethod
+    def add_inits(self, new_inits: Sequence[EventObject]) -> None:
+        """Append new init events to the existing inits list."""
+
+    @abstractmethod
+    def clear_events(self) -> None: ...
+
+    @abstractmethod
+    def clear_inits(self) -> None: ...
 
 
 class TuxemonMap(AbstractMap):
@@ -152,7 +165,7 @@ class TuxemonMap(AbstractMap):
         inits: Sequence[EventObject],
         surface_map: MutableMapping[tuple[int, int], dict[str, float]],
         collision_map: MutableMapping[
-            tuple[int, int], Optional[RegionProperties]
+            tuple[int, int], RegionProperties | None
         ],
         collisions_lines_map: set[tuple[tuple[int, int], Direction]],
         tiled_map: TiledMap,
@@ -220,7 +233,7 @@ class TuxemonMap(AbstractMap):
     @property
     def collision_map(
         self,
-    ) -> MutableMapping[tuple[int, int], Optional[RegionProperties]]:
+    ) -> MutableMapping[tuple[int, int], RegionProperties | None]:
         return self._collision_map
 
     @property
@@ -280,11 +293,11 @@ class TuxemonMap(AbstractMap):
         return T.translate(f"{self._config.slug}_description")
 
     @property
-    def scenario(self) -> Optional[str]:
+    def scenario(self) -> str | None:
         return self._config.scenario
 
     @property
-    def map_type(self) -> Optional[str]:
+    def map_type(self) -> str | None:
         return self._config.map_type
 
     def initialize_renderer(self) -> None:
@@ -292,7 +305,7 @@ class TuxemonMap(AbstractMap):
         clamp = self._config.edges == "clamped"
         self._renderer = pyscroll.BufferedRenderer(
             visual_data,
-            prepare.SCREEN_SIZE,
+            SCREEN_SIZE,
             clamp_camera=clamp,
             tall_sprites=self.SPRITE_LAYER_INDEX,
         )
@@ -304,6 +317,12 @@ class TuxemonMap(AbstractMap):
     def add_inits(self, new_inits: Sequence[EventObject]) -> None:
         """Append new init events to the existing inits list."""
         self._inits = list(self._inits) + list(new_inits)
+
+    def clear_events(self) -> None:
+        self._events = []
+
+    def clear_inits(self) -> None:
+        self._inits = []
 
     def reload_tiles(self) -> None:
         """Reload the map tiles."""
@@ -320,3 +339,113 @@ class TuxemonMap(AbstractMap):
         self.renderer.data.tmx.images = data.images
         assert self.renderer._buffer
         self.renderer.redraw_tiles(self.renderer._buffer)
+
+
+class NullMap(AbstractMap):
+    """A no-op map object to safely initialize the WorldState when no map file is loaded."""
+
+    def __init__(self) -> None:
+        self._events: list[EventObject] = []
+        self._inits: list[EventObject] = []
+
+    @property
+    def slug(self) -> str:
+        return "null_map"
+
+    @property
+    def name(self) -> str:
+        return "Loading Screen"
+
+    @property
+    def description(self) -> str:
+        return "The world is initializing."
+
+    @property
+    def size(self) -> tuple[int, int]:
+        return (10, 10)
+
+    @property
+    def area(self) -> int:
+        return 100
+
+    @property
+    def is_inside(self) -> bool:
+        return False
+
+    @property
+    def map_type(self) -> str | None:
+        return "notype"
+
+    @property
+    def collision_map(self) -> MutableMapping[tuple[int, int], Optional[Any]]:
+        return {}
+
+    @property
+    def surface_map(self) -> MutableMapping[tuple[int, int], dict[str, float]]:
+        return {}
+
+    @property
+    def collision_lines_map(self) -> set[tuple[tuple[int, int], Any]]:
+        return set()
+
+    @property
+    def events(self) -> Sequence[EventObject]:
+        return self._events
+
+    @property
+    def inits(self) -> Sequence[EventObject]:
+        return self._inits
+
+    @property
+    def maps(self) -> dict[str, Any]:
+        return {}
+
+    @property
+    def filename(self) -> str:
+        return "null_map.tmx"
+
+    @property
+    def north_trans(self) -> str:
+        return ""
+
+    @property
+    def south_trans(self) -> str:
+        return ""
+
+    @property
+    def east_trans(self) -> str:
+        return ""
+
+    @property
+    def west_trans(self) -> str:
+        return ""
+
+    @property
+    def renderer(self) -> Optional[Any]:
+        return None
+
+    @property
+    def sprite_layer(self) -> int:
+        return 2
+
+    @property
+    def scenario(self) -> str | None:
+        return None
+
+    def initialize_renderer(self) -> None:
+        pass
+
+    def reload_tiles(self) -> None:
+        pass
+
+    def add_events(self, new_events: Sequence[EventObject]) -> None:
+        self._events.extend(new_events)
+
+    def add_inits(self, new_inits: Sequence[EventObject]) -> None:
+        self._inits.extend(new_inits)
+
+    def clear_events(self) -> None:
+        self._events = []
+
+    def clear_inits(self) -> None:
+        self._inits = []

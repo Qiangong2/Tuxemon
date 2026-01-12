@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 import importlib
@@ -9,15 +9,14 @@ import logging
 import sys
 from abc import ABC, abstractmethod
 from collections.abc import Iterable, Mapping, Sequence
+from dataclasses import dataclass
 from pathlib import Path
 from types import ModuleType
 from typing import (
     ClassVar,
     Generic,
-    Optional,
     Protocol,
     TypeVar,
-    Union,
     overload,
     runtime_checkable,
 )
@@ -41,12 +40,11 @@ T = TypeVar("T")
 InterfaceValue = TypeVar("InterfaceValue", bound=PluginObject)
 
 
+@dataclass(frozen=True)
 class Plugin(Generic[T]):
-    __slots__ = ("name", "plugin_object")
-
-    def __init__(self, name: str, module: T) -> None:
-        self.name = name
-        self.plugin_object = module
+    name: str
+    plugin_object: T
+    origin: Path
 
 
 class PluginDiscovery(ABC):
@@ -57,6 +55,10 @@ class PluginDiscovery(ABC):
     @abstractmethod
     def discover_plugins(self) -> list[str]:
         """Discovers plugin modules."""
+
+    @abstractmethod
+    def discover_plugin_files(self) -> dict[str, Path]:
+        """Return module_name → file_path mapping."""
 
     @abstractmethod
     def set_folders(self, folders: list[Path]) -> None:
@@ -76,8 +78,11 @@ class FileSystemPluginDiscovery(PluginDiscovery):
         self.file_extensions = file_extensions
 
     def discover_plugins(self) -> list[str]:
-        """Discovers plugin modules from the file system."""
-        modules = []
+        return list(self.discover_plugin_files().keys())
+
+    def discover_plugin_files(self) -> dict[str, Path]:
+        """Return a mapping of module_name → file_path."""
+        modules: dict[str, Path] = {}
         for folder in self.folders:
             folder_path = folder
             if not folder_path.exists():
@@ -85,13 +90,12 @@ class FileSystemPluginDiscovery(PluginDiscovery):
                 continue
 
             module_path = self._get_module_path(folder_path)
-            modules.extend(
-                [
-                    f"{module_path}.{file.stem}"
-                    for file in folder_path.iterdir()
-                    if file.suffix in self.file_extensions and file.is_file()
-                ]
-            )
+
+            for file in folder_path.iterdir():
+                if file.suffix in self.file_extensions and file.is_file():
+                    module_name = f"{module_path}.{file.stem}"
+                    modules[module_name] = file.resolve()
+
         return modules
 
     def set_folders(self, folders: list[Path]) -> None:
@@ -158,7 +162,7 @@ class PluginFilter:
         self.include_patterns_set = set(include_patterns)
 
     def is_excluded(self, class_name: str) -> bool:
-        """Check if a class should be excluded."""
+        """Check if a class should be excluded based on its simple name."""
         return class_name in self.exclude_classes_set
 
     def matches_pattern(self, string: str) -> bool:
@@ -166,17 +170,28 @@ class PluginFilter:
         return any(pattern in string for pattern in self.include_patterns_set)
 
     def matches_patterns(self, class_obj: type) -> bool:
-        """Check if a class matches inclusion patterns."""
-        return self.matches_pattern(str(class_obj))
+        """
+        Check if a class matches inclusion patterns using introspection
+        on its module path and name.
+        """
+        module_path = class_obj.__module__
+        class_name = class_obj.__name__
+
+        # Check if the inclusion patterns match the full module path OR the class name
+        # Example: pattern 'plugins' matches module 'tuxemon.plugins.game'
+        # Example: pattern 'Command' matches class 'LoadCommand'
+        return self.matches_pattern(module_path) or self.matches_pattern(
+            class_name
+        )
 
     def filter_plugins(self, module_names: list[str]) -> list[str]:
-        """Filters plugin modules based on patterns."""
+        """Filters plugin modules based on patterns (using module path)."""
         return [
             module for module in module_names if self.matches_pattern(module)
         ]
 
     def is_valid_plugin(self, class_name: str, class_obj: type) -> bool:
-        """Check if a plugin should be included."""
+        """Check if a plugin should be included by checking exclusion and inclusion."""
         if self.is_excluded(class_name):
             logger.debug(
                 f"Skipping class '{class_name}' because it's in the exclusion list."
@@ -185,7 +200,7 @@ class PluginFilter:
 
         if not self.matches_patterns(class_obj):
             logger.debug(
-                f"Skipping class '{class_name}' because its name does not match an include pattern."
+                f"Skipping class '{class_name}' because its module path or name does not match an include pattern."
             )
             return False
 
@@ -193,66 +208,96 @@ class PluginFilter:
 
 
 class PluginManager:
-    """Yapsy semi-compatible plugin manager."""
+    """
+    Central manager for discovering, loading, caching, and reloading plugins.
+    """
 
     def __init__(
         self,
         discovery: PluginDiscovery,
         loader: PluginLoader,
-        filter: Optional[PluginFilter] = None,
+        filter: PluginFilter | None,
     ) -> None:
         self.discovery = discovery
         self.loader = loader
         self.filter = filter or PluginFilter()
         self.modules: list[str] = []
+        self._origins: dict[str, Path] = {}
+        self._loaded_modules: dict[str, ModuleType] = {}
+        self._class_cache: dict[tuple[str, type], list[tuple[str, type]]] = {}
+
+    @classmethod
+    def from_directory(
+        cls,
+        plugin_folders: list[Path],
+        root_path: Path,
+        exclude: list[str] = ["IPlugin"],
+        include: list[str] = PLUGIN_INCLUDE_PATTERNS,
+    ) -> PluginManager:
+        discovery = FileSystemPluginDiscovery(plugin_folders, root_path)
+        loader = PluginLoader(ImportLibPluginLoader())
+        filter = PluginFilter(
+            exclude_classes=exclude, include_patterns=include
+        )
+
+        manager = cls(discovery, loader, filter)
+        manager.collect_plugins()
+        return manager
 
     def collect_plugins(self) -> None:
-        """Collect plugins from the specified folders."""
+        """
+        Discover plugin modules and update internal module lists.
+        """
         logger.debug("Discovering plugins...")
-        raw_modules = self.discovery.discover_plugins()
-        self.modules = self.filter.filter_plugins(raw_modules)
+        module_map = self.discovery.discover_plugin_files()
+
+        filtered = self.filter.filter_plugins(list(module_map.keys()))
+        self.modules = list(dict.fromkeys(filtered))
+        self._origins = {m: module_map[m] for m in self.modules}
+
         logger.debug(f"Modules discovered: {self.modules}")
+
+    def _load_module(self, module_name: str) -> ModuleType | None:
+        """
+        Load a module using the configured loader, with error handling.
+        """
+        try:
+            module = self.loader.load_plugin(module_name)
+            self._loaded_modules[module_name] = module
+            return module
+        except ImportError as e:
+            logger.error(
+                f"Skipping module '{module_name}' due to import error: {e}"
+            )
+            return None
 
     def get_all_plugins(
         self, *, interface: type[InterfaceValue]
     ) -> Sequence[Plugin[type[InterfaceValue]]]:
-        """Get all loaded plugins implementing the given interface."""
+        """
+        Return all plugin classes implementing the given interface.
+        """
         imported_plugins: list[Plugin[type[InterfaceValue]]] = []
+
         for module_name in self.modules:
-            try:
-                module = self.loader.load_plugin(module_name)
-                imported_plugins.extend(
-                    self._get_plugins_from_module(
-                        module, module_name, interface
-                    )
-                )
-            except ImportError as e:
-                logger.error(
-                    f"Skipping module '{module_name}' due to import error: {e}"
-                )
+            module = self._loaded_modules.get(
+                module_name
+            ) or self._load_module(module_name)
+            if module is None:
+                continue
+
+            imported_plugins.extend(
+                self._get_plugins_from_module(module, module_name, interface)
+            )
+
         return imported_plugins
 
-    def _get_plugins_from_module(
-        self, module: ModuleType, module_name: str, interface: type
-    ) -> list[Plugin[type[InterfaceValue]]]:
-        """Retrieves plugins from a given module, filtering by a specific interface."""
-        return [
-            Plugin(f"{module_name}.{class_name}", class_obj)
-            for class_name, class_obj in self._get_classes_from_module(
-                module, interface
-            )
-            if self.filter.is_valid_plugin(class_name, class_obj)
-        ]
-
-    def _get_classes_from_module(
+    def _scan_classes(
         self, module: ModuleType, interface: type
     ) -> Iterable[tuple[str, type]]:
-        """Retrieves classes from a module that match a given interface."""
-        # This is required because of
-        # https://github.com/python/typing/issues/822
-        #
-        # The typing error in issubclass will be solved
-        # in https://github.com/python/typeshed/pull/5658
+        """
+        Extract all classes from a module that match the interface.
+        """
         predicate = (
             inspect.isclass
             if interface is PluginObject
@@ -260,54 +305,47 @@ class PluginManager:
         )
         return inspect.getmembers(module, predicate=predicate)
 
+    def _get_plugins_from_module(
+        self, module: ModuleType, module_name: str, interface: type
+    ) -> list[Plugin[type[InterfaceValue]]]:
 
-def load_directory(
-    plugin_folders: list[Path],
-    root_path: Path,
-    exclude: list[str] = ["IPlugin"],
-    include: list[str] = PLUGIN_INCLUDE_PATTERNS,
-) -> PluginManager:
-    """
-    Load plugins from a directory.
+        cache_key = (module_name, interface)
 
-    Parameters:
-        plugin_folders: The folders where to look for plugin files.
-        root_path: The root of the Python module hierarchy.
-        exclude: List of class names to exclude from loading.
-            Defaults to ["IPlugin"].
-        include: List of patterns to match plugin names against.
-            Defaults to PLUGIN_INCLUDE_PATTERNS.
+        if cache_key not in self._class_cache:
+            scanned = self._scan_classes(module, interface)
+            filtered = [
+                (name, cls)
+                for name, cls in scanned
+                if self.filter.is_valid_plugin(name, cls)
+            ]
+            self._class_cache[cache_key] = filtered
 
-    Returns:
-        A plugin manager, with the modules already loaded.
-    """
-    discovery = FileSystemPluginDiscovery(
-        folders=plugin_folders, root_path=root_path
-    )
-    loader = PluginLoader(ImportLibPluginLoader())
-    filter = PluginFilter(exclude_classes=exclude, include_patterns=include)
-    manager = PluginManager(discovery, loader, filter)
-    manager.collect_plugins()
-    return manager
+        return [
+            Plugin(
+                name=f"{module_name}.{class_name}",
+                plugin_object=class_obj,
+                origin=self._origins[module_name],
+            )
+            for class_name, class_obj in self._class_cache[cache_key]
+        ]
 
+    def reload(self) -> None:
+        """
+        Safely reload plugin discovery and class caches.
+        Does NOT use importlib.reload() to avoid breaking module state.
+        """
+        logger.debug("Reloading plugins...")
 
-def get_available_classes(
-    plugin_manager: PluginManager, *, interface: type[InterfaceValue]
-) -> Sequence[type[InterfaceValue]]:
-    """
-    Get available classes from a plugin manager.
+        self._loaded_modules.clear()
+        self._class_cache.clear()
+        self.collect_plugins()
 
-    Parameter:
-        plugin_manager: Plugin manager with modules already loaded.
-        interface: Superclass or protocol of the returned classes.
-
-    Returns:
-        Sequence of loaded classes.
-    """
-    return [
-        plugin.plugin_object
-        for plugin in plugin_manager.get_all_plugins(interface=interface)
-    ]
+    def refresh_folders(self, folders: list[Path]) -> None:
+        """
+        Update plugin folders and reload everything.
+        """
+        self.discovery.set_folders(folders)
+        self.reload()
 
 
 # Overloads until https://github.com/python/mypy/issues/3737 is fixed
@@ -338,33 +376,54 @@ def load_plugins(
     root_path: Path,
     category: str = "plugins",
     *,
-    interface: Union[type[InterfaceValue], type[PluginObject]] = PluginObject,
-) -> Mapping[str, Union[type[InterfaceValue], type[PluginObject]]]:
+    interface: type[InterfaceValue] | type[PluginObject] = PluginObject,
+) -> Mapping[str, type[InterfaceValue] | type[PluginObject]]:
     """
-    Load plugins from a directory and return them by name.
-
-    Parameters:
-        paths: Locations of the modules to load.
-        category: Optional string for debugging info.
-        interface: Superclass or protocol of the returned classes. If no
-            class is given, they are only required to have a `name` attribute.
-
-    Returns:
-        A dictionary mapping the `name` attribute of each class to the class
-        itself.
+    Load plugins from a directory and return them by both:
+      - their declared short name (cls.name)
+      - their fully qualified plugin name (plugin.name)
     """
-    classes: dict[str, Union[type[InterfaceValue], type[PluginObject]]] = {}
-    plugins = load_directory(plugin_folders=paths, root_path=root_path)
+    classes: dict[str, type[InterfaceValue] | type[PluginObject]] = {}
 
-    for cls in get_available_classes(plugins, interface=interface):
-        try:
-            name = cls.name
-        except AttributeError:
+    manager = PluginManager.from_directory(
+        plugin_folders=paths,
+        root_path=root_path,
+    )
+
+    for plugin in manager.get_all_plugins(interface=interface):
+        cls = plugin.plugin_object
+
+        fq_key = plugin.name
+        short_key = getattr(cls, "name", None)
+
+        if interface is PluginObject and short_key is None:
             logger.error(
-                f"Class {cls.__name__} does not have a `name` attribute"
+                f"Class {cls.__name__} ({fq_key}) does not have a required `name` attribute."
             )
             continue
-        classes[name] = cls
-        logger.info(f"loaded {category}: {cls.name}")
+
+        if fq_key not in classes:
+            classes[fq_key] = cls
+        else:
+            logger.warning(
+                f"Duplicate fully qualified plugin key '{fq_key}'. Skipping."
+            )
+
+        if short_key:
+            if short_key not in classes:
+                classes[short_key] = cls
+            else:
+                existing_cls = classes[short_key]
+                if existing_cls is not cls:
+                    logger.warning(
+                        f"Duplicate short plugin key '{short_key}'. "
+                        f"Existing: {existing_cls.__module__}.{existing_cls.__name__}, "
+                        f"New: {cls.__module__}.{cls.__name__}. Keeping existing."
+                    )
+
+        logger.debug(
+            f"Loaded {category}: {short_key or cls.__name__} "
+            f"(Keys: {fq_key}{', ' + short_key if short_key else ''})"
+        )
 
     return classes

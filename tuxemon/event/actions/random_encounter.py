@@ -1,25 +1,22 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
 from typing import Optional, final
 
-from tuxemon import prepare
 from tuxemon.combat.combat_context import (
     BattleMode,
     CombatContext,
     CombatType,
 )
 from tuxemon.combat.utils import check_battle_legal, check_repellent
-from tuxemon.db import EnvironmentModel, db
-from tuxemon.encounter import Encounter, EncounterData
-from tuxemon.event import get_npc
 from tuxemon.event.eventaction import EventAction
 from tuxemon.graphics import ColorLike, string_to_colorlike
 from tuxemon.item.item import Item
 from tuxemon.monster import Monster
+from tuxemon.platform.const.graphics import WHITE_COLOR
 from tuxemon.session import Session
 
 logger = logging.getLogger(__name__)
@@ -57,6 +54,8 @@ class RandomEncounterAction(EventAction):
 
     def start(self, session: Session) -> None:
         player = session.player
+        environment = session.client.environment_manager
+        encounter = session.client.encounter_manager
 
         if not check_battle_legal(player):
             logger.error("Battle is not legal, won't start")
@@ -66,27 +65,26 @@ class RandomEncounterAction(EventAction):
             logger.info(f"Repellent active, skipping encounter.")
             return
 
-        zone = EncounterData(self.encounter_slug)
-        encounter = Encounter(zone)
+        if not encounter.load_zone(self.encounter_slug):
+            return
+
         total_prob = self.total_prob if self.total_prob else 1.0
-        results = encounter.get_single_encounter(player, total_prob)
+        results = encounter.attempt_single_encounter(player, total_prob)
 
         if results is None:
             return
 
-        eligible, level, held_item = results
-
         logger.info("Starting random encounter!")
 
-        current_monster = Monster.spawn_base(eligible.monster, level)
-        current_monster.experience_modifier = eligible.exp_req_mod
+        current_monster = Monster.spawn_base(
+            results.monster.monster, results.level
+        )
+        current_monster.set_experience_modifier(results.monster.exp_req_mod)
 
-        if held_item is not None:
-            item = Item.create(held_item)
-            if item.behaviors.holdable:
-                current_monster.held_item.set_item(item)
-            else:
-                logger.error(f"{item.name} isn't 'holdable'")
+        if results.held_item is not None:
+            item = Item.create(results.held_item)
+            output = current_monster.equip_item(item)
+            if not output:
                 return
 
         current_monster.wild = True
@@ -96,41 +94,42 @@ class RandomEncounterAction(EventAction):
             "create_npc", ["wild_encounter", 0, 0], True
         )
 
-        npc = get_npc(session, "wild_encounter")
+        npc = session.get_npc("wild_encounter")
         if npc is None:
             logger.error("'wild_encounter' not found")
             return
 
-        npc.party.add_monster(current_monster, len(npc.monsters))
+        npc.party.insert_monster_to_party(current_monster, len(npc.monsters))
         # NOTE: random battles are implemented as trainer battles.
         #       this is a hack. remove this once trainer/random battlers are fixed
 
-        env = player.game_variables.get("environment", "grass")
-        environment = EnvironmentModel.lookup(env, db)
+        env = environment.get_active_environment()
+        if env is None:
+            logger.error(
+                "No environment defined. Use 'set_environment' before starting combat."
+            )
+            return
 
         context = CombatContext(
             session=session,
             teams=[player, npc],
             combat_type=CombatType.MONSTER,
-            graphics=environment.battle_graphics,
             battle_mode=BattleMode.SINGLE,
         )
         session.client.queue_state("CombatState", context=context)
+        player.cancel_movement()
 
-        session.client.movement_manager.lock_controls(player)
-        session.client.movement_manager.stop_char(player)
-
-        rgb: ColorLike = prepare.WHITE_COLOR
+        rgb: ColorLike = WHITE_COLOR
         if self.rgb:
             rgb = string_to_colorlike(self.rgb)
 
         session.client.push_state("FlashTransition", color=rgb)
 
-        session.client.event_engine.execute_action(
-            "play_music", [environment.battle_music], True
-        )
+        sound = env.get_battle_music().battle
+        if sound.music:
+            session.client.current_music.play(sound.music, sound.volume)
 
-    def update(self, session: Session) -> None:
+    def update(self, session: Session, dt: float) -> None:
         try:
             session.client.get_queued_state_by_name("CombatState")
         except ValueError:

@@ -1,15 +1,13 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 import unittest
 from math import pi
 from unittest.mock import MagicMock
 
-from tuxemon import prepare
 from tuxemon.compat import Rect
 from tuxemon.db import Direction, Orientation
 from tuxemon.map.map import (
     angle_of_points,
-    direction_to_list,
     get_adjacent_position,
     get_coord_direction,
     get_coords,
@@ -27,6 +25,7 @@ from tuxemon.map.map import (
     tiles_inside_rect,
 )
 from tuxemon.math import Vector2
+from tuxemon.prepare import TILE_SIZE
 
 
 class TestParsePathParameters(unittest.TestCase):
@@ -722,57 +721,6 @@ class TestPairsFunction(unittest.TestCase):
             pairs(None)
 
 
-class TestDirectionToList(unittest.TestCase):
-    def test_empty_string_with_whitespace(self):
-        with self.assertRaises(ValueError):
-            direction_to_list("    ")
-
-    def test_empty_string(self):
-        with self.assertRaises(ValueError):
-            direction_to_list("")
-
-    def test_single_direction(self):
-        result = direction_to_list("up")
-        self.assertEqual(result, [Direction.up])
-
-    def test_multiple_direction(self):
-        result = direction_to_list("up,down,right")
-        self.assertEqual(len(result), 3)
-
-    def test_single_direction_with_whitespace(self):
-        result = direction_to_list("   up    ")
-        self.assertEqual(len(result), 1)
-
-    def test_mutiple_direction_with_whitespace(self):
-        result = direction_to_list("up   ,down  ,   right")
-        self.assertEqual(len(result), 3)
-
-    def test_repeated_directions(self):
-        result = direction_to_list("up,up,down,down")
-        self.assertEqual(len(result), 2)
-
-    def test_insensitive_duplicates(self):
-        result = direction_to_list("uP,dOWn")
-        self.assertEqual(len(result), 2)
-
-    def test_none_input(self):
-        result = direction_to_list(None)
-        self.assertEqual(result, [])
-
-    def test_very_long_string(self):
-        long_string = ",".join(["up"] * 100)
-        result = direction_to_list(long_string)
-        self.assertEqual(result, [Direction.up])
-
-    def test_unicode_characters(self):
-        with self.assertRaises(ValueError):
-            direction_to_list("ä, ü, up")
-
-    def test_invalid_direction(self):
-        with self.assertRaises(ValueError):
-            direction_to_list("invalid direction")
-
-
 class TestGetExplicitTileExits(unittest.TestCase):
 
     def test_no_endure_no_exit_from(self):
@@ -839,8 +787,8 @@ class TestGetPosFromTilePos(unittest.TestCase):
 
         tile_position = Vector2(3, 4)
 
-        expected_px = 3 * prepare.TILE_SIZE[0]
-        expected_py = 4 * prepare.TILE_SIZE[1]
+        expected_px = 3 * TILE_SIZE[0]
+        expected_py = 4 * TILE_SIZE[1]
         expected_x = expected_px + 50
         expected_y = expected_py + 75
         expected_result = (expected_x, expected_y)
@@ -854,8 +802,8 @@ class TestGetPosFromTilePos(unittest.TestCase):
 
         tile_position = Vector2(2, 3)
 
-        expected_px = 2 * prepare.TILE_SIZE[0]
-        expected_py = 3 * prepare.TILE_SIZE[1]
+        expected_px = 2 * TILE_SIZE[0]
+        expected_py = 3 * TILE_SIZE[1]
         expected_result = (expected_px + 50, expected_py + 75)
 
         result = get_pos_from_tilepos(mock_map, tile_position)
@@ -877,8 +825,8 @@ class TestGetPosFromTilePos(unittest.TestCase):
 
         tile_position = Vector2(-1, -2)
 
-        expected_px = -1 * prepare.TILE_SIZE[0]
-        expected_py = -2 * prepare.TILE_SIZE[1]
+        expected_px = -1 * TILE_SIZE[0]
+        expected_py = -2 * TILE_SIZE[1]
         expected_result = (expected_px + 50, expected_py + 75)
 
         result = get_pos_from_tilepos(mock_map, tile_position)
@@ -890,8 +838,8 @@ class TestGetPosFromTilePos(unittest.TestCase):
 
         tile_position = Vector2(1000, 2000)
 
-        expected_px = 1000 * prepare.TILE_SIZE[0]
-        expected_py = 2000 * prepare.TILE_SIZE[1]
+        expected_px = 1000 * TILE_SIZE[0]
+        expected_py = 2000 * TILE_SIZE[1]
         expected_result = (expected_px + 50, expected_py + 75)
 
         result = get_pos_from_tilepos(mock_map, tile_position)
@@ -903,8 +851,8 @@ class TestGetPosFromTilePos(unittest.TestCase):
 
         tile_position = Vector2(5, 7)
 
-        expected_px = 5 * prepare.TILE_SIZE[0]
-        expected_py = 7 * prepare.TILE_SIZE[1]
+        expected_px = 5 * TILE_SIZE[0]
+        expected_py = 7 * TILE_SIZE[1]
         expected_result = (expected_px, expected_py)
 
         result = get_pos_from_tilepos(mock_map, tile_position)

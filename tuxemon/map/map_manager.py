@@ -1,12 +1,13 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 import logging
 from collections import defaultdict
 from collections.abc import MutableMapping, Sequence
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Optional
+from pathlib import Path
+from typing import TYPE_CHECKING, Any
 
 import yaml
 
@@ -14,8 +15,8 @@ from tuxemon.constants import paths
 from tuxemon.db import Direction
 
 if TYPE_CHECKING:
-    from tuxemon.event import EventObject
-    from tuxemon.map.map import RegionProperties
+    from tuxemon.db import EventObject
+    from tuxemon.map.map_region import RegionProperties
     from tuxemon.map.map_tuxemon import AbstractMap
 
 logger = logging.getLogger(__name__)
@@ -62,26 +63,9 @@ class MapManager:
 
     def __init__(self) -> None:
         """Initializes the manager state with no map loaded."""
-        self.events: Sequence[EventObject] = []
-        self.inits: list[EventObject] = []
-        self.current_map: Optional[AbstractMap] = None
+        self.current_map: AbstractMap | None = None
         self.maps: dict[str, Any] = {}
-        self._map_type_slug: Optional[str] = None
-
-    def load_map(self, map_data: AbstractMap) -> None:
-        """Loads a new map, sets properties, and resets relevant events."""
-        self.current_map = map_data
-
-        self.events = map_data.events
-        self.inits = list(map_data.inits)
-        self.maps = map_data.maps
-
-        self._map_type_slug = map_data.map_type
-
-        if map_data.map_type not in MAP_TYPES:
-            logger.warning(
-                f"Invalid map type '{map_data.map_type}', defaulting to 'notype'."
-            )
+        self._map_type_slug: str | None = None
 
     @property
     def map_slug(self) -> str:
@@ -125,7 +109,7 @@ class MapManager:
     @property
     def collision_map(
         self,
-    ) -> MutableMapping[tuple[int, int], Optional[RegionProperties]]:
+    ) -> MutableMapping[tuple[int, int], RegionProperties | None]:
         """Map of tile coordinates to collision/region properties."""
         return self.current_map.collision_map if self.current_map else {}
 
@@ -155,11 +139,68 @@ class MapManager:
         )
         return MapType(name="notype")
 
-    def get_map_filepath(self) -> Optional[str]:
+    @property
+    def events(self) -> Sequence[EventObject]:
+        return self.current_map.events if self.current_map else []
+
+    @property
+    def inits(self) -> Sequence[EventObject]:
+        return self.current_map.inits if self.current_map else []
+
+    def load_map(self, map_data: AbstractMap) -> None:
+        """Loads a new map, sets properties, and resets relevant events."""
+        self.current_map = map_data
+        self.maps = map_data.maps
+        self._map_type_slug = map_data.map_type
+
+        map_data.add_events([])
+        map_data.add_inits([])
+
+        if map_data.map_type not in MAP_TYPES:
+            logger.warning(
+                f"Invalid map type '{map_data.map_type}', defaulting to 'notype'."
+            )
+
+    def set_events(self, new_events: Sequence[EventObject]) -> None:
+        if self.current_map:
+            self.current_map.add_events(new_events)
+
+    def set_inits(self, new_inits: Sequence[EventObject]) -> None:
+        if self.current_map:
+            self.current_map.add_inits(new_inits)
+
+    def clear_events(self) -> None:
+        if self.current_map:
+            self.current_map.clear_events()
+
+    def clear_inits(self) -> None:
+        if self.current_map:
+            self.current_map.clear_inits()
+
+    def remove_event(self, event: EventObject) -> None:
+        if self.current_map:
+            updated = list(self.current_map.events)
+            updated.remove(event)
+            self.current_map.add_events(updated)
+
+    def remove_init(self, event: EventObject) -> None:
+        if self.current_map:
+            updated = list(self.current_map.inits)
+            updated.remove(event)
+            self.current_map.add_inits(updated)
+
+    def get_map_filepath(self) -> str | None:
         """Returns the filepath of the current map."""
         if self.current_map:
             return self.current_map.filename
         return None
+
+    def get_map_name(self) -> str:
+        """Returns the filepath of the current map."""
+        map_path = self.get_map_filepath()
+        if map_path is None:
+            raise ValueError("Name of the map requested when no map is active")
+        return Path(map_path).name
 
     def is_in_location_type(self, location_type: str) -> bool:
         """Checks if the current map type matches a given location type."""

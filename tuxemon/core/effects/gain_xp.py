@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -17,11 +17,22 @@ if TYPE_CHECKING:
 @dataclass
 class GainXpEffect(CoreEffect):
     """
-    Add exp to the target by 'amount'.
+    Applies the "gain_xp" effect to a monster.
 
-    Parameters:
-        amount: amount of experience
+    This effect increases the target monster's experience points by the
+    specified amount when triggered by an item.
 
+    **Parameters**
+
+    - ``amount``: The amount of experience to add (integer).
+
+    **Example**
+
+    .. code-block:: json
+
+        "effects": [
+            "gain_xp 50"
+        ]
     """
 
     name = "gain_xp"

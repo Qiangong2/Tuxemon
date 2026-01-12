@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 import unittest
 from unittest.mock import patch
 
@@ -7,14 +7,14 @@ from tuxemon.boxes import MonsterBoxes
 from tuxemon.game_variables import GameVariablesManager
 from tuxemon.monster import Monster
 from tuxemon.npc import NPC, PartyHandler
-from tuxemon.prepare import KENNEL, PARTY_LIMIT
+from tuxemon.platform.const.sizes import KENNEL, PARTY_LIMIT
 
 
 def mockNPC(self) -> None:
     self.is_player = True
     self._variables = GameVariablesManager()
     self.monster_boxes = MonsterBoxes()
-    self.monster_boxes.create_box(KENNEL, "monster")
+    self.monster_boxes.create_box(KENNEL)
     self.party = PartyHandler(self.monster_boxes, self)
     self.party._monsters = []
 

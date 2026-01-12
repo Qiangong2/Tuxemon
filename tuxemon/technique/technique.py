@@ -1,20 +1,31 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 import logging
 from collections.abc import Mapping, Sequence
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any
 from uuid import UUID, uuid4
 
-from tuxemon.core.asset import CoreAssetManager
+from tuxemon.core.asset import get_assets
 from tuxemon.core.core_effect import TechEffectResult
 from tuxemon.core.core_processor import ConditionProcessor, EffectProcessor
-from tuxemon.db import Range, TechBehaviors, TechniqueModel, db
+from tuxemon.database.runtime import db
+from tuxemon.db import (
+    MenuAction,
+    Range,
+    SoundProperties,
+    StatModel,
+    TechBehaviors,
+    TechniqueModel,
+    VisualProperties,
+)
 from tuxemon.element import ElementTypesHandler
 from tuxemon.locale import T
 from tuxemon.modifiers import ModifiersHandler
+from tuxemon.monster_dir.stats import BasicStats
 from tuxemon.surfanim import FlipAxes
+from tuxemon.technique.cooldown import Cooldown
 
 if TYPE_CHECKING:
     from tuxemon.monster import Monster
@@ -25,7 +36,9 @@ logger = logging.getLogger(__name__)
 
 SIMPLE_PERSISTANCE_ATTRIBUTES = (
     "slug",
-    "counter",
+    "attempts",
+    "successes",
+    "failures",
 )
 
 
@@ -34,28 +47,25 @@ class Technique:
     Particular skill that tuxemon monsters can use in battle.
     """
 
-    def __init__(self, save_data: Optional[Mapping[str, Any]] = None) -> None:
+    def __init__(self, save_data: Mapping[str, Any] | None = None) -> None:
         save_data = save_data or {}
 
         self.instance_id: UUID = uuid4()
-        self.counter: int = 0
         self.tech_id: int = 0
         self.accuracy: float = 0.0
-        self.animation: Optional[str] = None
-        self.description: str = ""
-        self.flip_axes: FlipAxes = FlipAxes.NONE
+        self.cooldown = Cooldown()
+        self.visuals = VisualProperties(
+            animation=None, flip_axes=FlipAxes.NONE, loop=-1
+        )
         self.hit: bool = False
         self.speed: int = 0
-        self.name: str = ""
-        self.next_use: int = 0
         self.potency: float = 0.0
         self.power: float = 1.0
         self.default_potency: float = 0.0
         self.default_power: float = 1.0
         self.range: Range = Range.melee
         self.healing_power: float = 0.0
-        self.recharge_length: int = 0
-        self.sfx: str = ""
+        self.sound = SoundProperties(sfx=None, volume=1.5)
         self.sort: str = ""
         self.slug: str = ""
         self.types: ElementTypesHandler = ElementTypesHandler()
@@ -66,26 +76,43 @@ class Technique:
         self.use_tech: str = ""
         self.confirm_text: str = ""
         self.cancel_text: str = ""
-        self.menu_actions_data: Sequence[Mapping[str, str]] = []
+        self.menu_actions_data: Sequence[MenuAction] = []
 
-        self.core_assets = CoreAssetManager()
+        self.core_assets = get_assets()
         self.effects: Sequence[PluginObject] = []
         self.conditions: Sequence[PluginObject] = []
+        self.stat_modifiers: dict[str, StatModel] = {}
+        self.temporary_stat_boosts: BasicStats = BasicStats()
+
+        # attempts: total times the technique was invoked
+        # successes: number of successful uses
+        # failures: number of failed uses
+        self.attempts: int = 0
+        self.successes: int = 0
+        self.failures: int = 0
 
         self.set_state(save_data)
 
     @classmethod
     def create(
-        cls, slug: str, save_data: Optional[Mapping[str, Any]] = None
+        cls, slug: str, save_data: Mapping[str, Any] | None = None
     ) -> Technique:
         method = cls(save_data)
         method.load(slug)
         return method
 
     @property
+    def name(self) -> str:
+        return T.translate(self.slug)
+
+    @property
+    def description(self) -> str:
+        return T.translate(f"{self.slug}_description")
+
+    @property
     def is_recharging(self) -> bool:
         """Returns whether the technique is currently recharging."""
-        return self.next_use > 0
+        return self.cooldown.is_recharging
 
     def load(self, slug: str) -> None:
         """
@@ -97,8 +124,6 @@ class Technique:
         """
         results = TechniqueModel.lookup(slug, db)
         self.slug = results.slug  # a short English identifier
-        self.name = T.translate(self.slug)
-        self.description = T.translate(f"{self.slug}_description")
 
         self.sort = results.sort
 
@@ -122,32 +147,27 @@ class Technique:
         self.speed = results.speed.numeric_value
         self.behaviors = results.behaviors
         self.healing_power = results.healing_power
-        self.recharge_length = results.recharge
+        self.cooldown.duration = results.recharge
         self.range = results.range
         self.tech_id = results.tech_id
         self.menu_actions_data = results.menu_actions
         self.tags = results.tags
+        self.stat_modifiers = results.stat_modifiers
 
-        self.effects = self.core_assets.parse_effects(results.effects)
+        self.effect_defs = results.effects
         self.conditions = self.core_assets.parse_conditions(results.conditions)
 
         self.condition_handler = ConditionProcessor(self.conditions)
-        self.effect_handler = EffectProcessor(self.effects)
         self.target = results.target.model_dump()
         self.modifiers = ModifiersHandler(results.modifiers)
 
-        # Load the animation sprites that will be used for this technique
-        self.animation = results.animation
-        self.flip_axes = results.flip_axes
+        self.visuals = results.visuals
+        self.sound = results.sound
 
-        # Load the sound effect for this technique
-        self.sfx = results.sfx
-
-    def advance_round(self) -> None:
-        """
-        Advance the counter for this technique if used.
-        """
-        self.counter += 1
+    def can_use(self, session: Session, target: Monster) -> bool:
+        if self.is_recharging:
+            return False
+        return self.validate_monster(session, target)
 
     def validate_monster(self, session: Session, target: Monster) -> bool:
         """
@@ -155,11 +175,11 @@ class Technique:
         """
         return self.condition_handler.validate(session=session, target=target)
 
-    def recharge(self) -> None:
-        self.next_use -= 1
+    def recharge(self, amount: int = 1) -> None:
+        self.cooldown.tick(amount)
 
     def full_recharge(self) -> None:
-        self.next_use = 0
+        self.cooldown.reset()
 
     def use(
         self, session: Session, user: Monster, target: Monster
@@ -167,13 +187,22 @@ class Technique:
         """
         Applies the technique's effects using EffectProcessor and returns the results.
         """
+        self.attempts += 1
+        self.effects = self.core_assets.parse_effects(self.effect_defs)
+        self.effect_handler = EffectProcessor(self.effects)
         result = self.effect_handler.process_tech(
             session=session,
             source=self,
             user=user,
             target=target,
         )
-        self.next_use = self.recharge_length
+        self.cooldown.trigger()
+        if session.client:
+            session.client.active_effect_manager.add_technique(self)
+        if result.success:
+            self.successes += 1
+        else:
+            self.failures += 1
         return result
 
     def has_type(self, type_slug: str) -> bool:
@@ -220,9 +249,9 @@ class Technique:
 
 
 def decode_moves(
-    json_data: Optional[Sequence[Mapping[str, Any]]],
+    json_data: Sequence[Mapping[str, Any]] | None,
 ) -> list[Technique]:
-    return [Technique(save_data=tech) for tech in json_data or {}]
+    return [Technique(save_data=tech) for tech in (json_data or [])]
 
 
 def encode_moves(techs: Sequence[Technique]) -> Sequence[Mapping[str, Any]]:

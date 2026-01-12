@@ -24,7 +24,7 @@ events:
     - translated_dialog spyder_flowerhouse1_tv
     conditions:
     - is char_facing_tile player
-    - is button_pressed K_RETURN
+    - is button_pressed INTERACT
     height: 1
     type: event
     width: 2
@@ -44,7 +44,7 @@ events:
     type: event
   Teleport to Flower City:
     actions:
-    - transition_teleport spyder_flower_city.tmx,15,22,0.3
+    - transition_teleport player,spyder_flower_city.tmx,15,22,0.3
     - char_face player,down
     conditions:
     - is char_at player

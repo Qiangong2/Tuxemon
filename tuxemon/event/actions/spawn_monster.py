@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 import logging
@@ -7,17 +7,15 @@ import random
 import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, final
-from uuid import UUID
 
-from tuxemon import formula
 from tuxemon.db import Acquisition, EvolutionStage, StatType
-from tuxemon.event import get_monster_by_iid, get_npc
+from tuxemon.element import ElementTypesHandler
 from tuxemon.event.eventaction import EventAction
 from tuxemon.locale import T
 from tuxemon.monster import Monster
 from tuxemon.taste import Taste
 from tuxemon.time_handler import today_ordinal
-from tuxemon.tools import open_dialog
+from tuxemon.tools import get_valid_uuid, open_dialog
 
 if TYPE_CHECKING:
     from tuxemon.session import Session
@@ -54,18 +52,31 @@ class SpawnMonsterAction(EventAction):
 
     def start(self, session: Session) -> None:
         player = session.player
-        mother_id = UUID(player.game_variables.get("breeding_mother"))
-        father_id = UUID(player.game_variables.get("breeding_father"))
 
-        mother = get_monster_by_iid(
-            session, mother_id
+        mother_id = get_valid_uuid(player.game_variables, "breeding_mother")
+        father_id = get_valid_uuid(player.game_variables, "breeding_father")
+
+        if not mother_id or not father_id:
+            missing = []
+            if not mother_id:
+                missing.append("breeding_mother")
+            if not father_id:
+                missing.append("breeding_father")
+
+            logger.info(
+                f"No valid monster selected for variable(s): {', '.join(missing)}"
+            )
+            return  # Exit early if either UUID is invalid
+
+        mother = session.client.get_monster_by_iid(
+            mother_id
         ) or player.monster_boxes.get_monsters_by_iid(mother_id)
         if mother is None:
             logger.error(f"Mother {mother_id} not found.")
             return
 
-        father = get_monster_by_iid(
-            session, father_id
+        father = session.client.get_monster_by_iid(
+            father_id
         ) or player.monster_boxes.get_monsters_by_iid(father_id)
         if father is None:
             logger.error(f"Father {father_id} not found.")
@@ -116,7 +127,7 @@ class SpawnMonsterAction(EventAction):
         child.father_iid = father_id
 
         # Add the child to the character's monsters
-        character = get_npc(session, self.character)
+        character = session.get_npc(self.character)
         if character is None:
             logger.error(f"{self.character} not found")
             return
@@ -124,9 +135,9 @@ class SpawnMonsterAction(EventAction):
 
         # Display a message to the player
         msg = T.format("got_new_tuxemon", {"monster_name": child.name})
-        open_dialog(session.client, [msg])
+        open_dialog(session.client, [msg], dialog_speed="max")
 
-    def update(self, session: Session) -> None:
+    def update(self, session: Session, dt: float) -> None:
         try:
             session.client.get_state_by_name("DialogState")
         except ValueError:
@@ -173,8 +184,7 @@ def _determine_seed(mother: Monster, father: Monster) -> Monster:
     vitality_mother = mother.hp_ratio
     vitality_father = father.hp_ratio
     logger.debug(
-        "Vitality ratio "
-        f"Mother: {vitality_mother:.2f}, Father: {vitality_father:.2f}"
+        f"Vitality ratio Mother: {vitality_mother:.2f}, Father: {vitality_father:.2f}"
     )
 
     if vitality_mother > vitality_father:
@@ -184,10 +194,11 @@ def _determine_seed(mother: Monster, father: Monster) -> Monster:
         logger.debug("Seed chosen based on greater vitality: Father")
         return father
 
-    multiplier_mother = formula.calculate_multiplier(
+    # Offensive affinity
+    multiplier_mother = ElementTypesHandler.calculate_affinity_score(
         mother.types.current, father.types.current
     )
-    multiplier_father = formula.calculate_multiplier(
+    multiplier_father = ElementTypesHandler.calculate_affinity_score(
         father.types.current, mother.types.current
     )
     logger.debug(
@@ -201,6 +212,29 @@ def _determine_seed(mother: Monster, father: Monster) -> Monster:
         return mother
     elif multiplier_father > multiplier_mother:
         logger.debug("Seed chosen based on stronger type matchup: Father")
+        return father
+
+    # Defensive resistance
+    resistance_mother = (
+        ElementTypesHandler.calculate_resistance_multiplier_for_types(
+            mother.types.current, father.types.primary.slug
+        )
+    )
+    resistance_father = (
+        ElementTypesHandler.calculate_resistance_multiplier_for_types(
+            father.types.current, mother.types.primary.slug
+        )
+    )
+    logger.debug(
+        f"Resistance Mother vs Father: {resistance_mother:.2f} "
+        f"Father vs Mother: {resistance_father:.2f}"
+    )
+
+    if resistance_mother < resistance_father:
+        logger.debug("Seed chosen based on stronger resistance: Mother")
+        return mother
+    elif resistance_father < resistance_mother:
+        logger.debug("Seed chosen based on stronger resistance: Father")
         return father
 
     logger.debug("Seed chosen randomly: No clear biological dominance")

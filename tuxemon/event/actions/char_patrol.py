@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 import logging
@@ -7,7 +7,6 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Any, final
 
-from tuxemon.event import get_npc
 from tuxemon.event.eventaction import EventAction
 from tuxemon.map.map import parse_path_parameters
 from tuxemon.session import Session
@@ -60,7 +59,7 @@ class CharPatrolAction(EventAction):
 
         npc_name = self.raw_parameters[0]
         move_list = self.raw_parameters[1:]
-        self.character = get_npc(session, npc_name)
+        self.character = session.get_npc(npc_name)
 
         if not self.character:
             logger.error(f"NPC '{npc_name}' not found")
@@ -74,15 +73,14 @@ class CharPatrolAction(EventAction):
             logger.error(f"Failed to parse patrol path: {e}")
             return
 
-    def update(self, session: Session) -> None:
+    def update(self, session: Session, dt: float) -> None:
         if not self.character or not self.patrol_points:
             self.stop()
             return
 
         if not self.character.moving and not self.character.path:
             next_pos = self.patrol_points[self.patrol_index]
-            self.character.path = [next_pos]
-            self.character.next_waypoint()
+            self.character.set_path_and_start([next_pos])
             self.patrol_index = (self.patrol_index + 1) % len(
                 self.patrol_points
             )

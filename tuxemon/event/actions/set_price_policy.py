@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 import logging
@@ -7,7 +7,6 @@ from dataclasses import dataclass
 from typing import final
 
 from tuxemon.economy.price_policy import StaticYamlPolicy, load_policy
-from tuxemon.event import get_npc
 from tuxemon.event.eventaction import EventAction
 from tuxemon.session import Session
 
@@ -35,7 +34,7 @@ class SetPricePolicyAction(EventAction):
     policy_slug: str
 
     def start(self, session: Session) -> None:
-        character = get_npc(session, self.npc_slug)
+        character = session.get_npc(self.npc_slug)
         if character is None:
             logger.error(f"{self.npc_slug} not found")
             return

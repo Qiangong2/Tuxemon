@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 import random
@@ -7,7 +7,8 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from tuxemon.core.core_effect import CoreEffect, ItemEffectResult
-from tuxemon.db import TechCategory, TechniqueModel, db
+from tuxemon.database.runtime import db
+from tuxemon.db import TechCategory, TechniqueModel
 from tuxemon.technique.technique import Technique
 
 if TYPE_CHECKING:
@@ -22,10 +23,24 @@ lookup_cache: dict[str, TechniqueModel] = {}
 @dataclass
 class LearnMmEffect(CoreEffect):
     """
-    Teaches the target a random technique of a specified element.
+    Applies the "learn_mm" effect to a monster.
 
-    Parameters:
-        element: Type of element (e.g., wood, water, etc.)
+    This effect teaches the target a random technique of the specified
+    element type. Techniques are chosen from the database, excluding
+    reserved categories and moves the monster already knows.
+
+    **Parameters**
+
+    - ``element``: The elemental type of the technique to learn
+      (e.g., ``wood``, ``water``, ``fire``).
+
+    **Example**
+
+    .. code-block:: json
+
+        "effects": [
+            "learn_mm water"
+        ]
     """
 
     name = "learn_mm"
@@ -47,7 +62,9 @@ class LearnMmEffect(CoreEffect):
                 return ItemEffectResult(name=item.name)
 
             tech = Technique.create(tech_slug)
-            target.moves.learn(target.instance_id, tech)
+            learned = target.moves.learn(target, tech)
+            if not learned:
+                return ItemEffectResult(name=item.name)
 
             return ItemEffectResult(name=item.name, success=True)
 

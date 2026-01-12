@@ -1,10 +1,10 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 from dataclasses import dataclass
 
-from tuxemon.event import MapCondition, get_npc
+from tuxemon.db import SpatialCondition
 from tuxemon.event.eventcondition import EventCondition
 from tuxemon.session import Session
 
@@ -26,5 +26,5 @@ class CharExistsCondition(EventCondition):
 
     name = "char_exists"
 
-    def test(self, session: Session, condition: MapCondition) -> bool:
-        return get_npc(session, condition.parameters[0]) is not None
+    def test(self, session: Session, condition: SpatialCondition) -> bool:
+        return session.get_npc(condition.parameters[0]) is not None

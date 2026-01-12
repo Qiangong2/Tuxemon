@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 import logging
@@ -7,17 +7,18 @@ import random
 from dataclasses import dataclass
 from typing import final
 
-from tuxemon import prepare
 from tuxemon.combat.combat_context import (
     BattleMode,
     CombatContext,
     CombatType,
 )
 from tuxemon.combat.utils import check_battle_legal
-from tuxemon.db import EnvironmentModel, MonsterModel, NpcModel, db
-from tuxemon.event import get_npc
+from tuxemon.database.runtime import db
+from tuxemon.db import MonsterModel, NpcModel
 from tuxemon.event.eventaction import EventAction
+from tuxemon.formula import config_monster
 from tuxemon.monster import Monster
+from tuxemon.platform.const.sizes import PARTY_LIMIT
 from tuxemon.session import Session
 from tuxemon.time_handler import today_ordinal
 
@@ -56,13 +57,13 @@ class RandomBattleAction(EventAction):
         self._start_battle(session)
 
     def _validate_parameters(self) -> None:
-        if not (1 <= self.nr_txmns <= prepare.PARTY_LIMIT):
+        if not (1 <= self.nr_txmns <= PARTY_LIMIT):
             raise ValueError(
-                f"Party size {self.nr_txmns} must be between 1 and {prepare.PARTY_LIMIT}"
+                f"Party size {self.nr_txmns} must be between 1 and {PARTY_LIMIT}"
             )
-        if not (1 <= self.max_level <= prepare.MAX_LEVEL):
+        if not (1 <= self.max_level <= config_monster.level_range[1]):
             raise ValueError(
-                f"Max level {self.max_level} must be between 1 and {prepare.MAX_LEVEL}"
+                f"Max level {self.max_level} must be between 1 and {config_monster.level_range[1]}"
             )
 
     def _prepare_opponent(self, session: Session) -> None:
@@ -82,7 +83,7 @@ class RandomBattleAction(EventAction):
         )
 
     def _start_battle(self, session: Session) -> None:
-        npc = get_npc(session, self.opponent.slug)
+        npc = session.get_npc(self.opponent.slug)
         if npc is None:
             logger.error(f"{self.opponent.slug} not found after creation.")
             return
@@ -97,34 +98,38 @@ class RandomBattleAction(EventAction):
         monsters_to_add = random.sample(monster_filters, self.nr_txmns)
         for monster in monsters_to_add:
             level = random.randint(self.min_level, self.max_level)
-            current_monster = Monster.spawn_base(monster.slug, level)
-            current_monster.set_capture(today_ordinal())
-            current_monster.money_modifier = level
-            current_monster.experience_modifier = level
-            npc.party.add_monster(current_monster, len(npc.monsters))
+            spawn_monster = Monster.spawn_base(monster.slug, level)
+            spawn_monster.set_capture(today_ordinal())
+            spawn_monster.money_modifier = level
+            spawn_monster.set_experience_modifier(level)
+            npc.party.insert_monster_to_party(spawn_monster, len(npc.monsters))
 
         player = session.player
         if not (check_battle_legal(player) and check_battle_legal(npc)):
             logger.warning("Battle is not legal, won't start.")
             return
 
-        env_slug = player.game_variables.get("environment", "grass")
-        env = EnvironmentModel.lookup(env_slug, db)
+        environment = session.client.environment_manager
+        env = environment.get_active_environment()
+        if env is None:
+            logger.error(
+                "No environment defined. Use 'set_environment' before starting combat."
+            )
+            return
 
         logger.info(f"Starting battle with '{npc.name}'!")
         context = CombatContext(
             session=session,
             teams=[player, npc],
             combat_type=CombatType.TRAINER,
-            graphics=env.battle_graphics,
             battle_mode=BattleMode.SINGLE,
         )
         session.client.push_state("CombatState", context=context)
-        session.client.event_engine.execute_action(
-            "play_music", [env.battle_music], True
-        )
+        sound = env.get_battle_music().battle
+        if sound.music:
+            session.client.current_music.play(sound.music, sound.volume)
 
-    def update(self, session: Session) -> None:
+    def update(self, session: Session, dt: float) -> None:
         try:
             session.client.get_state_by_name("CombatState")
         except ValueError:

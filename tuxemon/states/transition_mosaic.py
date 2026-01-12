@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 import logging
@@ -10,8 +10,8 @@ from pygame import draw as pg_draw
 from pygame.rect import Rect
 from pygame.surface import Surface
 
-from tuxemon import prepare
 from tuxemon.platform.events import PlayerInput
+from tuxemon.prepare import SCREEN
 from tuxemon.state.state import State
 
 logger = logging.getLogger(__name__)
@@ -40,7 +40,7 @@ class MosaicTransition(State):
         self.resume()
 
     def resume(self) -> None:
-        self.screenshot = Surface.copy(prepare.SCREEN)
+        self.screenshot = Surface.copy(SCREEN)
         for x in range(0, self.screenshot.get_width(), self.tile_size):
             for y in range(0, self.screenshot.get_height(), self.tile_size):
                 rect = Rect(x, y, self.tile_size, self.tile_size)

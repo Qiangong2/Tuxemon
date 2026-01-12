@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 import unittest
 from collections.abc import Generator
 from pathlib import Path
@@ -7,12 +7,11 @@ from typing import Any
 
 import yaml
 
-from tuxemon import prepare
 from tuxemon.constants.asset_loader import fetch_asset
-from tuxemon.db import db
+from tuxemon.database.runtime import db
 from tuxemon.script.parser import parse_action_string
+from tuxemon.user_config import CONFIG
 
-EXPECTED_SCENARIOS = ["spyder", "xero", "tobedefined"]
 FOLDER = "maps"
 EVENTS_KEY = "events"
 COLLISION_KEY = "collisions"
@@ -28,12 +27,6 @@ YAML_ATTR = [
     "height",
 ]
 YAML_TYPES = ["init", "collision", "event"]
-
-
-def expand_expected_scenarios() -> None:
-    for mod in prepare.CONFIG.mods:
-        map: str = db.mod_metadata.require_mod_attribute(mod, "starting_map")
-        EXPECTED_SCENARIOS.append(map.removesuffix(".tmx"))
 
 
 def get_yaml_files(folder_path: Path) -> Generator[Path, Any, None]:
@@ -58,7 +51,6 @@ class TestYAMLFiles(unittest.TestCase):
     def setUpClass(cls):
         cls.folder_path = fetch_asset(FOLDER)
         cls.loaded_data = load_yaml_files(cls.folder_path)
-        expand_expected_scenarios()
 
     def test_yaml_event_name_length(self):
         for path, data in self.loaded_data.items():
@@ -151,10 +143,10 @@ class TestYAMLFiles(unittest.TestCase):
                             if command == "transition_teleport":
                                 with self.subTest(action=action):
                                     try:
-                                        fetch_asset(FOLDER, params[0])
+                                        fetch_asset(FOLDER, params[1])
                                     except OSError:
                                         self.fail(
-                                            f"Map '{params[0]}' does not exist."
+                                            f"Map '{params[1]}' does not exist."
                                         )
 
     def test_conditions_structure(self):

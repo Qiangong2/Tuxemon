@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 import logging
@@ -7,7 +7,6 @@ from dataclasses import dataclass
 from typing import final
 
 from tuxemon.db import OutputBattle
-from tuxemon.event import get_npc
 from tuxemon.event.eventaction import EventAction
 from tuxemon.session import Session
 
@@ -46,15 +45,14 @@ class SetBattleAction(EventAction):
                 f"{self.outcome} isn't among {list(OutputBattle)}"
             )
 
-        character = get_npc(session, self.fighter_slug)
+        character = session.get_npc(self.fighter_slug)
         if character is None:
             logger.error(f"Character '{self.fighter_slug}' not found")
             return
 
         character.battle_handler.record_battle(
-            self.opponent_slug,
-            OutputBattle(self.outcome),
-            int(character.steps),
+            opponent=self.opponent_slug,
+            outcome=OutputBattle(self.outcome),
         )
         logger.info(
             f"{self.fighter_slug} {self.outcome} against {self.opponent_slug}"

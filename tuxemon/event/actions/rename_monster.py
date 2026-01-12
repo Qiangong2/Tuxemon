@@ -1,17 +1,16 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
 from typing import final
-from uuid import UUID
 
-from tuxemon import prepare
-from tuxemon.event import get_monster_by_iid
 from tuxemon.event.eventaction import EventAction
 from tuxemon.locale import T
+from tuxemon.platform.const.sizes import PLAYER_NAME_LIMIT
 from tuxemon.session import Session
+from tuxemon.tools import get_valid_uuid
 
 logger = logging.getLogger(__name__)
 
@@ -40,12 +39,13 @@ class RenameMonsterAction(EventAction):
 
     def start(self, session: Session) -> None:
         player = session.player
-        if not player.game_variables.has(self.variable):
-            logger.error(f"Game variable {self.variable} not found")
-            return
-
-        monster_id = UUID(player.game_variables.get(self.variable))
-        monster = get_monster_by_iid(session, monster_id)
+        monster_id = get_valid_uuid(player.game_variables, self.variable)
+        if monster_id is None:
+            logger.info(
+                f"No valid monster selected for variable '{self.variable}'"
+            )
+            return  # Exit early if no valid UUID
+        monster = session.client.get_monster_by_iid(monster_id)
         if monster is None:
             logger.error("Monster not found")
             return
@@ -58,10 +58,10 @@ class RenameMonsterAction(EventAction):
             callback=self.set_monster_name,
             escape_key_exits=False,
             initial=T.translate(self.monster.slug),
-            char_limit=prepare.PLAYER_NAME_LIMIT,
+            char_limit=PLAYER_NAME_LIMIT,
         )
 
-    def update(self, session: Session) -> None:
+    def update(self, session: Session, dt: float) -> None:
         try:
             session.client.get_state_by_name("InputMenu")
         except ValueError:

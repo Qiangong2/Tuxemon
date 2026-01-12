@@ -1,11 +1,11 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
 
-from tuxemon.event import MapCondition, get_npc
+from tuxemon.db import SpatialCondition
 from tuxemon.event.eventcondition import EventCondition
 from tuxemon.map.map import get_coords, get_direction
 from tuxemon.session import Session
@@ -31,12 +31,12 @@ class CharFacingCharCondition(EventCondition):
 
     name = "char_facing_char"
 
-    def test(self, session: Session, condition: MapCondition) -> bool:
+    def test(self, session: Session, condition: SpatialCondition) -> bool:
         client = session.client
         npc_location = None
 
-        character1 = get_npc(session, condition.parameters[0])
-        character2 = get_npc(session, condition.parameters[1])
+        character1 = session.get_npc(condition.parameters[0])
+        character2 = session.get_npc(condition.parameters[1])
         if character2 is None or character1 is None:
             return False
 

@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 import logging
@@ -11,12 +11,11 @@ from typing import (
     Final,
     Generic,
     Literal,
-    Optional,
     TypeVar,
-    Union,
     overload,
 )
 
+from pygame import SRCALPHA
 from pygame.rect import FRect, Rect
 from pygame.sprite import DirtySprite, Group, LayeredUpdates
 from pygame.sprite import Sprite as PySprite
@@ -31,6 +30,7 @@ from tuxemon.tools import scale as tuxemon_scale
 
 if TYPE_CHECKING:
     from tuxemon.db import BattleIconsModel
+    from tuxemon.entity_dir.party import PartyHandler
     from tuxemon.menu.interface import MenuItem
     from tuxemon.monster import Monster
 
@@ -39,15 +39,15 @@ logger = logging.getLogger()
 
 class Sprite(DirtySprite):
     _dummy_image: Surface = Surface((0, 0))
-    _original_image: Optional[Surface]
-    _image: Optional[Surface]
+    _original_image: Surface | None
+    _image: Surface | None
     _rect: Rect
 
     def __init__(
         self,
         *args: Group,
-        image: Optional[Surface] = None,
-        animation: Optional[SurfaceAnimation] = None,
+        image: Surface | None = None,
+        animation: SurfaceAnimation | None = None,
     ) -> None:
         super().__init__(*args)
         self.visible: bool = True
@@ -60,6 +60,7 @@ class Sprite(DirtySprite):
         self._needs_rescale: bool = False
         self._needs_update: bool = False
         self.player: bool = False
+        self.base_image: Surface | None = None
 
     def update(self, time_delta: float = 0, *args: Any, **kwargs: Any) -> None:
         """
@@ -75,7 +76,7 @@ class Sprite(DirtySprite):
         if self.animation is not None:
             self.animation.update(time_delta)
 
-    def draw(self, surface: Surface, rect: Optional[Rect] = None) -> Rect:
+    def draw(self, surface: Surface, rect: Rect | None = None) -> Rect:
         """
         Draw the sprite to the surface.
 
@@ -122,7 +123,7 @@ class Sprite(DirtySprite):
         return self._rect
 
     @rect.setter
-    def rect(self, rect: Optional[Union[FRect, Rect]]) -> None:
+    def rect(self, rect: FRect | Rect | None) -> None:
         """
         Set the rectangle of the sprite.
 
@@ -161,7 +162,7 @@ class Sprite(DirtySprite):
         )
 
     @image.setter
-    def image(self, image: Optional[Surface]) -> None:
+    def image(self, image: Surface | None) -> None:
         """
         Set the image of the sprite.
 
@@ -178,7 +179,7 @@ class Sprite(DirtySprite):
         self._needs_update = True
 
     @property
-    def animation(self) -> Optional[SurfaceAnimation]:
+    def animation(self) -> SurfaceAnimation | None:
         """
         Get the animation of the sprite.
 
@@ -188,7 +189,7 @@ class Sprite(DirtySprite):
         return self._animation
 
     @animation.setter
-    def animation(self, animation: Optional[SurfaceAnimation]) -> None:
+    def animation(self, animation: SurfaceAnimation | None) -> None:
         """
         Set the animation of the sprite.
 
@@ -204,7 +205,7 @@ class Sprite(DirtySprite):
         """
         Update the image of the sprite.
         """
-        image: Optional[Surface] = None
+        image: Surface | None = None
         if self._original_image is not None and self._needs_rescale:
             w = self.rect.width if self._width is None else self._width
             h = self.rect.height if self._height is None else self._height
@@ -228,6 +229,16 @@ class Sprite(DirtySprite):
 
         self._width, self._height = self.rect.size
         self._image = image
+
+    def reset_to_base_image(self) -> None:
+        """
+        Resets the sprite's image to its base image.
+        """
+        if self.base_image:
+            self.image = self.base_image.copy()
+            self._needs_update = True
+        else:
+            logger.warning("base_image is not set. Cannot reset.")
 
     @property
     def width(self) -> int:
@@ -342,12 +353,58 @@ class Sprite(DirtySprite):
         self.visible = not self.visible
 
 
+class HordeSprite(Sprite):
+    """
+    A minimalist HUD sprite for Horde Battles that displays the number
+    of remaining monsters without using a background icon.
+    """
+
+    def __init__(
+        self,
+        opponent_party: PartyHandler,
+        tray_rect: Rect,
+        shadow_text_func: Callable[[str], Surface],
+        scale_func: Callable[[int], int],
+    ) -> None:
+        super().__init__()
+        self.opponent_party = opponent_party
+        self.tray_rect = tray_rect
+        self.shadow_text = shadow_text_func
+        self.scale = scale_func
+        self.update_count_display()
+
+    def update_count_display(self) -> bool:
+        """Updates the sprite to show the current horde count as text only."""
+        if self.is_defeated():
+            return False
+        horde_size = len(self.opponent_party.alive)
+        horde_text = f"x{horde_size}"
+        text_surface = self.shadow_text(horde_text)
+        x_pad = self.scale(2)
+        y_pad = self.scale(4)
+        width = text_surface.get_width() + x_pad * 2
+        height = text_surface.get_height() + y_pad * 2
+        self.image = Surface((width, height), SRCALPHA)
+        self.image.fill((0, 0, 0, 0))
+        self.image.blit(text_surface, (x_pad, y_pad))
+        self.rect = self.image.get_rect(bottom=self.tray_rect.bottom, right=0)
+        return True
+
+    def is_defeated(self) -> bool:
+        """Checks if the entire horde is defeated."""
+        return self.opponent_party.is_fainted
+
+    def animate_in(self, animate_func: Callable[..., object]) -> None:
+        """Animates the horde icon sliding into its final position."""
+        animate_func(self.rect, right=self.tray_rect.right)
+
+
 class CaptureDeviceSprite(Sprite):
     def __init__(
         self,
         *,
         tray: Sprite,
-        monster: Optional[Monster],
+        monster: Monster | None,
         sprite: Sprite,
         icon: BattleIconsModel,
     ) -> None:
@@ -412,7 +469,7 @@ class SpriteGroup(LayeredUpdates, Generic[_GroupElement]):
     def __init__(self, *, default_layer: int = 0) -> None:
         super().__init__(default_layer=default_layer)
 
-    def add(self, *sprites: Union[PySprite, Any], **kwargs: Any) -> None:
+    def add(self, *sprites: PySprite | Any, **kwargs: Any) -> None:
         return LayeredUpdates.add(self, *sprites, **kwargs)
 
     def __iter__(self) -> Iterator[_GroupElement]:
@@ -441,8 +498,8 @@ class SpriteGroup(LayeredUpdates, Generic[_GroupElement]):
 
     def __getitem__(
         self,
-        item: Union[int, slice],
-    ) -> Union[_GroupElement, Sequence[_GroupElement]]:
+        item: int | slice,
+    ) -> _GroupElement | Sequence[_GroupElement]:
         # patch in indexing / slicing support
         return self.sprites()[item]
 
@@ -532,7 +589,7 @@ class RelativeGroup(MenuSpriteGroup[_MenuElement]):
     def __init__(
         self,
         *,
-        parent: Union[RelativeGroup[Any], Callable[[], Rect]],
+        parent: RelativeGroup[Any] | Callable[[], Rect],
         **kwargs: Any,
     ) -> None:
         self.parent = parent
@@ -551,7 +608,7 @@ class RelativeGroup(MenuSpriteGroup[_MenuElement]):
         else:
             self.rect = Rect(self.parent.rect)
 
-    def draw(self, surface: Surface) -> list[Union[FRect, Rect]]:
+    def draw(self, surface: Surface) -> list[FRect | Rect]:
         self.update_rect_from_parent()
         topleft = self.rect.topleft
 
@@ -588,8 +645,8 @@ class VisualSpriteList(RelativeGroup[_MenuElement]):
         super().__init__(**kwargs)
         self._needs_arrange = False
         self._columns = 1
-        self.line_spacing: Optional[int] = None
-        self.max_width_per_column: Optional[int] = None
+        self.line_spacing: int | None = None
+        self.max_width_per_column: int | None = None
 
     @property
     def columns(self) -> int:
@@ -605,7 +662,7 @@ class VisualSpriteList(RelativeGroup[_MenuElement]):
             self.arrange_menu_items()
         return super().calc_bounding_rect()
 
-    def add(self, *sprites: Union[PySprite, Any], **kwargs: Any) -> None:
+    def add(self, *sprites: PySprite | Any, **kwargs: Any) -> None:
         """
         Add something to the stacker.
 
@@ -617,7 +674,7 @@ class VisualSpriteList(RelativeGroup[_MenuElement]):
         super().add(*sprites, **kwargs)
         self._needs_arrange = True
 
-    def remove(self, *items: Union[PySprite, Any]) -> None:
+    def remove(self, *items: PySprite | Any) -> None:
         super().remove(*items)
         self._needs_arrange = True
 
@@ -628,7 +685,7 @@ class VisualSpriteList(RelativeGroup[_MenuElement]):
             super().remove(i)
         self._needs_arrange = True
 
-    def draw(self, surface: Surface) -> list[Union[FRect, Rect]]:
+    def draw(self, surface: Surface) -> list[FRect | Rect]:
         if self._needs_arrange:
             self.arrange_menu_items()
         dirty = super().draw(surface)

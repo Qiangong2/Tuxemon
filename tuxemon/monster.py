@@ -1,15 +1,16 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 import logging
 import random
 from collections.abc import Mapping, Sequence
 from dataclasses import fields
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any
 from uuid import UUID, uuid4
 
-from tuxemon import formula, prepare
+from tuxemon import formula
+from tuxemon.database.runtime import db
 from tuxemon.db import (
     Acquisition,
     EffectPhase,
@@ -19,14 +20,16 @@ from tuxemon.db import (
     MonsterHistoryItemModel,
     MonsterModel,
     MonsterSpritesModel,
+    SoundProperties,
     StatType,
-    db,
 )
 from tuxemon.element import ElementTypesHandler
+from tuxemon.formula import config_monster
 from tuxemon.fusion import Body
 from tuxemon.locale import T
 from tuxemon.monster_dir.bond import BondHandler
 from tuxemon.monster_dir.evolution import Evolution
+from tuxemon.monster_dir.experience import MonsterExperience
 from tuxemon.monster_dir.held_item import MonsterItemHandler
 from tuxemon.monster_dir.moves import MonsterMovesHandler
 from tuxemon.monster_dir.plague import MonsterPlagueHandler
@@ -38,19 +41,21 @@ from tuxemon.monster_dir.sprite import (
 )
 from tuxemon.monster_dir.stats import (
     BasicStats,
+    CustomStatBoosts,
+    IndividualValues,
     StatCalculator,
-    TemporaryStatBoosts,
     TrainingPoints,
+    randomize_ivs,
 )
 from tuxemon.monster_dir.status import MonsterStatusHandler
+from tuxemon.prepare import SCALE
 from tuxemon.shape import ShapeHandler
 from tuxemon.sprite import Sprite
 from tuxemon.taste import Taste
 from tuxemon.time_handler import today_ordinal
 
 if TYPE_CHECKING:
-    pass
-
+    from tuxemon.item.item import Item
     from tuxemon.npc import NPC
     from tuxemon.session import Session
 
@@ -59,10 +64,8 @@ logger = logging.getLogger(__name__)
 
 SIMPLE_PERSISTANCE_ATTRIBUTES = (
     "current_hp",
-    "level",
     "name",
     "slug",
-    "total_experience",
     "capture",
     "capture_device",
     "height",
@@ -81,23 +84,20 @@ class Monster:
     a Tuxemon, fetching its details from a database.
     """
 
-    def __init__(self, save_data: Optional[Mapping[str, Any]] = None) -> None:
+    def __init__(self, save_data: Mapping[str, Any] | None = None) -> None:
         save_data = save_data or {}
 
         self.slug: str = ""
-        self.name: str = ""
-        self.species_name: str = ""
-        self.description: str = ""
+        self._custom_name: str | None = None
         self.instance_id: UUID = uuid4()
 
         self.base_stats: BasicStats = BasicStats()
         self.current_hp: int = 0
 
-        self.level: int = 0
         self.steps: float = 0.0
         self.bond_handler: BondHandler = BondHandler(save_data)
 
-        self.modifiers = TemporaryStatBoosts()
+        self.custom_stats = CustomStatBoosts()
         self.training_points = TrainingPoints()
 
         self.moves = MonsterMovesHandler()
@@ -107,20 +107,18 @@ class Monster:
         self.stage: EvolutionStage = EvolutionStage.standalone
         self.flair_slugs: set[str] = set()
         self.flairs: dict[str, Flair] = {}
-        self.owner: Optional[NPC] = None
+        self.owner: NPC | None = None
         self.gender_weights: dict[GenderType, float] = {}
-        self.held_item = MonsterItemHandler()
+        self.item_handler = MonsterItemHandler()
+        self.experience_handler: MonsterExperience = MonsterExperience()
 
         self.money_modifier: float = 0.0
-        self.experience_modifier: float = 1.0
-        self.total_experience: int = 0
+        self.max_moves: int = 1
 
         self.types = ElementTypesHandler()
         self.shape: ShapeHandler = ShapeHandler()
         self.randomly: bool = True
         self.out_of_range: bool = False
-        self.got_experience: bool = False
-        self.levelling_up: bool = False
         self.acquisition: Acquisition = Acquisition.UNKNOWN
         self.wild: bool = False
 
@@ -135,8 +133,8 @@ class Monster:
         self.height: float = 0.0
         self.weight: float = 0.0
 
-        self.mother_iid: Optional[UUID] = None
-        self.father_iid: Optional[UUID] = None
+        self.mother_iid: UUID | None = None
+        self.father_iid: UUID | None = None
 
         # The multiplier for checks when a monster ball is thrown this should be a value between 0-100 meaning that
         # 0 is 0% capture rate and 100 has a very good chance of capture. This numbers are based on the capture system
@@ -162,12 +160,19 @@ class Monster:
         # Set up our sprites.
         self.sprite_handler = MonsterSpriteHandler()
 
+        if save_data.get("individual_values"):
+            self.individual_values = IndividualValues.from_dict(
+                save_data["individual_values"]
+            )
+        else:
+            self.individual_values = randomize_ivs()
+
         self.set_state(save_data)
         self.set_stats()
 
     @classmethod
     def create(
-        cls, slug: str, save_data: Optional[Mapping[str, Any]] = None
+        cls, slug: str, save_data: Mapping[str, Any] | None = None
     ) -> Monster:
         method = cls(save_data)
         method.load(slug)
@@ -177,9 +182,54 @@ class Monster:
     def spawn_base(cls, slug: str, level: int) -> Monster:
         monster = cls.create(slug)
         monster.set_level(level)
-        monster.moves.set_moves(monster.instance_id, level, monster.stage)
+        monster.moves.set_moves(monster)
         monster.current_hp = monster.hp
         return monster
+
+    @property
+    def name(self) -> str:
+        return self._custom_name or T.translate(self.slug)
+
+    @name.setter
+    def name(self, value: str) -> None:
+        self._custom_name = value
+
+    @property
+    def description(self) -> str:
+        return T.translate(f"{self.slug}_description")
+
+    @property
+    def species_name(self) -> str:
+        return T.translate(f"cat_{self.species}")
+
+    @property
+    def held_item(self) -> Item | None:
+        return self.item_handler.held_item
+
+    @property
+    def level(self) -> int:
+        return self.experience_handler.level
+
+    @property
+    def total_experience(self) -> int:
+        return self.experience_handler.total_experience
+
+    @property
+    def experience_modifier(self) -> float:
+        return self.experience_handler.experience_modifier
+
+    @property
+    def levelling_up(self) -> bool:
+        return self.experience_handler.levelling_up
+
+    @property
+    def got_experience(self) -> bool:
+        return self.experience_handler.got_experience
+
+    @property
+    def experience_progress_percent(self) -> float:
+        """Progress toward the next level as a percentage (0.0 to 1.0)."""
+        return self.experience_handler.experience_progress_percent
 
     @property
     def armour(self) -> int:
@@ -227,12 +277,9 @@ class Monster:
             slug: Slug to lookup.
         """
         results = MonsterModel.lookup(slug, db)
-        self.level = random.randint(2, 5)
+        self.experience_handler.set_level(random.randint(2, 5))
         self.slug = results.slug
-        self.name = T.translate(results.slug)
-        self.description = T.translate(f"{results.slug}_description")
         self.species = results.species
-        self.species_name = T.translate(f"cat_{self.species}")
         self.shape = ShapeHandler(results.shape)
         self.stage = results.stage
         self.tags = results.tags
@@ -244,6 +291,7 @@ class Monster:
         self.types = ElementTypesHandler(results.types)
 
         self.randomly = results.randomly
+        self.max_moves = results.max_moves
 
         self.txmn_id = results.txmn_id
         self.set_capture(self.capture)
@@ -278,25 +326,31 @@ class Monster:
             flairs=self.flairs,
         )
 
-        # get sound slugs for this monster, defaulting to a generic type-based sound
-        self.combat_call = (
-            results.sounds.combat_call
-            if results.sounds.combat_call
-            else f"sound_{self.types.primary.slug}_call"
-        )
-        self.faint_call = (
-            results.sounds.faint_call
-            if results.sounds.faint_call
-            else f"sound_{self.types.primary.slug}_faint"
-        )
+        if results.sounds and results.sounds.combat_call:
+            self.combat_call = results.sounds.combat_call
+            if self.combat_call.sfx is None:
+                self.combat_call.sfx = f"sound_{self.types.primary.slug}_call"
+        else:
+            self.combat_call = SoundProperties(
+                sfx=f"sound_{self.types.primary.slug}_call", volume=1.5
+            )
 
-    def load_sprites(self, scale: float = prepare.SCALE) -> None:
+        if results.sounds and results.sounds.faint_call:
+            self.faint_call = results.sounds.faint_call
+            if self.faint_call.sfx is None:
+                self.faint_call.sfx = f"sound_{self.types.primary.slug}_faint"
+        else:
+            self.faint_call = SoundProperties(
+                sfx=f"sound_{self.types.primary.slug}_faint", volume=1.5
+            )
+
+    def load_sprites(self, scale: float = SCALE) -> None:
         """
         Delegates the task of loading sprites to the sprite handler.
 
         Parameters:
             scale: The scaling factor to resize the sprite images.
-                Defaults to the predefined scale value in 'prepare.SCALE'.
+                Defaults to the predefined scale value in 'SCALE'.
         """
         self.sprite_handler.load_sprites(scale)
 
@@ -306,7 +360,7 @@ class Monster:
             raise ValueError("No character is linked to this monster.")
         return self.owner
 
-    def set_owner(self, character: Optional[NPC]) -> None:
+    def set_owner(self, character: NPC | None) -> None:
         """Sets the NPC associated with this monster."""
         self.owner = character
 
@@ -318,11 +372,43 @@ class Monster:
         """Returns True if the monster was acquired via the specified method."""
         return self.acquisition == method
 
+    def equip_item(self, item: Item) -> bool:
+        result = self.item_handler.set_item(item)
+        if result:
+            self.moves.apply_item_techniques(self, item)
+            self.status.apply_item_statuses(self, item)
+        return result
+
+    def unequip_item(self) -> Item | None:
+        item = self.item_handler.take_item()
+        if item:
+            self.moves.remove_item_techniques(self, item)
+            self.status.remove_item_statuses(item)
+            return item
+        return None
+
+    def get_experience_multiplier(self) -> float:
+        """
+        Retrieves the experience multiplier based on this monster's acquisition
+        method, reading from the global formula configuration.
+        """
+        exp_multiplier = 1.0
+        experience_multipliers = config_monster.experience_multipliers
+
+        if experience_multipliers:
+            method = self.acquisition.value
+            exp_multiplier = experience_multipliers.get(method, 1.0)
+            logger.debug(
+                f"Experience multiplier for {method}: {exp_multiplier}"
+            )
+
+        return exp_multiplier
+
     def get_sprite(
         self,
         sprite_type: str,
         frame_duration: float = 0.25,
-        scale: float = prepare.SCALE,
+        scale: float = SCALE,
         **kwargs: Any,
     ) -> Sprite:
         """
@@ -336,7 +422,7 @@ class Monster:
                 Defaults to 0.25 seconds.
             scale: A scaling factor applied to resize the sprite during retrieval.
                 (applicable only for 'menu')
-                Defaults to the `prepare.SCALE` constant.
+                Defaults to the `SCALE` constant.
             **kwargs: Additional arguments to pass to the sprite handler.
 
         Returns:
@@ -346,27 +432,18 @@ class Monster:
             sprite_type, frame_duration, scale, **kwargs
         )
 
-    def return_stat(self, stat: StatType) -> int:
+    def return_stat(self, stat: StatType | str) -> int:
         """
         Returns a monster stat (eg. melee, armour, etc.).
-
-        Parameters:
-            stat: The stat for the monster to return.
-
-        Returns:
-            value: The stat.
-
+        Accepts either a StatType enum or a string.
         """
-        stat_map: dict[StatType, int] = {
-            StatType.armour: self.armour,
-            StatType.dodge: self.dodge,
-            StatType.hp: self.hp,
-            StatType.melee: self.melee,
-            StatType.ranged: self.ranged,
-            StatType.speed: self.speed,
-        }
+        if isinstance(stat, str):
+            try:
+                stat = StatType(stat.lower())
+            except ValueError:
+                return 0
 
-        return stat_map.get(stat, 0)
+        return getattr(self, stat.value, 0)
 
     def has_type(self, type_slug: str) -> bool:
         """
@@ -375,44 +452,26 @@ class Monster:
         return self.types.has_type(type_slug)
 
     def give_experience(self, amount: int = 1) -> int:
-        """
-        Increase experience.
+        """Increase experience."""
+        levels_earned = self.experience_handler.give_experience(amount)
 
-        Gives the Monster a specified amount of experience, and levels
-        up the monster if necessary.
+        if levels_earned > 0:
+            self.set_stats()
+            logger.info(
+                f"Leveling {self.name} from {self.level -1} to {self.level}!"
+            )
 
-        Parameters:
-            amount: The amount of experience to add to the monster.
-
-        Returns:
-            int: the amount of levels earned.
-
-        Example:
-
-        >>> bulbatux.give_experience(20)
-        """
-        self.got_experience = True
-        levels = 0
-        self.total_experience += amount
-
-        # Level up worthy monsters, but stop at max_level
-        while (
-            self.level < prepare.MAX_LEVEL
-            and self.total_experience >= self.experience_required(1)
-        ):
-            self.level_up()
-            levels += 1
-        return levels
+        return levels_earned
 
     def give_tps(
-        self, stat_name: str, value: int = prepare.DEFAULT_TP_GAIN
+        self, stat_name: str, value: int = config_monster.default_tp_gain
     ) -> None:
         """
         Gives TP points to the monster's TrainingPoints after a battle,
         respecting the per-stat and total TP limits.
         """
-        max_tps = prepare.MAX_TPS
-        max_total_tps = prepare.MAX_TOTAL_TPS
+        max_tps = config_monster.max_tps
+        max_total_tps = config_monster.max_total_tps
         total_tps = sum(
             getattr(self.training_points, field.name)
             for field in fields(self.training_points)
@@ -452,10 +511,46 @@ class Monster:
             shape=self.shape,
             taste_cold=self.taste_cold,
             taste_warm=self.taste_warm,
-            modifiers=self.modifiers,
+            custom_stats=self.custom_stats,
             training_points=self.training_points,
+            individual_values=self.individual_values,
         )
         self.base_stats = calculator.calculate()
+
+    def get_combat_stats(self) -> BasicStats:
+        """Calculates effective stats for the current combat turn."""
+        combined_temporary_boosts = BasicStats()
+
+        for status in self.status.get_statuses():
+            combined_temporary_boosts += status.temporary_stat_boosts
+
+        held_item = self.item_handler.held_item
+        if held_item:
+            combined_temporary_boosts += held_item.temporary_stat_boosts
+
+        for move in self.moves.get_moves():
+            combined_temporary_boosts += move.temporary_stat_boosts
+
+        calculator = StatCalculator(
+            base_stats=self.base_stats,
+            level=self.level,
+            shape=self.shape,
+            taste_cold=self.taste_cold,
+            taste_warm=self.taste_warm,
+            custom_stats=self.custom_stats,
+            training_points=self.training_points,
+            individual_values=self.individual_values,
+        )
+
+        return calculator.calculate(temporary_boosts=combined_temporary_boosts)
+
+    def clear_all_temporary_boosts(self) -> None:
+        for status in self.status.get_statuses():
+            status.temporary_stat_boosts = BasicStats()
+        for move in self.moves.get_moves():
+            move.temporary_stat_boosts = BasicStats()
+        if self.item_handler.held_item:
+            self.item_handler.held_item.temporary_stat_boosts = BasicStats()
 
     def set_capture(self, amount: int) -> int:
         """
@@ -464,52 +559,26 @@ class Monster:
         self.capture = today_ordinal() if amount == 0 else amount
         return self.capture
 
-    def level_up(self) -> None:
-        """
-        Increases a Monster's level by one and increases stats accordingly.
-
-        """
-        logger.info(
-            f"Leveling {self.name} from {self.level} to {self.level + 1}!"
-        )
-        # Increase Level and stats
-        self.levelling_up = True
-        self.level = min(self.level + 1, prepare.MAX_LEVEL)
-        self.set_stats()
-
     def set_level(self, level: int) -> None:
-        """
-        Set monster level.
-
-        Sets the Monster's level to the specified arbitrary level,
-        and modifies experience accordingly.
-        Does not let level go above MAX_LEVEL or below 1.
-
-        Parameters:
-            level: The level to set the monster to.
-
-        Example:
-
-        >>> bulbatux.set_level(20)
-
-        """
-        self.level = min(max(level, 1), prepare.MAX_LEVEL)
-        self.total_experience = self.experience_required()
+        """Set monster level."""
+        self.experience_handler.set_level(level)
         self.set_stats()
 
-    def experience_required(self, level_ofs: int = 0) -> int:
-        """
-        Gets the experience requirement for the given level.
+    def set_experience_modifier(self, modifier: float) -> None:
+        """Sets the experience modifier for this monster."""
+        self.experience_handler.set_experience_modifier(modifier)
 
-        Parameters:
-            level_ofs: Difference in levels with the current level.
+    def set_experience_group_slug(self, slug: str) -> None:
+        """Sets the experience group slug for this monster."""
+        self.experience_handler.set_exp_group(slug)
 
-        Returns:
-            Required experience.
+    def set_total_experience(self, experience: int) -> None:
+        """Sets the total experience for this monster."""
+        self.experience_handler.set_total_experience(experience)
 
-        """
-        required = (self.level + level_ofs) ** prepare.COEFF_EXP
-        return int(required)
+    def experience_required(self, level_delta: int = 0) -> int:
+        """Gets the experience requirement for the given level."""
+        return self.experience_handler.experience_required(level_delta)
 
     def assign_gender(self, weights: dict[GenderType, float]) -> GenderType:
         """Randomly selects a gender based on weighted probabilities."""
@@ -518,6 +587,36 @@ class Monster:
             weights=list(weights.values()),
             k=1,
         )[0]
+
+    def transfer_properties_from(self, old_monster: Monster) -> None:
+        """Copies essential state and identity properties from the pre-evolved monster."""
+        self.set_level(old_monster.level)
+        self.current_hp = min(old_monster.current_hp, self.hp)
+        self.moves = old_monster.moves
+        self.status = old_monster.status
+        self.instance_id = old_monster.instance_id
+
+        if old_monster.gender in self.gender_weights:
+            self.gender = old_monster.gender
+        else:  # Re-roll if incompatible
+            self.gender = self.assign_gender(self.gender_weights)
+
+        self.capture = old_monster.capture
+        self.capture_device = old_monster.capture_device
+        self.taste_cold = old_monster.taste_cold
+        self.taste_warm = old_monster.taste_warm
+        self.plague = old_monster.plague
+        self.steps = old_monster.steps
+        self.bond_handler = old_monster.bond_handler
+
+        if old_monster.name != T.translate(old_monster.slug):
+            self.name = old_monster.name
+
+        for flair_category, new_flair in self.flairs.items():
+            if flair_category in old_monster.flairs:
+                self.flairs[flair_category] = old_monster.flairs[
+                    flair_category
+                ]
 
     def get_state(self) -> Mapping[str, Any]:
         """
@@ -550,9 +649,10 @@ class Monster:
 
         save_data["status"] = self.status.encode_status()
         save_data["moves"] = self.moves.encode_moves()
-        save_data["held_item"] = self.held_item.encode_item()
+        save_data["held_item"] = self.item_handler.encode_item()
         save_data["training_points"] = self.training_points.to_dict()
-        save_data["modifiers"] = self.modifiers.to_dict()
+        save_data["individual_values"] = self.individual_values.to_dict()
+        save_data["modifiers"] = self.custom_stats.to_dict()
         save_data["bond_dict"] = self.bond_handler.get_state()
         save_data["flair_slugs"] = list(self.flair_slugs)
         save_data["flairs"] = {
@@ -560,6 +660,7 @@ class Monster:
             for category, flair in self.flairs.items()
         }
 
+        save_data.update(self.experience_handler.get_state())
         return save_data
 
     def set_state(self, save_data: Mapping[str, Any]) -> None:
@@ -596,13 +697,15 @@ class Monster:
             elif key in SIMPLE_PERSISTANCE_ATTRIBUTES:
                 setattr(self, key, value)
             elif key == "held_item" and value:
-                item = self.held_item.decode_item(value)
+                item = self.item_handler.decode_item(value)
                 if item:
-                    self.held_item.set_item(item)
+                    self.equip_item(item)
             elif key == "training_points" and value:
-                self.training_points.from_dict(value)
+                self.training_points = TrainingPoints.from_dict(value)
             elif key == "modifiers" and value:
-                self.modifiers.from_dict(value)
+                self.modifiers = CustomStatBoosts.from_dict(value)
+            elif key == "individual_values" and value:
+                self.individual_values = IndividualValues.from_dict(value)
             elif key == "flairs" and value:
                 self.flairs = {
                     category: Flair.from_state(flair_data)
@@ -613,30 +716,39 @@ class Monster:
                 if "flairs" not in save_data:
                     self.flairs = FlairApplier.create(self.flair_slugs)
 
+        self.experience_handler = MonsterExperience.from_state(save_data)
         self.load_sprites()
 
     def end_combat(self, session: Session) -> None:
         """
         Ends combat, recharges all moves and heals statuses.
         """
+        self.clear_all_temporary_boosts()
+        self.types.reset_to_default()
+        self.moves.set_stats()
         self.out_of_range = False
         self.moves.full_recharge_moves()
 
         if not self.status.is_fainted:
-            self.status.remove_status()
+            current_status = self.status.current_status
+            if (
+                current_status
+                and not current_status.behaviors.persists_after_combat
+            ):
+                self.status.clear_status(session)
 
         if self.is_fainted:
             self.current_hp = 0
-            self.status.apply_faint(self)
-            current = self.status.get_current_status()
+            self.status.apply_faint(session, self)
+            current = self.status.current_status
             if current:
                 current.use(session, EffectPhase.ON_FAINT)
 
 
 def decode_monsters(
-    json_data: Optional[Sequence[Mapping[str, Any]]],
+    json_data: Sequence[Mapping[str, Any]] | None,
 ) -> list[Monster]:
-    return [Monster(save_data=mon) for mon in json_data or {}]
+    return [Monster(save_data=mon) for mon in (json_data or [])]
 
 
 def encode_monsters(mons: Sequence[Monster]) -> Sequence[Mapping[str, Any]]:

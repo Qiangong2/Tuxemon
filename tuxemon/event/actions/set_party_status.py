@@ -1,12 +1,11 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
 from typing import final
 
-from tuxemon.event import get_npc
 from tuxemon.event.eventaction import EventAction
 from tuxemon.session import Session
 
@@ -32,7 +31,7 @@ class SetPartyStatusAction(EventAction):
     character: str
 
     def start(self, session: Session) -> None:
-        char = get_npc(session, self.character)
+        char = session.get_npc(self.character)
         if char is None:
             logger.error(f"{self.character} not found")
             return

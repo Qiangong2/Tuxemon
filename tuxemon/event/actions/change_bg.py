@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 import logging
@@ -8,10 +8,10 @@ from typing import Optional, final
 
 from pygame_menu import locals
 
-from tuxemon import prepare
-from tuxemon.db import db
+from tuxemon.database.runtime import db
 from tuxemon.event.eventaction import EventAction
 from tuxemon.menu.theme import get_theme
+from tuxemon.platform.const.graphics import BACKGROUND_COLOR
 from tuxemon.session import Session
 
 logger = logging.getLogger()
@@ -67,7 +67,7 @@ class ChangeBgAction(EventAction):
             raise RuntimeError
 
         # this function cleans up the previous state without crashing
-        if len(client.active_states) > 2:
+        if client.has_extra_states():
             client.pop_state()
 
         if self.image and self.category:
@@ -90,7 +90,7 @@ class ChangeBgAction(EventAction):
 
         if client.current_state.name != "ImageState":
             if self.background is None:
-                if len(client.active_states) > 2:
+                if client.has_extra_states():
                     client.pop_state()
                     return
             else:
@@ -107,5 +107,5 @@ class ChangeBgAction(EventAction):
 
     def cleanup(self, session: Session) -> None:
         theme = get_theme()
-        theme.background_color = prepare.BACKGROUND_COLOR
+        theme.background_color = BACKGROUND_COLOR
         theme.widget_alignment = locals.ALIGN_LEFT

@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 from collections.abc import Callable
@@ -9,15 +9,19 @@ import pygame_menu
 from pygame_menu import locals
 
 from tuxemon import formula
-from tuxemon import prepare as pre
-from tuxemon.db import MonsterModel, db
+from tuxemon.database.runtime import db
+from tuxemon.db import MonsterModel
 from tuxemon.locale import T
 from tuxemon.menu.formatter import CurrencyFormatter
 from tuxemon.menu.menu import PygameMenuState
 from tuxemon.npc import NPC
 from tuxemon.platform.const import buttons
+from tuxemon.platform.const.graphics import BG_PLAYER1, BG_PLAYER2
+from tuxemon.platform.const.sizes import U_KM, U_MI
 from tuxemon.platform.events import PlayerInput
+from tuxemon.prepare import SCALE, SCREEN_SIZE
 from tuxemon.tools import fix_measure, format_playtime
+from tuxemon.tuxepedia import TuxepediaReporter
 
 MenuGameObj = Callable[[], object]
 lookup_cache: dict[str, MonsterModel] = {}
@@ -60,12 +64,13 @@ class CharacterState(PygameMenuState):
 
         # tuxepedia data
         filters = list(lookup_cache.values())
-        completeness = self.char.tuxepedia.get_completeness(len(filters))
-        percentage = round(completeness * 100, 1)
+        reporter = TuxepediaReporter(self.char.tuxepedia.data)
+        completeness = reporter.get_completeness_report(len(filters))
+        percentage = round(completeness["registered_percent"] * 100, 1)
         seen = self.char.tuxepedia.get_seen_count()
         caught = self.char.tuxepedia.get_caught_count()
 
-        if self.char.tuxepedia.entries:
+        if self.char.tuxepedia.data.entries:
             _msg_progress = {"value": str(percentage)}
             _msg_seen = {"param": str(seen + caught), "all": str(len(filters))}
             _msg_caught = {"param": str(caught), "all": str(len(filters))}
@@ -104,10 +109,10 @@ class CharacterState(PygameMenuState):
         unit = self.client.config.unit_measure
         if unit == "metric":
             walked = formula.convert_km(steps)
-            unit_walked = pre.U_KM
+            unit_walked = U_KM
         else:
             walked = formula.convert_mi(steps)
-            unit_walked = pre.U_MI
+            unit_walked = U_MI
         _msg_walked = {"distance": str(walked), "unit": unit_walked}
         msg_walked = T.format("player_walked", _msg_walked)
         # name
@@ -191,7 +196,7 @@ class CharacterState(PygameMenuState):
         combat_front = self.char.template.combat_front
         _path = f"gfx/sprites/player/{combat_front}.png"
         new_image = self._create_image(_path)
-        new_image.scale(pre.SCALE, pre.SCALE)
+        new_image.scale(SCALE, SCALE)
         image_widget = menu.add.image(image_path=new_image.copy())
         image_widget.set_float(origin_position=True)
         image_widget.translate(fxw(0.20), fxh(0.08))
@@ -204,14 +209,14 @@ class CharacterState(PygameMenuState):
             character = element["character"]
         if character is None:
             raise ValueError("No character found")
-        width, height = pre.SCREEN_SIZE
+        width, height = SCREEN_SIZE
 
         self.char = character
 
         bg = (
-            pre.BG_PLAYER2
+            BG_PLAYER2
             if self.char.monsters and self.char.is_player
-            else pre.BG_PLAYER1
+            else BG_PLAYER1
         )
 
         theme = self._setup_theme(bg)
@@ -224,10 +229,12 @@ class CharacterState(PygameMenuState):
         self.reset_theme()
 
     def process_event(self, event: PlayerInput) -> Optional[PlayerInput]:
-        party = self.char.monsters
-        if event.button == buttons.RIGHT and event.pressed and party:
-            params = {"party": party}
-            self.client.replace_state("PartyState", kwargs=params)
+        if (
+            event.button == buttons.RIGHT
+            and event.pressed
+            and self.char.monsters
+        ):
+            self.client.replace_state("PartyState", party=self.char.party)
         if (
             event.button in (buttons.BACK, buttons.B, buttons.A)
             and event.pressed

@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 from collections.abc import Callable
@@ -8,15 +8,15 @@ from typing import TYPE_CHECKING, Any, ClassVar, Optional
 
 import pygame_menu
 
-from tuxemon import prepare
 from tuxemon.animation import Animation, ScheduleType
 from tuxemon.locale import T
 from tuxemon.menu.menu import PygameMenuState
+from tuxemon.platform.const.sizes import KENNEL, LOCKER, MAX_LOCKER
 from tuxemon.state.state import State
 from tuxemon.tools import open_dialog
 
 if TYPE_CHECKING:
-    from tuxemon.client import LocalPygameClient
+    from tuxemon.base_client import BaseClient
     from tuxemon.npc import NPC
 
 MenuGameObj = Callable[[], object]
@@ -33,7 +33,7 @@ def add_menu_items(
 
 class MenuProvider:
     def get_menu_items(
-        self, client: LocalPygameClient, character: NPC
+        self, client: BaseClient, character: NPC
     ) -> list[tuple[str, MenuGameObj]]:
         raise NotImplementedError
 
@@ -43,7 +43,7 @@ class PCMenuBuilder:
 
     def __init__(
         self,
-        client: LocalPygameClient,
+        client: BaseClient,
         character: NPC,
         menu_providers: Optional[list[MenuProvider]] = None,
     ) -> None:
@@ -57,7 +57,9 @@ class PCMenuBuilder:
         return partial(self.client.replace_state, state, **kwargs)
 
     def _not_implemented_dialog(self) -> None:
-        open_dialog(self.client, [T.translate("not_implemented")])
+        open_dialog(
+            self.client, [T.translate("not_implemented")], dialog_speed="max"
+        )
 
     def build_menu_items(self) -> list[tuple[str, MenuGameObj]]:
         char = self.character
@@ -80,7 +82,7 @@ class PCMenuBuilder:
             )
 
         # Item box logic
-        if len(char.items.get_items()) == prepare.MAX_LOCKER:
+        if len(char.items) == MAX_LOCKER:
             item_storage_callback = partial(
                 open_dialog,
                 self.client,
@@ -94,7 +96,7 @@ class PCMenuBuilder:
         if char.item_boxes.get_all_items_visible():
             menu.append(("menu_item_storage", item_storage_callback))
 
-        if len(char.items.get_items()) > 1:
+        if len(char.items) > 1:
             menu.append(
                 (
                     "menu_item_dropoff",
@@ -122,15 +124,15 @@ class PCState(PygameMenuState):
         self, character: NPC, menu_builder: Optional[PCMenuBuilder] = None
     ) -> None:
         super().__init__()
-        kennel = prepare.KENNEL
-        locker = prepare.LOCKER
+        kennel = KENNEL
+        locker = LOCKER
         char = character
 
         # it creates the kennel and locker (new players)
         if not char.monster_boxes.has_box(kennel, "monster"):
-            char.monster_boxes.create_box(kennel, "monster")
+            char.monster_boxes.create_box(kennel)
         if not char.item_boxes.has_box(locker, "item"):
-            char.item_boxes.create_box(locker, "item")
+            char.item_boxes.create_box(locker)
 
         if menu_builder is None:
             self.menu_builder = PCMenuBuilder(self.client, char)

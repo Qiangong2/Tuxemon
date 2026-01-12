@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 import math
@@ -10,10 +10,12 @@ from typing import TYPE_CHECKING, Any, ClassVar
 import pygame_menu
 from pygame_menu import locals
 
-from tuxemon import prepare
-from tuxemon.db import MonsterModel, db
+from tuxemon.database.runtime import db
+from tuxemon.db import MonsterModel
 from tuxemon.locale import T
 from tuxemon.menu.menu import PygameMenuState
+from tuxemon.platform.const.graphics import BG_JOURNAL_CHOICE, DIMGRAY_COLOR
+from tuxemon.prepare import SCREEN_SIZE
 from tuxemon.tools import fix_measure
 
 if TYPE_CHECKING:
@@ -84,7 +86,7 @@ class JournalChoice(PygameMenuState):
             else:
                 lab1: Any = menu.add.label(
                     label,
-                    font_color=prepare.DIMGRAY_COLOR,
+                    font_color=DIMGRAY_COLOR,
                     font_size=self.font_type.small,
                 )
                 lab1.translate(btn_x_offset, btn_y_offset)
@@ -92,9 +94,9 @@ class JournalChoice(PygameMenuState):
     def __init__(self, character: NPC) -> None:
         if not lookup_cache:
             _lookup_monsters()
-        width, height = prepare.SCREEN_SIZE
+        width, height = SCREEN_SIZE
 
-        theme = self._setup_theme(prepare.BG_JOURNAL_CHOICE)
+        theme = self._setup_theme(BG_JOURNAL_CHOICE)
         theme.scrollarea_position = locals.POSITION_EAST
         theme.widget_alignment = locals.ALIGN_LEFT
 

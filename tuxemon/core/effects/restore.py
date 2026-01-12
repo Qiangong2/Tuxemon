@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -17,16 +17,34 @@ if TYPE_CHECKING:
 @dataclass
 class RestoreEffect(CoreEffect):
     """
-    Remove status/statuses.
+    Applies the "restore" effect to an item.
 
-    Parameters:
-        category: status's category (positive or negative)
+    This effect removes one or more status effects from the target monster.
+    It can clear all statuses, or selectively remove only positive or
+    negative statuses depending on the specified category.
 
-    Examples:
-        restore -> removes all statuses
-        restore positive -> removes all positive statuses
-        restore negative -> removes all negative statuses
+    **Parameters**
 
+      - ``category``: Determines which statuses to remove.
+      - ``None``: Removes all statuses.
+      - ``positive``: Removes only positive statuses.
+      - ``negative``: Removes only negative statuses.
+
+    **Examples**
+
+    .. code-block:: json
+
+        "effects": [
+            "restore"
+        ]
+
+        "effects": [
+            "restore positive"
+        ]
+
+        "effects": [
+            "restore negative"
+        ]
     """
 
     name = "restore"

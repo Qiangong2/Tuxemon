@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -18,10 +18,23 @@ if TYPE_CHECKING:
 @dataclass
 class DisappearEffect(CoreEffect):
     """
-    Tuxemon disappears. It's followed by "appear".
+    Applies the "disappear" effect to a monster.
 
-    Parameters:
-        attack: slug technique (attack when lands).
+    This effect makes the monster temporarily leave the battlefield by setting
+    it as out of range. It also schedules a follow-up technique (defined by
+    ``attack``) to land later, typically paired with an "appear" effect.
+
+    **Parameters**
+
+    - ``attack``: The slug of the technique to execute when the monster reappears.
+
+    **Example**
+
+    .. code-block:: json
+
+        "effects": [
+            "disappear shadow_strike"
+        ]
     """
 
     name = "disappear"

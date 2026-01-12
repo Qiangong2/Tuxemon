@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -16,12 +16,32 @@ if TYPE_CHECKING:
 @dataclass
 class TransferEffect(CoreEffect):
     """
-    Transfers a specified condition from one entity to another.
+    Applies the "transfer" effect to a technique.
 
-    The direction of the transfer is determined by the `direction` attribute,
-    which can be either "user_to_target" or "target_to_user".
-    If the source entity has the specified condition, it is removed from the
-    source and applied to the target.
+    This effect moves a specified condition (status) from one entity to
+    another. The direction of transfer is controlled by the ``direction``
+    attribute, which determines whether the condition is passed from the
+    user to the target or vice versa. Once transferred, the condition is
+    removed from the source entity.
+
+    **Parameters**
+
+    - ``condition``: String name of the condition to transfer.
+    - ``direction``: String specifying the transfer direction.
+      - ``user_to_target`` → transfers condition from the user to the target.
+      - ``target_to_user`` → transfers condition from the target to the user.
+
+    **Example**
+
+    .. code-block:: json
+
+        "effects": [
+            "transfer poison user_to_target"
+        ]
+
+        "effects": [
+            "transfer burn target_to_user"
+        ]
     """
 
     name = "transfer"

@@ -1,26 +1,28 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 import unittest
 from unittest.mock import MagicMock, patch
 
-from tuxemon import prepare
-from tuxemon.db import Direction
 from tuxemon.entity import Body, Mover
 from tuxemon.event.eventaction import ActionManager
+from tuxemon.event.eventbehavior import BehaviorManager
+from tuxemon.event.eventbus import EventBus
 from tuxemon.event.eventengine import EventEngine
 from tuxemon.event.running import ConditionEvaluator
 from tuxemon.game_variables import GameVariablesManager
-from tuxemon.math import Point3, Vector3
+from tuxemon.math import Vector2
+from tuxemon.platform.const.sizes import MOVERATE_RANGE
 from tuxemon.player import Player
 from tuxemon.session import local_session
-from tuxemon.tuxepedia import Tuxepedia
+from tuxemon.tuxepedia import TuxepediaManager
+from tuxemon.user_config import CONFIG
 
 
 def mockPlayer(self) -> None:
     self.name = "Jeff"
     self._variables = GameVariablesManager()
-    self.tuxepedia = Tuxepedia()
-    self.body = Body(Point3(0, 0, 0))
+    self.tuxepedia = TuxepediaManager(EventBus())
+    self.body = Body(Vector2(0, 0))
     self.mover = Mover(self.body)
 
 
@@ -28,9 +30,12 @@ class TestVariableActions(unittest.TestCase):
     def setUp(self):
         action = ActionManager()
         evaluator = ConditionEvaluator(MagicMock(), MagicMock())
+        behavior = BehaviorManager()
         self.mock_screen = MagicMock()
         with patch.object(Player, "__init__", mockPlayer):
-            self.action = EventEngine(local_session, action, evaluator)
+            self.action = EventEngine(
+                local_session, action, evaluator, behavior
+            )
             local_session.set_player(Player())
             self.player = local_session.player
 
@@ -160,9 +165,12 @@ class TestActionsSetPlayer(unittest.TestCase):
     def setUp(self):
         action = ActionManager()
         evaluator = ConditionEvaluator(MagicMock(), MagicMock())
+        behavior = BehaviorManager()
         self.mock_screen = MagicMock()
         with patch.object(Player, "__init__", mockPlayer):
-            self.action = EventEngine(local_session, action, evaluator)
+            self.action = EventEngine(
+                local_session, action, evaluator, behavior
+            )
             local_session.set_player(Player())
             self.player = local_session.player
 
@@ -179,10 +187,13 @@ class TestCharacterActions(unittest.TestCase):
     def setUp(self):
         action = ActionManager()
         evaluator = ConditionEvaluator(MagicMock(), MagicMock())
+        behavior = BehaviorManager()
         self.mock_screen = MagicMock()
         local_session.set_client(MagicMock())
         with patch.object(Player, "__init__", mockPlayer):
-            self.action = EventEngine(local_session, action, evaluator)
+            self.action = EventEngine(
+                local_session, action, evaluator, behavior
+            )
             local_session.set_player(Player())
             self.player = local_session.player
 
@@ -193,7 +204,7 @@ class TestCharacterActions(unittest.TestCase):
 
     def test_char_speed_outside_limits(self):
         self.player.mover.walking()
-        lower, upper = prepare.MOVERATE_RANGE
+        lower, upper = MOVERATE_RANGE
         with self.assertRaises(ValueError):
             self.action.execute_action("char_speed", ["player", lower - 1])
         with self.assertRaises(ValueError):
@@ -201,12 +212,12 @@ class TestCharacterActions(unittest.TestCase):
 
     def test_char_walk(self):
         self.player.set_moverate(6.9)
-        self.player.body.velocity = Vector3(1, 0, 0)
+        self.player.body.velocity = Vector2(1, 0)
         self.action.execute_action("char_walk", ["player"])
-        self.assertEqual(self.player.moverate, prepare.CONFIG.player_walkrate)
+        self.assertEqual(self.player.moverate, CONFIG.player_walkrate)
 
     def test_char_run(self):
         self.player.set_moverate(6.9)
-        self.player.body.velocity = Vector3(1, 0, 0)
+        self.player.body.velocity = Vector2(1, 0)
         self.action.execute_action("char_run", ["player"])
-        self.assertEqual(self.player.moverate, prepare.CONFIG.player_runrate)
+        self.assertEqual(self.player.moverate, CONFIG.player_runrate)

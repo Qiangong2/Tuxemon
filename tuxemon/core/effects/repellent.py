@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 import logging
@@ -19,8 +19,24 @@ logger = logging.getLogger(__name__)
 @dataclass
 class RepellentEffect(CoreEffect):
     """
-    Applies a repellent effect that prevents wild encounters for a
-    set number of steps.
+    Applies the "repellent" effect to an item.
+
+    This effect prevents wild encounters for a specified number of steps
+    after the item is used. It works by registering a step tracker that
+    counts down until the repellent expires.
+
+    **Parameters**
+
+    - ``steps``: Float value representing how many steps the repellent
+      will last before wearing off.
+
+    **Example**
+
+    .. code-block:: json
+
+        "effects": [
+            "repellent 1000"
+        ]
     """
 
     name = "repellent"

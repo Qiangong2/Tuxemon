@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -20,12 +20,21 @@ if TYPE_CHECKING:
 @dataclass
 class RetaliateEffect(CoreEffect):
     """
-    Retaliate:
-    Accumulate all damage taken between entering this state and next dealing
-    damage. The accumulated damage is then added to your next attack, dealing
-    additional damage to the target.
+    Applies the "retaliate" status effect.
 
-    Note: The accumulated damage is reset after the next attack.
+    This effect causes the host monster to retaliate against attackers by
+    accumulating damage taken between entering the retaliate state and the
+    next time the host deals damage. The accumulated damage is then added
+    to the host's next attack, dealing additional damage to the attacker.
+    After the retaliatory strike, the accumulated damage is reset.
+
+    **Example**
+
+    .. code-block:: json
+
+        "effects": [
+            "retaliate"
+        ]
     """
 
     name = "retaliate"
@@ -33,7 +42,7 @@ class RetaliateEffect(CoreEffect):
     def apply_status(
         self, session: Session, status: Status
     ) -> StatusEffectResult:
-        host = status.get_host()
+        host = status.host
 
         if not status.has_phase(EffectPhase.PERFORM_STATUS):
             return StatusEffectResult(name=status.name, success=False)

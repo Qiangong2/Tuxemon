@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 from collections.abc import Callable
@@ -10,15 +10,19 @@ from pygame_menu import locals
 from pygame_menu.widgets.widget.label import Label
 from pygame_menu.widgets.widget.progressbar import ProgressBar
 
-from tuxemon import prepare
-from tuxemon.db import MonsterModel, SpeedLabel, db
+from tuxemon.database.runtime import db
+from tuxemon.db import MonsterModel, SpeedLabel
 from tuxemon.locale import T
 from tuxemon.menu.menu import PygameMenuState
 from tuxemon.platform.const import buttons
+from tuxemon.platform.const.graphics import TECH_INFO
+from tuxemon.platform.const.sizes import ACCURACY_RANGE, POTENCY_RANGE
+from tuxemon.prepare import SCALE, SCREEN_SIZE
 from tuxemon.technique.technique import Technique
 from tuxemon.tools import fix_measure
 
 if TYPE_CHECKING:
+    from tuxemon.base_client import BaseClient
     from tuxemon.monster import Monster
     from tuxemon.platform.events import PlayerInput
 
@@ -91,7 +95,7 @@ class MonsterMovesState(PygameMenuState):
 
         # Monster image (manual position)
         new_image = self._create_image(monster.sprite_handler.front_path)
-        new_image.scale(prepare.SCALE, prepare.SCALE)
+        new_image.scale(SCALE, SCALE)
         image_widget = menu.add.image(image_path=new_image.copy())
         image_widget.set_float(origin_position=True)
         image_widget.translate(fxw(1 / 256), fxh(2 / 144))
@@ -101,7 +105,7 @@ class MonsterMovesState(PygameMenuState):
     # -------------------------
     def add_menu_technique(self, menu: pygame_menu.Menu, slug: str) -> None:
         # keep width stable across updates
-        menu._width = fix_measure(prepare.SCREEN_SIZE[0], 248 / 256)
+        menu._width = fix_measure(SCREEN_SIZE[0], 248 / 256)
 
         technique = Technique.create(slug)
 
@@ -119,7 +123,7 @@ class MonsterMovesState(PygameMenuState):
     def _add_description_label(
         self, menu: pygame_menu.Menu, technique: Technique
     ) -> None:
-        width, height = prepare.SCREEN_SIZE
+        width, height = SCREEN_SIZE
         description_label: Optional[Label] = None
         for widget in menu.get_widgets():
             if isinstance(widget, Label) and widget.get_id() == "description":
@@ -146,7 +150,7 @@ class MonsterMovesState(PygameMenuState):
     def _add_info_label(
         self, menu: pygame_menu.Menu, technique: Technique
     ) -> None:
-        width, height = prepare.SCREEN_SIZE
+        width, height = SCREEN_SIZE
         info_label: Optional[Label] = None
         for widget in menu.get_widgets():
             if isinstance(widget, Label) and widget.get_id() == "label":
@@ -161,7 +165,7 @@ class MonsterMovesState(PygameMenuState):
             {
                 "id": technique.tech_id,
                 "types": types_text,
-                "rec": str(technique.recharge_length),
+                "rec": str(technique.cooldown.duration),
             },
         )
 
@@ -186,14 +190,10 @@ class MonsterMovesState(PygameMenuState):
     def _add_progress_bars(
         self, menu: pygame_menu.Menu, technique: Technique
     ) -> None:
-        width, height = prepare.SCREEN_SIZE
+        width, height = SCREEN_SIZE
 
-        diff_accuracy = round(
-            (technique.accuracy / prepare.ACCURACY_RANGE[1]) * 100
-        )
-        diff_potency = round(
-            (technique.potency / prepare.POTENCY_RANGE[1]) * 100
-        )
+        diff_accuracy = round((technique.accuracy / ACCURACY_RANGE[1]) * 100)
+        diff_potency = round((technique.potency / POTENCY_RANGE[1]) * 100)
 
         # Find existing bars (by title) if present
         bar_accuracy: Optional[ProgressBar] = None
@@ -247,12 +247,8 @@ class MonsterMovesState(PygameMenuState):
         if not hasattr(self, "speed_icon_widget"):
             self.speed_icon_widget: Optional[Any] = None
 
-        fxw: Callable[[float], int] = lambda r: fix_measure(
-            prepare.SCREEN_SIZE[0], r
-        )
-        fxh: Callable[[float], int] = lambda r: fix_measure(
-            prepare.SCREEN_SIZE[1], r
-        )
+        fxw: Callable[[float], int] = lambda r: fix_measure(SCREEN_SIZE[0], r)
+        fxh: Callable[[float], int] = lambda r: fix_measure(SCREEN_SIZE[1], r)
 
         # Clear previous type icons (remove from menu, not just hide)
         for w in self.type_icon_widgets:
@@ -286,7 +282,7 @@ class MonsterMovesState(PygameMenuState):
             for i, t in enumerate(technique.types.current[:2]):
                 path = f"gfx/ui/icons/element/{t.name.lower()}_type_small.png"
                 img = self._create_image(path)
-                img.scale(prepare.SCALE, prepare.SCALE)
+                img.scale(SCALE, SCALE)
                 icon = menu.add.image(img.copy(), float=True)
                 icon.translate(fxw(x_positions[i]), fxh(y_position))
                 self.type_icon_widgets.append(icon)
@@ -295,7 +291,7 @@ class MonsterMovesState(PygameMenuState):
         if technique.range:
             path = f"gfx/ui/icons/range/{technique.range.name.lower()}.png"
             rimg = self._create_image(path)
-            rimg.scale(prepare.SCALE, prepare.SCALE)
+            rimg.scale(SCALE, SCALE)
             self.range_icon_widget = menu.add.image(rimg.copy(), float=True)
             self.range_icon_widget.translate(fxw(4 / 256), fxh(86.8 / 144))
 
@@ -305,7 +301,7 @@ class MonsterMovesState(PygameMenuState):
 
         spath = f"gfx/ui/icons/speed/{speed_key}.png"
         simg = self._create_image(spath)
-        simg.scale(prepare.SCALE, prepare.SCALE)
+        simg.scale(SCALE, SCALE)
         self.speed_icon_widget = menu.add.image(simg.copy(), float=True)
         self.speed_icon_widget.translate(fxw(222 / 256), fxh(51.8 / 144))
 
@@ -313,7 +309,7 @@ class MonsterMovesState(PygameMenuState):
     def _add_power_label(
         self, menu: pygame_menu.Menu, technique: Technique
     ) -> None:
-        width, height = prepare.SCREEN_SIZE
+        width, height = SCREEN_SIZE
         power_percent = round(technique.power * 100)
         power_text = f"{T.translate('technique_power')} {power_percent}%"
 
@@ -351,8 +347,8 @@ class MonsterMovesState(PygameMenuState):
         if monster is None:
             raise ValueError("No monster")
 
-        width, height = prepare.SCREEN_SIZE
-        theme = self._setup_theme(prepare.TECH_INFO)
+        width, height = SCREEN_SIZE
+        theme = self._setup_theme(TECH_INFO)
         theme.scrollarea_position = locals.POSITION_EAST
         theme.widget_alignment = locals.ALIGN_CENTER
 
@@ -372,7 +368,7 @@ class MonsterMovesState(PygameMenuState):
             "MonsterMenuState",
             "MonsterTakeState",
         ]:
-            monsters = _get_monsters(self._monster, self._source)
+            monsters = _get_monsters(client, self._monster, self._source)
             slot = monsters.index(self._monster)
 
             if event.button == buttons.RIGHT and event.pressed:
@@ -395,8 +391,12 @@ class MonsterMovesState(PygameMenuState):
         return None
 
 
-def _get_monsters(monster: Monster, source: str) -> list[Monster]:
-    owner = monster.get_owner()
+def _get_monsters(
+    client: BaseClient, monster: Monster, source: str
+) -> list[Monster]:
+    owner = client.get_monster_owner(monster)
+    if owner is None:
+        return []
     if source == "MonsterTakeState":
         box = owner.monster_boxes.get_box_name(monster.instance_id)
         if box is None:

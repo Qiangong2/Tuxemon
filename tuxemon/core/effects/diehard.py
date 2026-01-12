@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -17,13 +17,23 @@ if TYPE_CHECKING:
 @dataclass
 class DieHardEffect(CoreEffect):
     """
-    DieHard: When HP would fall below 1, set it to 1, remove this status and
-    print "X fights through the pain."
+    Applies the "diehard" status to a monster.
 
-    A monster that is already on exactly 1 HP cannot gain the Diehard status.
+    This effect prevents a monster from fainting by keeping its HP at 1 when
+    it would otherwise drop below that threshold. The status is then removed,
+    and a combat message is displayed.
 
-    Parameters:
-        hp: The amount of HP to set.
+    **Parameters**
+
+    - ``hp``: The minimum HP value to enforce (typically ``1``).
+
+    **Example**
+
+    .. code-block:: json
+
+        "effects": [
+            "diehard 1"
+        ]
     """
 
     name = "diehard"
@@ -33,7 +43,7 @@ class DieHardEffect(CoreEffect):
         self, session: Session, status: Status
     ) -> StatusEffectResult:
         extra: list[str] = []
-        host = status.get_host()
+        host = status.host
         if status.has_phase(EffectPhase.CHECK_PARTY_HP):
             params = {"target": host.name.upper()}
             if host.current_hp == self.hp:

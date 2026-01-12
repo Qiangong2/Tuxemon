@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 import logging
@@ -12,8 +12,13 @@ from typing import TYPE_CHECKING, Any, Optional, Union
 
 import yaml
 
-from tuxemon import prepare as pre
 from tuxemon.constants import paths
+from tuxemon.platform.const.sizes import (
+    COEFF_DAMAGE,
+    COEFF_FEET,
+    COEFF_MILES,
+    COEFF_POUNDS,
+)
 
 if TYPE_CHECKING:
     from tuxemon.element import Element
@@ -23,8 +28,6 @@ if TYPE_CHECKING:
     from tuxemon.technique.technique import Technique
 
 logger = logging.getLogger(__name__)
-
-multiplier_cache: dict[tuple[str, str], float] = {}
 
 
 @dataclass
@@ -85,16 +88,27 @@ class CaptureConfig:
 
 @dataclass
 class MonsterConfig:
+    starting_bond: int = 25
+    max_moves: int = 4
+    max_tps: int = 150
+    max_total_tps: int = 300
+    default_tp_gain: int = 1
+    coeff_stats: int = 7
     bond_range: tuple[int, int] = (0, 100)
-    bond_modifiers: dict[str, int] = field(default_factory=dict)
+    iv_range: tuple[int, int] = (0, 31)
+    level_range: tuple[int, int] = (0, 100)
+    catch_rate_range: tuple[int, int] = (0, 100)
+    catch_resistance_range: tuple[float, float] = (0.0, 2.0)
     weight_range: tuple[float, float] = (-0.1, 0.1)
     height_range: tuple[float, float] = (-0.1, 0.1)
+    bond_modifiers: dict[str, int] = field(default_factory=dict)
     bond_sentiments: dict[str, tuple[int, int]] = field(default_factory=dict)
     bond_strings: dict[str, str] = field(default_factory=dict)
     bond_icons: dict[str, str] = field(default_factory=dict)
     opposite_tastes: dict[str, list[str]] = field(default_factory=dict)
     bond_preferences: dict[str, int] = field(default_factory=dict)
     experience_multipliers: dict[str, float] = field(default_factory=dict)
+    experience_groups: dict[str, dict[str, Any]] = field(default_factory=dict)
 
 
 @dataclass
@@ -246,52 +260,17 @@ def simple_damage_multiplier(
     Returns:
         The attack multiplier.
     """
-    multiplier = 1.0
-    for attack_type in attack_types:
-        for target_type in target_types:
-            if target_type and not (
-                attack_type.slug == "aether" or target_type.slug == "aether"
-            ):
-                key = (attack_type.slug, target_type.slug)
-                if key in multiplier_cache:
-                    multiplier = multiplier_cache[key]
-                else:
-                    multiplier = attack_type.lookup_multiplier(
-                        target_type.slug
-                    )
-                    multiplier_cache[key] = multiplier
-                min_range, max_range = config_combat.multiplier_range
-                multiplier = min(max_range, max(min_range, multiplier))
-    # Apply additional factors
+    from tuxemon.element import ElementTypesHandler
+
+    multiplier = ElementTypesHandler.calculate_affinity_score(
+        attack_types, target_types
+    )
+    min_range, max_range = config_combat.multiplier_range
+    multiplier = min(max_range, max(min_range, multiplier))
+
     if additional_factors:
-        factor_multiplier = math.prod(additional_factors.values())
-        multiplier *= factor_multiplier
-    return multiplier
+        multiplier *= math.prod(additional_factors.values())
 
-
-def calculate_multiplier(
-    monster_types: Sequence[Element], opponent_types: Sequence[Element]
-) -> float:
-    """
-    Calculate the multiplier for a monster's types against an opponent's types.
-
-    Parameters:
-        monster (Monster): The monster whose types are being used to
-        calculate it.
-        opponent (Monster): The opponent whose types are being used to
-        calculate it.
-
-    Returns:
-        float: The final multiplier that represents the effectiveness of
-        the monster'stypes against the opponent's types.
-    """
-    multiplier = 1.0
-    for _monster in monster_types:
-        for _opponent in opponent_types:
-            if _opponent and not (
-                _monster.slug == "aether" or _opponent.slug == "aether"
-            ):
-                multiplier *= _monster.lookup_multiplier(_opponent.slug)
     return multiplier
 
 
@@ -327,11 +306,11 @@ def simple_damage_calculate(
     user_strength: float = 0
     user_stat = range_map_entry.user_stat
     if user_stat.stat == "level":
-        user_strength += (pre.COEFF_DAMAGE + user.level) * user_stat.weight
+        user_strength += (COEFF_DAMAGE + user.level) * user_stat.weight
     else:
         user_strength += (
             getattr(user, user_stat.stat, 0)
-            * (pre.COEFF_DAMAGE + user.level)
+            * (COEFF_DAMAGE + user.level)
             * user_stat.weight
         )
     logger.debug(f"User strength: {user_strength}")
@@ -382,7 +361,7 @@ def simple_heal(
     Returns:
         int: The calculated healing amount.
     """
-    base_heal = pre.COEFF_DAMAGE + monster.level * technique.healing_power
+    base_heal = COEFF_DAMAGE + monster.level * technique.healing_power
     if additional_factors:
         factor_multiplier = math.prod(additional_factors.values())
         base_heal = base_heal * factor_multiplier
@@ -479,7 +458,6 @@ def set_health(
 
     if monster.is_fainted:
         monster.current_hp = 0
-        monster.status.apply_faint(monster)
 
 
 def set_weight(monster: Monster, value: float) -> float:
@@ -512,12 +490,12 @@ def set_height(monster: Monster, value: float) -> float:
 
 def convert_lbs(kg: float) -> int:
     """It converts kilograms into pounds."""
-    return round(kg * pre.COEFF_POUNDS)
+    return round(kg * COEFF_POUNDS)
 
 
 def convert_ft(cm: float) -> int:
     """It converts centimeters into feet."""
-    return round(cm * pre.COEFF_FEET)
+    return round(cm * COEFF_FEET)
 
 
 def convert_km(steps: float) -> float:
@@ -528,7 +506,7 @@ def convert_km(steps: float) -> float:
 def convert_mi(steps: float) -> float:
     """It converts steps into miles."""
     km = convert_km(steps)
-    return round(km * pre.COEFF_MILES, 2)
+    return round(km * COEFF_MILES, 2)
 
 
 def shake_check(
@@ -546,7 +524,7 @@ def shake_check(
         The shake_check value.
     """
     config_capture = Loader.get_config_capture("config_capture.yaml")
-    max_catch_rate = pre.CATCH_RATE_RANGE[1]
+    max_catch_rate = config_monster.catch_rate_range[1]
     shake_constant = config_capture.shake_constant
     shake_denominator = config_capture.shake_denominator
     shake_divisor = config_capture.shake_divisor
@@ -634,7 +612,7 @@ def calculate_status_modifier(item: Item, target: Monster) -> float:
     config = config_capdev.items.get(item.slug)
     status_modifier = config_capdev.status_modifier
 
-    status = target.status.get_current_status()
+    status = target.status.current_status
     if config is None or status is None:
         return status_modifier
 
@@ -776,7 +754,7 @@ def on_capture_fail(item: Item, target: Monster, character: NPC) -> None:
         return
 
     if config.capdev_persistent_on_failure:
-        tuxeball = character.items.find_item(item.slug)
+        tuxeball = character.bag.find_item(item.slug)
         if tuxeball:
             tuxeball.increase_quantity()
 
@@ -787,7 +765,7 @@ def on_capture_success(item: Item, target: Monster, character: NPC) -> None:
         return
 
     if config.capdev_persistent_on_success:
-        tuxeball = character.items.find_item(item.slug)
+        tuxeball = character.bag.find_item(item.slug)
         if tuxeball:
             tuxeball.increase_quantity()
 
@@ -921,7 +899,7 @@ def modify_stat(
     stat_attr = stat_map.get(stat)
 
     if stat_attr:
-        current_value = getattr(monster.modifiers, stat_attr, 0)
+        current_value = getattr(monster.custom_stats, stat_attr, 0)
 
         if operation == "add":
             new_value = current_value + int(value)
@@ -931,5 +909,5 @@ def modify_stat(
         else:
             raise ValueError(f"Invalid operation: {operation}")
 
-        setattr(monster.modifiers, stat_attr, new_value)
+        setattr(monster.custom_stats, stat_attr, new_value)
         monster.set_stats()

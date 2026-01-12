@@ -1,12 +1,12 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Optional, final
 
-from tuxemon import prepare
 from tuxemon.event.eventaction import EventAction
+from tuxemon.platform.const.sizes import SOUND_RANGE
 from tuxemon.session import Session
 
 
@@ -44,7 +44,7 @@ class PlaySoundAction(EventAction):
         sound_volume = client.config.sound_volume
 
         if self.volume is not None:
-            lower, upper = prepare.SOUND_RANGE
+            lower, upper = SOUND_RANGE
             if not (lower <= self.volume <= upper):
                 raise ValueError(
                     f"Volume must be between {lower} and {upper}",

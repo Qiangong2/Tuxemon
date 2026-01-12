@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -18,19 +18,23 @@ if TYPE_CHECKING:
 @dataclass
 class BurntEffect(CoreEffect):
     """
-    This effect has a chance to apply the burnt status based on a calculated
-    damage multiplier.
+    Applies the burnt status to a target based on a calculated damage multiplier.
 
-    Parameters:
-        divisor: Determines how much HP is lost (damage is calculated as
-            target.hp / divisor).
-        mode: Specifies the strategy used to evaluate modifiers against
-            the target. Must be one of: "first", "weakest", "strongest",
-            "average", "cumulative".
+    **Parameters**
 
-    The effect checks whether a damage multiplier applies to the target using
-    the given mode. If the calculated damage is greater than zero, the target
-    is burned and loses HP. Otherwise, the status fails to apply and is cleared.
+    - ``divisor``: Determines how much HP is lost. Damage is calculated as
+      ``target.hp / divisor``.
+    - ``mode``: Strategy used to evaluate modifiers against the target.
+      Must be one of: ``first``, ``weakest``, ``strongest``, ``average``,
+      or ``cumulative``.
+
+    **Example**
+
+    .. code-block:: json
+
+        "effects": [
+            "burnt 4 strongest"
+        ]
     """
 
     name = "burnt"
@@ -41,7 +45,7 @@ class BurntEffect(CoreEffect):
         self, session: Session, status: Status
     ) -> StatusEffectResult:
         burnt: bool = False
-        host = status.get_host()
+        host = status.host
         params = {"target": host.name, "method": status.name}
         if status.has_phase(EffectPhase.PERFORM_STATUS):
             damage = host.hp / self.divisor
@@ -54,5 +58,11 @@ class BurntEffect(CoreEffect):
             else:
                 status.use_failure = T.format("combat_state_immune", params)
                 host.status.clear_status(session)
+        if status.has_phase(EffectPhase.ON_STEP_INTERVAL):
+            if status._step_hp_change != 0:
+                host.current_hp = max(
+                    0, host.current_hp + status._step_hp_change
+                )
+                return StatusEffectResult(name=status.name, success=True)
 
         return StatusEffectResult(name=status.name, success=burnt)

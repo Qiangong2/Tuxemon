@@ -1,11 +1,12 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 import logging
 from typing import Optional
 
-from tuxemon.db import WeatherModel, db
+from tuxemon.database.runtime import db
+from tuxemon.db import Modifier, Temperature, WeatherModel, Wind
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +18,9 @@ class Weather:
 
     def __init__(self, slug: Optional[str] = None) -> None:
         self.slug = slug
-        self.element_modifier: dict[str, float] = {}
+        self.modifiers: list[Modifier] = []
+        self._temperature: Optional[Temperature] = None
+        self._wind: Optional[Wind] = None
 
         if self.slug:
             self.load(self.slug)
@@ -28,12 +31,13 @@ class Weather:
         if slug in Weather._weathers:
             cached_weather = Weather._weathers[slug]
             self.slug = slug
-            self.element_modifier = cached_weather.element_modifier
+            self.modifiers = cached_weather.modifiers
             return
 
         results = WeatherModel.lookup(slug, db)
-        self.element_modifier = results.element_modifier
-
+        self.modifiers = results.modifiers
+        self._temperature = results.temperature
+        self._wind = results.wind
         Weather._weathers[slug] = self
 
     @classmethod
@@ -77,4 +81,22 @@ class Weather:
         cls._weathers.clear()
 
     def __repr__(self) -> str:
-        return f"Weather(slug={self.slug}, element_modifier={self.element_modifier})"
+        return f"Weather(slug={self.slug}, modifiers={self.modifiers})"
+
+    @property
+    def current_temperature(self) -> Temperature:
+        """Returns the Temperature category loaded from the database model."""
+        if self._temperature is None:
+            raise RuntimeError(
+                f"Temperature not loaded for weather slug: {self.slug}"
+            )
+        return self._temperature
+
+    @property
+    def current_wind(self) -> Wind:
+        """Returns the Wind category loaded from the database model."""
+        if self._wind is None:
+            raise RuntimeError(
+                f"Wind not loaded for weather slug: {self.slug}"
+            )
+        return self._wind

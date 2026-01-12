@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 import logging
@@ -13,7 +13,7 @@ from tuxemon.locale import T
 from tuxemon.world.menu_flags import MenuFlags
 
 if TYPE_CHECKING:
-    from tuxemon.client import LocalPygameClient
+    from tuxemon.base_client import BaseClient
     from tuxemon.npc import NPC
     from tuxemon.states.world_menus import WorldMenuState
 
@@ -34,7 +34,7 @@ class MenuItem:
 class WorldMenuManager:
     """Manages persistent menu items and builds the dynamic world menu."""
 
-    def __init__(self, client: LocalPygameClient) -> None:
+    def __init__(self, client: BaseClient) -> None:
         self.menu_flags = MenuFlags()
         self.menu_items: list[MenuItem] = []
         self.menu_renderer: Optional[WorldMenuState] = None
@@ -130,7 +130,7 @@ class WorldMenuManager:
 
     def _get_exit_game_callback(self) -> Callable[[], None]:
         """Helper to create exit game callback."""
-        return lambda: self.client.event_engine.execute_action("quit")
+        return lambda: self.client.event_engine.execute_action("quit_world")
 
     def _menu_item(self, key: str, state: str, **kwargs: Any) -> MenuItem:
         label = T.translate(key).upper()
@@ -146,7 +146,7 @@ class WorldMenuManager:
         """
         entries: list[tuple[int, MenuItem]] = []
 
-        for itm in player.items.get_items():
+        for itm in player.items:
             dm = itm.dynamic_menu
             if (
                 dm
@@ -212,8 +212,8 @@ class WorldMenuManager:
                 )
             )
 
-        if player.items.get_items() and self.menu_flags.is_enabled("menu_bag"):
-            items_filtered = ItemFilter(player.items.get_items())
+        if player.items and self.menu_flags.is_enabled("menu_bag"):
+            items_filtered = ItemFilter(player.items)
             items_filtered.set_filter_all_visible()
             current_menu.append(
                 self._menu_item(

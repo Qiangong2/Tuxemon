@@ -1,8 +1,9 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 import logging
+from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
 from itertools import chain
@@ -15,14 +16,15 @@ from pygame.gfxdraw import box
 from pygame.rect import Rect
 from pygame.surface import Surface
 
-from tuxemon import prepare
 from tuxemon.camera.camera import project
 from tuxemon.db import Direction
-from tuxemon.entity import EntityState
 from tuxemon.graphics import ColorLike, apply_cinema_bars, load_and_scale
-from tuxemon.map.map import get_pos_from_tilepos, proj
+from tuxemon.map.map import get_pos_from_tilepos
 from tuxemon.math import Vector2
+from tuxemon.platform.const.graphics import BLACK_COLOR
+from tuxemon.prepare import SCREEN_SIZE, TILE_SIZE
 from tuxemon.surfanim import SurfaceAnimation, SurfaceAnimationCollection
+from tuxemon.user_config import CONFIG
 
 logger = logging.getLogger(__name__)
 
@@ -99,7 +101,7 @@ def load_walking_animations_with_cache(
     frames: list[tuple[Surface, float]] = [
         (load_and_scale_with_cache(image), frame_duration) for image in images
     ]
-    return SurfaceAnimation(frames, loop=True)
+    return SurfaceAnimation(frames)
 
 
 def clear_standing_cache(cache_key: str) -> None:
@@ -121,9 +123,7 @@ class SpriteController:
 
     def update(self, time_delta: float) -> None:
         """Update the sprite renderer."""
-        self.sprite_renderer.set_position(
-            self.npc.tile_pos, self.npc.body.position.z
-        )
+        self.sprite_renderer.set_position(self.npc.tile_pos)
         self.sprite_renderer.update(time_delta)
 
     def update_template(self, template: NpcTemplateModel) -> None:
@@ -268,7 +268,7 @@ class SpriteRenderer:
 
     def _calculate_frame_duration(
         self,
-        rate: float = prepare.CONFIG.player_walkrate,
+        rate: float = CONFIG.player_walkrate,
         time_scale: int = 1000,
         frame_divisor: int = 3,
         speed_factor: float = 2,
@@ -276,11 +276,9 @@ class SpriteRenderer:
         """Calculate the frame duration for walking animations."""
         return (time_scale / rate) / frame_divisor / time_scale * speed_factor
 
-    def set_position(
-        self, position: tuple[int, int], z_offset: float = 0.0
-    ) -> None:
+    def set_position(self, position: tuple[int, int]) -> None:
         """Set the position of the sprite, optionally offset by vertical jump."""
-        self.rect.topleft = (position[0], position[1] - int(z_offset))
+        self.rect.topleft = position
 
     def update(self, time_delta: float) -> None:
         """Update the sprite animation."""
@@ -293,7 +291,7 @@ class SpriteRenderer:
         if ani not in animations:
             raise ValueError(f"Animation '{ani}' not found.")
         animation = animations[ani]
-        animation.rate = npc.moverate / prepare.CONFIG.player_walkrate
+        animation.rate = npc.moverate / CONFIG.player_walkrate
         return animation.get_current_frame()
 
     def get_facing_frame(
@@ -313,7 +311,52 @@ class SpriteRenderer:
         self.surface_animations.stop()
 
 
-class MapRenderer:
+class AbstractRenderer(ABC):
+    """Interface for all map rendering implementations."""
+
+    layer_color: Optional[ColorLike]
+    bubble_manager: BubbleManager
+    cinema_x_ratio: Optional[float]
+    cinema_y_ratio: Optional[float]
+    map_animations: dict[str, AnimationInfo]
+
+    @property
+    @abstractmethod
+    def label(self) -> str:
+        """A string identifier for the renderer."""
+        ...
+
+    @abstractmethod
+    def update(self, time_delta: float) -> None:
+        """Update internal state, animations, etc."""
+
+    @abstractmethod
+    def draw(
+        self, surface: Surface, current_map: Optional[AbstractMap]
+    ) -> None:
+        """Draw the map and related elements to the surface."""
+
+
+class NullRenderer(AbstractRenderer):
+    """A no-op renderer for when no map is loaded."""
+
+    def __init__(self) -> None:
+        pass
+
+    @property
+    def label(self) -> str:
+        return "null_renderer"
+
+    def update(self, time_delta: float) -> None:
+        pass
+
+    def draw(
+        self, surface: Surface, current_map: Optional[AbstractMap]
+    ) -> None:
+        surface.fill(BLACK_COLOR)
+
+
+class MapRenderer(AbstractRenderer):
     """Renders the game map, NPCs, and animations."""
 
     def __init__(
@@ -326,22 +369,32 @@ class MapRenderer:
         self.camera_manager = camera_manager
         self.npc_manager = npc_manager
         self.debug_renderer = debug_renderer
-        self.layer = Surface(prepare.SCREEN_SIZE, pygame.SRCALPHA)
+        self.layer = Surface(SCREEN_SIZE, pygame.SRCALPHA)
         self.layer_color: Optional[ColorLike] = None
         self.cinema_x_ratio: Optional[float] = None
         self.cinema_y_ratio: Optional[float] = None
         self.map_animations: dict[str, AnimationInfo] = {}
         self.bubble_manager = BubbleManager()
 
-    def draw(self, surface: Surface, current_map: AbstractMap) -> None:
+    @property
+    def label(self) -> str:
+        return "map_renderer"
+
+    def draw(
+        self, surface: Surface, current_map: Optional[AbstractMap]
+    ) -> None:
         """Draws the map, sprites, and animations onto the given surface."""
+        if current_map is None:
+            raise ValueError(
+                "MapRenderer requires a valid AbstractMap to draw."
+            )
         self._prepare_map_rendering(current_map)
         screen_surfaces = self._get_and_position_surfaces(current_map)
         self._draw_map_and_sprites(surface, screen_surfaces, current_map)
         if self.layer_color:
             self._apply_effects(surface)
         self._apply_cinema_bars(surface)
-        if prepare.CONFIG.collision_map:
+        if CONFIG.collision_map:
             self.debug_renderer.draw_debug(current_map, surface)
 
     def update(self, time_delta: float) -> None:
@@ -354,6 +407,8 @@ class MapRenderer:
         """Prepares the map renderer for drawing."""
         if current_map.renderer is None:
             current_map.initialize_renderer()
+        if current_map.renderer is None:
+            raise RuntimeError("Map renderer could not be initialized.")
         camera = self.camera_manager.get_active_camera()
         center = camera.get_viewport_center() if camera else Vector2(0, 0)
         assert current_map.renderer
@@ -425,7 +480,7 @@ class MapRenderer:
             layer = frame.layer
             screen_position = get_pos_from_tilepos(current_map, position)
             rect = Rect(screen_position, surface.get_size())
-            if surface.get_height() > prepare.TILE_SIZE[1]:
+            if surface.get_height() > TILE_SIZE[1]:
                 rect.y -= surface.get_height() // 2
             screen_surfaces.append((surface, rect, layer))
         return screen_surfaces
@@ -434,11 +489,7 @@ class MapRenderer:
         """Retrieves sprite surfaces for an NPC."""
         sprite_renderer = npc.sprite_controller.get_sprite_renderer()
 
-        if npc.mover.state in (
-            EntityState.WALKING,
-            EntityState.RUNNING,
-            EntityState.JUMPING,
-        ):
+        if npc.mover.is_moving_state:
             ani_key = sprite_renderer.ANIMATION_MAPPING[npc.mover.state.value][
                 npc.facing.value
             ]
@@ -451,10 +502,8 @@ class MapRenderer:
                 sprite_renderer.standing,
             )
 
-        pixel_x, pixel_y = proj(npc.position)
-        z_offset = npc.body.position.z if npc.is_airborne else 0.0
-        adjusted_y = pixel_y - z_offset
-        return [WorldSurfaces(frame, Vector2(pixel_x, adjusted_y), layer)]
+        pixel_x, pixel_y = npc.position
+        return [WorldSurfaces(frame, Vector2(pixel_x, pixel_y), layer)]
 
 
 class BubbleManager:
@@ -532,9 +581,9 @@ class DebugRenderer:
     def _draw_events(self, current_map: AbstractMap, surface: Surface) -> None:
         """Draws event-related debug information on the surface."""
         for event in self.map_manager.events:
-            vector = Vector2(event.x, event.y)
+            vector = Vector2(event.box.x, event.box.y)
             topleft = get_pos_from_tilepos(current_map, vector)
-            size = project((event.w, event.h))
+            size = project((event.box.width, event.box.height))
             rect = topleft, size
             box(surface, rect, self.event_color)
 
@@ -567,8 +616,8 @@ def apply_bars(orientation: str, aspect_ratio: float, screen: Surface) -> None:
         aspect_ratio,
         screen,
         orientation,
-        prepare.SCREEN_SIZE,
-        prepare.BLACK_COLOR,
+        SCREEN_SIZE,
+        BLACK_COLOR,
     )
 
 
@@ -579,11 +628,11 @@ def collision_box_to_pgrect(
     Returns a Rect (in screen-coords) version of a collision box (in world-coords).
     """
     x, y = get_pos_from_tilepos(current_map, Vector2(box))
-    tw, th = prepare.TILE_SIZE
+    tw, th = TILE_SIZE
     return Rect(x, y, tw, th)
 
 
 def npc_to_pgrect(current_map: AbstractMap, npc: NPC) -> Rect:
     """Returns a Rect (in screen-coords) version of an NPC's bounding box."""
-    pos = get_pos_from_tilepos(current_map, proj(npc.position))
-    return Rect(pos, prepare.TILE_SIZE)
+    pos = get_pos_from_tilepos(current_map, npc.position)
+    return Rect(pos, TILE_SIZE)

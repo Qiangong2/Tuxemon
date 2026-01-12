@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 import logging
@@ -12,10 +12,8 @@ from tuxemon.combat.combat_context import (
     CombatType,
 )
 from tuxemon.combat.utils import check_battle_legal
-from tuxemon.db import EnvironmentModel, db
-from tuxemon.event import get_npc
 from tuxemon.event.eventaction import EventAction
-from tuxemon.prepare import MONSTERS_DOUBLE
+from tuxemon.platform.const.sizes import MONSTERS_DOUBLE
 from tuxemon.session import Session
 
 logger = logging.getLogger(__name__)
@@ -46,8 +44,8 @@ class StartDoubleBattleAction(EventAction):
     def start(self, session: Session) -> None:
         self.character2 = self.character2 or "player"
 
-        character1 = get_npc(session, self.character1)
-        character2 = get_npc(session, self.character2)
+        character1 = session.get_npc(self.character1)
+        character2 = session.get_npc(self.character2)
 
         if not character1 or not character2:
             _char = self.character1 if not character1 else self.character2
@@ -60,16 +58,13 @@ class StartDoubleBattleAction(EventAction):
             logger.warning("Battle is not legal, won't start")
             return
 
-        env_slug = "grass"
-        for fighter in [character1, character2]:
-            if fighter.is_player:
-                env_slug = fighter.game_variables.get("environment", "grass")
-            else:
-                env_slug = session.player.game_variables.get(
-                    "environment", "grass"
-                )
-
-        env = EnvironmentModel.lookup(env_slug, db)
+        environment = session.client.environment_manager
+        env = environment.get_active_environment()
+        if env is None:
+            logger.error(
+                "No environment defined. Use 'set_environment' before starting combat."
+            )
+            return
 
         fighters = sorted(
             [character1, character2], key=lambda x: not x.is_player
@@ -89,17 +84,16 @@ class StartDoubleBattleAction(EventAction):
             session=session,
             teams=fighters,
             combat_type=CombatType.TRAINER,
-            graphics=env.battle_graphics,
             battle_mode=BattleMode.DOUBLE,
         )
         session.client.push_state("CombatState", context=context)
         # music
-        filename = env.battle_music if not self.music else self.music
-        session.client.event_engine.execute_action(
-            "play_music", [filename], True
-        )
+        sound = env.get_battle_music().battle
+        if sound.music:
+            filename = sound.music if not self.music else self.music
+            session.client.current_music.play(filename, sound.volume)
 
-    def update(self, session: Session) -> None:
+    def update(self, session: Session, dt: float) -> None:
         try:
             session.client.get_state_by_name("CombatState")
         except ValueError:

@@ -1,4 +1,6 @@
+.. autoscriptinfoclass:: tuxemon.event.conditions.afk_state.AFKStateCondition
 .. autoscriptinfoclass:: tuxemon.event.conditions.battle_outcome.BattleOutcomeCondition
+.. autoscriptinfoclass:: tuxemon.event.conditions.battle_outcome_count.BattleOutcomeCountCondition
 .. autoscriptinfoclass:: tuxemon.event.conditions.bill_exists.BillExistsCondition
 .. autoscriptinfoclass:: tuxemon.event.conditions.bill_is.BillIsCondition
 .. autoscriptinfoclass:: tuxemon.event.conditions.button_combo.ButtonComboCondition
@@ -13,8 +15,8 @@
 .. autoscriptinfoclass:: tuxemon.event.conditions.char_facing.CharFacingCondition
 .. autoscriptinfoclass:: tuxemon.event.conditions.char_facing_char.CharFacingCharCondition
 .. autoscriptinfoclass:: tuxemon.event.conditions.char_facing_tile.CharFacingTileCondition
-.. autoscriptinfoclass:: tuxemon.event.conditions.char_in_boundary.CharInBoundaryCondition
 .. autoscriptinfoclass:: tuxemon.event.conditions.char_in.CharInCondition
+.. autoscriptinfoclass:: tuxemon.event.conditions.char_in_boundary.CharInBoundaryCondition
 .. autoscriptinfoclass:: tuxemon.event.conditions.char_moved.CharMovedCondition
 .. autoscriptinfoclass:: tuxemon.event.conditions.char_sprite.CharSpriteCondition
 .. autoscriptinfoclass:: tuxemon.event.conditions.check_char_parameter.CheckCharParameterCondition
@@ -26,6 +28,7 @@
 .. autoscriptinfoclass:: tuxemon.event.conditions.check_world.CheckWorldCondition
 .. autoscriptinfoclass:: tuxemon.event.conditions.cooldown_days.CooldownDaysCondition
 .. autoscriptinfoclass:: tuxemon.event.conditions.current_state.CurrentStateCondition
+.. autoscriptinfoclass:: tuxemon.event.conditions.environment_is.EnvironmentIsCondition
 .. autoscriptinfoclass:: tuxemon.event.conditions.faction_reputation.FactionReputationCondition
 .. autoscriptinfoclass:: tuxemon.event.conditions.has_bag.HasBagCondition
 .. autoscriptinfoclass:: tuxemon.event.conditions.has_item.HasItemCondition
@@ -44,6 +47,7 @@
 .. autoscriptinfoclass:: tuxemon.event.conditions.one_of.OneOfCondition
 .. autoscriptinfoclass:: tuxemon.event.conditions.party_infected.PartyInfectedCondition
 .. autoscriptinfoclass:: tuxemon.event.conditions.party_size.PartySizeCondition
+.. autoscriptinfoclass:: tuxemon.event.conditions.party_status.PartyStatusCondition
 .. autoscriptinfoclass:: tuxemon.event.conditions.step_tracker.StepTrackerCondition
 .. autoscriptinfoclass:: tuxemon.event.conditions.tile_property_updated.TilePropertyUpdatedCondition
 .. autoscriptinfoclass:: tuxemon.event.conditions.timestamp_cooldown.TimestampCooldownCondition

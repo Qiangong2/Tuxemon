@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 import math
@@ -10,11 +10,12 @@ from typing import Any, ClassVar, Optional
 from pygame_menu.locals import ALIGN_CENTER, POSITION_EAST
 from pygame_menu.widgets.selection.highlight import HighlightSelection
 
-from tuxemon import prepare
 from tuxemon.animation import Animation, ScheduleType
-from tuxemon.db import NpcModel, db
+from tuxemon.database.runtime import db
+from tuxemon.db import NpcModel
 from tuxemon.menu.menu import PygameMenuState
 from tuxemon.menu.theme import get_theme
+from tuxemon.prepare import SCALE, SCREEN_SIZE
 from tuxemon.ui.menu_options import MenuOptions
 
 
@@ -77,8 +78,8 @@ class ChoiceNpc(PygameMenuState):
         path = f"gfx/sprites/player/{npc.template.combat_front}.png"
         new_image = self._create_image(path)
         new_image.scale(
-            prepare.SCALE * self.config.scale_sprite,
-            prepare.SCALE * self.config.scale_sprite,
+            SCALE * self.config.scale_sprite,
+            SCALE * self.config.scale_sprite,
         )
         self.menu.add.image(new_image, align=ALIGN_CENTER)
         # replace slug not translated
@@ -94,7 +95,7 @@ class ChoiceNpc(PygameMenuState):
         self.menu.add.vertical_fill(self.config.vertical_fill)
 
     def update_animation_size(self) -> None:
-        width, height = prepare.SCREEN_SIZE
+        width, height = SCREEN_SIZE
         widgets_size = self.menu.get_size(widget=True)
 
         _width = widgets_size[0]

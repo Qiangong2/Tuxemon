@@ -1,17 +1,16 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
 from typing import Optional, final
-from uuid import UUID
 
-from tuxemon.event import get_monster_by_iid
 from tuxemon.event.eventaction import EventAction
 from tuxemon.monster import Monster
 from tuxemon.session import Session
 from tuxemon.status.status import Status
+from tuxemon.tools import get_valid_uuid
 
 logger = logging.getLogger(__name__)
 
@@ -40,10 +39,10 @@ class SetMonsterStatusAction(EventAction):
 
     @staticmethod
     def set_status(
-        monster: Monster, value: Optional[str], steps: float
+        session: Session, monster: Monster, value: Optional[str], steps: float
     ) -> None:
         if not value:
-            monster.status.remove_status()
+            monster.status.clear_status(session)
         else:
             status = Status.create(value, monster, steps)
             monster.status.add_status(status)
@@ -56,14 +55,16 @@ class SetMonsterStatusAction(EventAction):
 
         if self.variable is None:
             for mon in player.monsters:
-                self.set_status(mon, self.status, steps)
+                self.set_status(session, mon, self.status, steps)
         else:
-            if not player.game_variables.has(self.variable):
-                logger.error(f"Game variable {self.variable} not found")
-                return
-            monster_id = UUID(player.game_variables.get(self.variable))
-            monster = get_monster_by_iid(session, monster_id)
+            monster_id = get_valid_uuid(player.game_variables, self.variable)
+            if monster_id is None:
+                logger.info(
+                    f"No valid monster selected for variable '{self.variable}'"
+                )
+                return  # Exit early if no valid UUID
+            monster = session.client.get_monster_by_iid(monster_id)
             if monster is None:
                 logger.error("Monster not found")
                 return
-            self.set_status(monster, self.status, steps)
+            self.set_status(session, monster, self.status, steps)

@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 import random
@@ -18,11 +18,23 @@ if TYPE_CHECKING:
 @dataclass
 class FlinchingEffect(CoreEffect):
     """
-    Flinching: 50% chance to miss your next turn.
-    If you do miss your next turn, this status ends.
+    Applies the "flinching" status to a monster.
 
-    Parameters:
-        chance: The chance.
+    This effect represents hesitation or recoil, giving the monster a chance
+    to miss its next turn. If the monster misses its turn due to flinching,
+    the status is cleared.
+
+    **Parameters**
+
+    - ``chance``: The probability of flinching occurring (float between 0 and 1).
+
+    **Example**
+
+    .. code-block:: json
+
+        "effects": [
+            "flinching 0.5"
+        ]
     """
 
     name = "flinching"
@@ -32,7 +44,7 @@ class FlinchingEffect(CoreEffect):
         self, session: Session, status: Status
     ) -> StatusEffectResult:
         tech: list[Technique] = []
-        host = status.get_host()
+        host = status.host
         if (
             status.has_phase(EffectPhase.PRE_CHECKING)
             and random.random() > self.chance
@@ -42,7 +54,7 @@ class FlinchingEffect(CoreEffect):
             skip = Technique.create(empty)
             tech = [skip]
             status.advance_round()
-            status.check_counter_expiry(session)
+            host.status.check_and_clear_use_expiry(session)
         return StatusEffectResult(
             name=status.name, success=True, techniques=tech
         )

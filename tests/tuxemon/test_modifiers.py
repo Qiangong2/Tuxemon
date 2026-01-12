@@ -1,7 +1,9 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 import unittest
 from unittest.mock import MagicMock
+
+from pydantic_core import ValidationError
 
 from tuxemon.db import Modifier
 from tuxemon.element import Element, ElementTypesHandler
@@ -24,6 +26,7 @@ class TestModifiersHandler(unittest.TestCase):
         self.monster.types = MagicMock(spec=ElementTypesHandler)
         self.monster.types.current = []
         self.monster.name = ""
+        self.monster.hp_ratio = 1.0
 
     def test_init(self):
         modifiers = [
@@ -167,21 +170,8 @@ class TestModifiersHandler(unittest.TestCase):
         self.assertEqual(handler.first_applicable_damage(self.monster), 0.5)
 
     def test_invalid_attribute(self):
-        modifiers = [
-            Modifier(attribute="invalid", values=["fire"], multiplier=0.5),
-        ]
-        handler = ModifiersHandler(modifiers)
-        self.monster.types.current = [self.fire]
-        with self.assertRaises(ValueError):
-            handler.weakest_link(self.monster)
-        with self.assertRaises(ValueError):
-            handler.strongest_link(self.monster)
-        with self.assertRaises(ValueError):
-            handler.cumulative_damage(self.monster)
-        with self.assertRaises(ValueError):
-            handler.average_damage(self.monster)
-        with self.assertRaises(ValueError):
-            handler.first_applicable_damage(self.monster)
+        with self.assertRaises(ValidationError):
+            Modifier(attribute="invalid", values=["fire"], multiplier=0.5)
 
     def test_list_modifiers(self):
         modifiers = [
@@ -190,3 +180,75 @@ class TestModifiersHandler(unittest.TestCase):
         ]
         handler = ModifiersHandler(modifiers)
         self.assertEqual(handler.list_modifiers(), modifiers)
+
+    def test_turns_expiry(self):
+        modifiers = [
+            Modifier(
+                attribute="type",
+                values=["fire"],
+                multiplier=0.5,
+                turns_remaining=1,
+            ),
+            Modifier(
+                attribute="type",
+                values=["water"],
+                multiplier=0.8,
+                turns_remaining=0,
+            ),
+        ]
+        handler = ModifiersHandler(modifiers)
+        self.monster.types.current = [self.fire, self.water]
+        self.assertEqual(handler.cumulative_damage(self.monster), 0.5)
+        handler.tick_turns()
+        self.assertEqual(handler.cumulative_damage(self.monster), 1.0)
+
+    def test_max_stacks_enforced(self):
+        modifiers = [
+            Modifier(
+                attribute="type",
+                values=["fire"],
+                multiplier=0.5,
+                priority=1,
+                max_stacks=1,
+            ),
+            Modifier(
+                attribute="type", values=["fire"], multiplier=0.6, priority=0
+            ),
+        ]
+        handler = ModifiersHandler(modifiers)
+        self.monster.types.current = [self.fire]
+        self.assertEqual(handler.cumulative_damage(self.monster), 0.5)
+
+    def test_condition_name_hp_below_50(self):
+        modifiers = [
+            Modifier(
+                attribute="type",
+                values=["fire"],
+                multiplier=0.5,
+                condition_name="hp_below_50",
+            ),
+        ]
+        handler = ModifiersHandler(modifiers)
+
+        self.monster.types.current = [self.fire]
+
+        self.monster.hp_ratio = 0.40
+        self.assertEqual(handler.cumulative_damage(self.monster), 0.5)
+
+        self.monster.hp_ratio = 0.60
+        self.assertEqual(handler.cumulative_damage(self.monster), 1.0)
+
+    def test_remove_expired_modifiers(self):
+        modifiers = [
+            Modifier(
+                attribute="type",
+                values=["fire"],
+                multiplier=0.5,
+                turns_remaining=0,
+            ),
+            Modifier(attribute="type", values=["water"], multiplier=0.8),
+        ]
+        handler = ModifiersHandler(modifiers)
+        handler.remove_expired_modifiers()
+        self.assertEqual(len(handler.list_modifiers()), 1)
+        self.assertEqual(handler.list_modifiers()[0].values, ["water"])

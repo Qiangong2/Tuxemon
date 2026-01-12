@@ -1,12 +1,12 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 import json
 import unittest
 from pathlib import Path
 from typing import Any
 
-ALL_TECHNIQUES: int = 250
-MAX_TECH_ID: int = 244
+ALL_TECHNIQUES: int = 274
+MAX_TECH_ID: int = 268
 # effects with simple_damage_calculate()
 SIMPLE_DAMAGE_EFFECT = ("damage", "retaliate", "revenge", "money", "splash")
 # effects with simple_heal()

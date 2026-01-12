@@ -1,8 +1,9 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 import random as rd
+import time
 from collections.abc import Callable, Generator
 from functools import partial
 from typing import Any, ClassVar, Optional
@@ -19,7 +20,10 @@ from tuxemon.platform.events import PlayerInput
 from tuxemon.session import local_session
 from tuxemon.tools import open_choice_dialog
 from tuxemon.ui.input_display import InputDisplay
-from tuxemon.ui.menu_options import ChoiceOption, MenuOptions
+from tuxemon.ui.menu_options import MenuOptions, create_choice_options
+
+REPEAT_DELAY = 0.3  # seconds before repeat starts
+REPEAT_INTERVAL = 0.1  # seconds between repeats
 
 
 class InputMenuObj:
@@ -271,6 +275,12 @@ class InputMenu(Menu[InputMenuObj]):
         )
         self.char_manager = char_manager or CharacterSetManager()
 
+        self._repeat_timers: dict[int, float] = {
+            buttons.UP: 0.0,
+            buttons.DOWN: 0.0,
+            buttons.LEFT: 0.0,
+            buttons.RIGHT: 0.0,
+        }
         super().__init__(**kwargs)
 
         # The following is necessary to prevent writing a char immediately
@@ -359,7 +369,45 @@ class InputMenu(Menu[InputMenuObj]):
         if event.pressed and event.button == events.UNICODE:
             self._handle_unicode_event(event.value)
             return None
+
+        if event.button in (
+            buttons.UP,
+            buttons.DOWN,
+            buttons.LEFT,
+            buttons.RIGHT,
+        ):
+            if event.pressed:
+                return super().process_event(event)
+
+            if event.held and self._repeat_due(event.button, event):
+                return super().process_event(self._fake_press(event))
+
+            if event.released:
+                self._repeat_timers[event.button] = 0.0
+                return None
+
         return super().process_event(event)
+
+    def _repeat_due(self, button: int, event: PlayerInput) -> bool:
+        if not event.is_held(REPEAT_DELAY):
+            return False
+        now = time.time()
+        last = self._repeat_timers.get(button, 0.0)
+        if now - last >= REPEAT_INTERVAL:
+            self._repeat_timers[button] = now
+            return True
+        return False
+
+    def _fake_press(self, event: PlayerInput) -> PlayerInput:
+        """
+        Create a copy of the event that looks like a fresh press.
+        Useful for auto-repeat: we can feed this back into the base Menu
+        so it moves the cursor again without touching low-level internals.
+        """
+        fake = event.clone()
+        fake.hold_time = 1
+        fake.triggered = False
+        return fake
 
     def empty(self) -> None:
         """Handler for empty character slots (no action)."""
@@ -467,16 +515,13 @@ class InputMenu(Menu[InputMenuObj]):
             base_char = menu_item.game_object.char
             if base_char:
                 variants = self.char_manager.get_char_variants(base_char)
-                all_variants = base_char + variants
+                all_variants = [base_char] + list(variants)
 
-                options = [
-                    ChoiceOption(
-                        key=c,
-                        display_text=c,
-                        action=partial(self.add_input_char_and_pop, c),
-                    )
+                actions = {
+                    c: partial(self.add_input_char_and_pop, c)
                     for c in all_variants
-                ]
+                }
+                options = create_choice_options(actions)
 
                 menu = MenuOptions(options)
                 open_choice_dialog(client=self.client, menu=menu)

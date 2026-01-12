@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 import logging
@@ -20,6 +20,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+DEFAULT_BASE_STATE_COUNT: int = 2  # BackgroundState + WorldState
 
 StateType = TypeVar("StateType", bound="State")
 
@@ -87,6 +88,16 @@ class StateManager:
         name = state.__name__
         logger.debug(f"loading state: {name}")
         self.state_repository.add_state(state)
+
+    def is_in_base_map_state(self, base_count: int | None = None) -> bool:
+        """Return True if the active state count matches the base map state count."""
+        base_count = base_count or DEFAULT_BASE_STATE_COUNT
+        return len(self.active_states) == base_count
+
+    def has_extra_states(self, base_count: int | None = None) -> bool:
+        """Return True if more than the base map states are active."""
+        base_count = base_count or DEFAULT_BASE_STATE_COUNT
+        return len(self.active_states) > base_count
 
     def update(self, time_delta: float) -> None:
         """
@@ -242,23 +253,21 @@ class StateManager:
                 state.shutdown()
 
     @overload
-    def push_state(
-        self, state_name: str, **kwargs: Optional[dict[str, Any]]
-    ) -> State:
+    def push_state(self, state_name: str, **kwargs: Any) -> State:
         pass
 
     @overload
     def push_state(
         self,
         state_name: StateType,
-        **kwargs: Optional[dict[str, Any]],
+        **kwargs: Any,
     ) -> StateType:
         pass
 
     def push_state(
         self,
         state_name: Union[str, StateType],
-        **kwargs: Optional[dict[str, Any]],
+        **kwargs: Any,
     ) -> State:
         """
         Pause currently running state and start new one.
@@ -296,23 +305,21 @@ class StateManager:
         return instance
 
     @overload
-    def replace_state(
-        self, state_name: str, **kwargs: Optional[dict[str, Any]]
-    ) -> State:
+    def replace_state(self, state_name: str, **kwargs: Any) -> State:
         pass
 
     @overload
     def replace_state(
         self,
         state_name: StateType,
-        **kwargs: Optional[dict[str, Any]],
+        **kwargs: Any,
     ) -> StateType:
         pass
 
     def replace_state(
         self,
         state_name: Union[str, State],
-        **kwargs: Optional[dict[str, Any]],
+        **kwargs: Any,
     ) -> State:
         """
         Replace the currently running state with a new one.

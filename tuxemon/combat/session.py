@@ -1,20 +1,27 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 import logging
 import random
 from collections.abc import Iterable, Sequence
-from typing import TYPE_CHECKING, Any, Optional, Union
+from typing import TYPE_CHECKING, Any
 
 from tuxemon.combat.action_queue import ActionQueue, EnqueuedAction
 from tuxemon.combat.combat_context import CombatType
 from tuxemon.combat.damage_tracker import DamageTracker
 from tuxemon.combat.field_monsters import FieldMonsters
-from tuxemon.combat.utils import alive_party, battlefield, defeated
+from tuxemon.combat.reward_system import (
+    HordeRewardCalculator,
+    RewardCalculator,
+    TrainerRewardCalculator,
+    WildRewardCalculator,
+)
+from tuxemon.combat.utils import battlefield
 from tuxemon.db import EffectPhase, TargetType
 from tuxemon.event import get_event_bus
 from tuxemon.locale import T
+from tuxemon.technique.technique import Technique
 from tuxemon.ui.combat_swap import SwapTracker
 
 if TYPE_CHECKING:
@@ -28,7 +35,7 @@ if TYPE_CHECKING:
     from tuxemon.npc import NPC
     from tuxemon.session import Session
     from tuxemon.status.status import Status
-    from tuxemon.technique.technique import Technique
+
 logger = logging.getLogger(__name__)
 
 
@@ -39,7 +46,7 @@ class CombatSession:
         self._prize: int = 0
         self._is_double: bool = False
         self._players: list[NPC] = []
-        self._combat_type: Optional[CombatType] = None
+        self._combat_type: CombatType | None = None
         self._random_tech_hit: dict[Monster, float] = {}
         self._combat_variables: dict[str, Any] = {}
         self.field_monsters = FieldMonsters()
@@ -85,7 +92,7 @@ class CombatSession:
     def active_players(self) -> Iterable[NPC]:
         """All trainers still active in the battle."""
         for player in self.players:
-            if not defeated(player):
+            if not player.party.is_fainted:
                 yield player
 
     @property
@@ -128,12 +135,12 @@ class CombatSession:
     @property
     def defeated_players(self) -> Sequence[NPC]:
         """All trainers who have lost (party fully fainted)."""
-        return [p for p in self.players if defeated(p)]
+        return [p for p in self.players if p.party.is_fainted]
 
     @property
     def remaining_players(self) -> Sequence[NPC]:
         """Alias for non-defeated players. WIP: subject to future team logic."""
-        return [p for p in self.players if not defeated(p)]
+        return [p for p in self.players if not p.party.is_fainted]
 
     def get_bench(self, player: NPC) -> Sequence[Monster]:
         """Returns non-fainted, off-field monsters for the given player."""
@@ -272,6 +279,17 @@ class CombatSession:
     def reset_combat_type(self) -> None:
         self._combat_type = None
 
+    def get_calculator(self, combat_type: CombatType) -> RewardCalculator:
+        """Return the appropriate RewardCalculator based on combat type."""
+        if combat_type is CombatType.TRAINER:
+            return TrainerRewardCalculator(self.damage_tracker)
+        elif combat_type is CombatType.MONSTER:
+            return WildRewardCalculator(self.damage_tracker)
+        elif combat_type is CombatType.HORDE:
+            return HordeRewardCalculator(self.damage_tracker)
+        else:
+            raise ValueError(f"Unknown combat type: {combat_type}")
+
     @property
     def is_trainer_battle(self) -> bool:
         return self.combat_type is CombatType.TRAINER
@@ -293,14 +311,15 @@ class CombatSession:
             params = {"name": self.right_player.monsters[0].name.upper()}
             return T.format("combat_wild_appeared", params)
         elif self.combat_type is CombatType.HORDE:
-            return T.translate("combat_horde_appeared")
+            horde = self.right_player.party.party_size
+            return f"{T.translate('combat_horde_appeared')} ({horde})"
         else:
             raise ValueError(f"Unexpected combat_type: {self.combat_type}")
 
     def get_message_swap(self, character: NPC, monster: Monster) -> str:
         """Determines and returns the appropriate alert message for combat start."""
         params = {"target": monster.name.upper()}
-        if self.combat_type is CombatType.TRAINER:
+        if self.combat_type in (CombatType.TRAINER, CombatType.MONSTER):
             params["user"] = character.name.upper()
             return T.format("combat_swap", params)
         elif self.combat_type is CombatType.HORDE:
@@ -323,7 +342,7 @@ class CombatSession:
 
     # Random tech hit
     def set_tech_hit(
-        self, monster: Monster, value: Optional[float] = None
+        self, monster: Monster, value: float | None = None
     ) -> None:
         if value is None:
             value = random.random()
@@ -344,7 +363,7 @@ class CombatSession:
         self._combat_variables[key] = value
         logger.debug(f"Variable set: {key} = {value}")
 
-    def get_variable(self, key: str) -> Optional[Any]:
+    def get_variable(self, key: str) -> Any | None:
         value = self._combat_variables.get(key)
         logger.debug(f"Variable retrieved: {key} = {value}")
         return value
@@ -355,8 +374,8 @@ class CombatSession:
 
     def enqueue_action(
         self,
-        user: Union[NPC, Monster, None],
-        technique: Union[Item, Technique, Status, None],
+        user: NPC | Monster | None,
+        technique: Item | Technique | Status | None,
         target: Monster,
     ) -> None:
         """
@@ -388,7 +407,7 @@ class CombatSession:
         Calculates the maximum number of positions for a player based on
         their party size and battle mode.
         """
-        if len(alive_party(player)) == 1:
+        if len(player.party.alive) == 1:
             return 1
         return 2 if self.is_double else 1
 
@@ -424,10 +443,10 @@ class CombatSession:
         for player in list(self.active_players):
             monsters = self.field_monsters.get_monsters(player)
             for monster in monsters:
-                held_item = monster.held_item.get_item()
+                held_item = monster.held_item
                 if held_item:
                     held_item.use(session, player, monster)
-                status = monster.status.get_current_status()
+                status = monster.status.current_status
                 if status:
                     status.use(session, EffectPhase.ON_DECISION)
 
@@ -439,7 +458,7 @@ class CombatSession:
             for status in monster.status.get_statuses():
                 if len(self.remaining_players) > 1:
                     if status.validate_monster(session, monster):
-                        status.nr_turn += 1
+                        status.tick_turn()
                         self.enqueue_action(None, status, monster)
 
     def track_enemy_monsters(self, session: Session) -> None:
@@ -488,21 +507,21 @@ class CombatSession:
         session: Session,
         player: NPC,
         monster: Monster,
-        removed: Optional[Monster] = None,
+        removed: Monster | None = None,
     ) -> None:
         self.field_monsters.add_monster(player, monster)
 
         for mon in self.active_monsters:
-            mon.status.remove_bonded_statuses()
+            mon.status.remove_bonded_statuses(session)
 
         phase = EffectPhase.SWAP_MONSTER
 
-        entry_status = monster.status.get_current_status()
+        entry_status = monster.status.current_status
         if entry_status:
             entry_status.use(session, phase)
 
         if removed:
-            exit_status = removed.status.get_current_status()
+            exit_status = removed.status.current_status
             if exit_status:
                 exit_status.use(session, phase)
 
@@ -522,7 +541,7 @@ class CombatSession:
         or other conditions that change the chosen technique.
         """
         logger.debug(f"[PreCheck Start] {monster.name} using {technique.slug}")
-        status = monster.status.get_current_status()
+        status = monster.status.current_status
         if status:
             result_status = status.use(session, EffectPhase.PRE_CHECKING)
             if result_status.techniques:
@@ -532,29 +551,28 @@ class CombatSession:
             technique.target.get(target_type, False)
             for target_type in ["enemy_monster", "enemy_team", "enemy_trainer"]
         ):
-            infected_slugs = monster.plague.get_infected_slugs()
-            slug = random.choice(infected_slugs)
-            alt_technique = Technique.create(slug)
-            result = alt_technique.use(session, monster, target)
-            if result.success:
-                logger.debug(
-                    f"[Plague Override] {monster.name} switches to {alt_technique.slug}"
-                )
-                technique = alt_technique
+            slug = monster.plague.get_most_severe_plague_slug()
+            if slug:
+                alt_technique = Technique.create(slug)
+                result = alt_technique.use(session, monster, target)
+                if result.success:
+                    logger.debug(
+                        f"[Plague Override] {monster.name} switches to {alt_technique.slug}"
+                    )
+                    technique = alt_technique
         logger.debug(f"[PreCheck End] {monster.name} using {technique.slug}")
         return technique
 
     def apply_technique(
         self, session: Session, tech: Technique, user: Monster, target: Monster
-    ) -> tuple[TechEffectResult, Optional[StatusEffectResult]]:
+    ) -> tuple[TechEffectResult, StatusEffectResult | None]:
         result = tech.use(session, user, target)
-        tech.advance_round()
         logger.debug(
             f"{user.name} used {tech.slug} on {target.name} > success={result.success}"
         )
 
         status_result = None
-        status = user.status.get_current_status()
+        status = user.status.current_status
         if status:
             status_result = status.use(session, EffectPhase.PERFORM_TECH)
             if status_result.statuses:
@@ -568,7 +586,7 @@ class CombatSession:
         session: Session,
         item: Item,
         user: NPC,
-        target: Optional[Monster],
+        target: Monster | None,
     ) -> ItemEffectResult:
         result = item.use(session, user, target)
         logger.debug(
@@ -576,7 +594,7 @@ class CombatSession:
         )
 
         if target:
-            status = target.status.get_current_status()
+            status = target.status.current_status
             if result.success and status:
                 status.use(session, EffectPhase.PERFORM_ITEM)
         return result

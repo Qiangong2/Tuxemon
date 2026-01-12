@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 import logging
@@ -49,5 +49,5 @@ class LoadYamlAction(EventAction):
         else:
             raise ValueError(f"{yaml_path} doesn't exist")
 
-        client.map_manager.events = _events
-        client.map_manager.inits = _inits
+        client.map_manager.set_events(_events)
+        client.map_manager.set_inits(_inits)

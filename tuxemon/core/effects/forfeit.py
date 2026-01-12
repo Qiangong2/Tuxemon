@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -19,7 +19,19 @@ if TYPE_CHECKING:
 @dataclass
 class ForfeitEffect(CoreEffect):
     """
-    Represents a forfeit action in combat, allowing the player to surrender.
+    Applies the "forfeit" effect in combat.
+
+    This effect represents surrendering a battle. When triggered, it ends the
+    combat session, faints all monsters belonging to the forfeiting player,
+    and records the outcome as a forfeit.
+
+    **Example**
+
+    .. code-block:: json
+
+        "effects": [
+            "forfeit"
+        ]
     """
 
     name = "forfeit"

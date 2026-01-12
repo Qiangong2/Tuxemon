@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 import random
@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from tuxemon.core.core_effect import CoreEffect, TechEffectResult
-from tuxemon.db import db
+from tuxemon.database.runtime import db
 from tuxemon.element import Element
 from tuxemon.locale import T
 
@@ -20,16 +20,39 @@ if TYPE_CHECKING:
 @dataclass
 class SwitchEffect(CoreEffect):
     """
-    Changes monster type.
+    Applies the "switch" effect to a technique.
 
-    Parameters:
-        objectives: The targets (e.g. own_monster, enemy_monster, etc.), if
-            single "enemy_monster" or "enemy_monster:own_monster"
-        element: The element (e.g. wood, fire, etc.) or random.
+    This effect changes the elemental type(s) of one or more target monsters.
+    It can assign a specific element or select one randomly from the database.
+    If the monster already has the specified type, the effect fails gracefully
+    with a localized failure message.
 
-    eg switch enemy_monster,wood
-    eg switch enemy_monster:own_monster,fire
-    eg switch own_monster,random
+    **Parameters**
+
+    - ``objectives``: Colon-separated string specifying which monsters are
+      affected. Examples:
+      - ``enemy_monster`` → changes only the enemy's type.
+      - ``own_monster`` → changes only the user's type.
+      - ``enemy_monster:own_monster`` → changes both the enemy's and the user's type.
+    - ``element``: The new element to assign.
+      - Can be a specific element (e.g., ``fire``, ``wood``).
+      - Or ``random`` to select a random element from the database.
+
+    **Example**
+
+    .. code-block:: json
+
+        "effects": [
+            "switch enemy_monster,wood"
+        ]
+
+        "effects": [
+            "switch enemy_monster:own_monster,fire"
+        ]
+
+        "effects": [
+            "switch own_monster,random"
+        ]
     """
 
     name = "switch"

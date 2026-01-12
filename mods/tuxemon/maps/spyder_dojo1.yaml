@@ -2,9 +2,10 @@ events:
   Board A:
     actions:
     - translated_dialog spyder_dojo_board_a
+    - translated_dialog spyder_dojo_fu2
     conditions:
     - is char_facing_tile player
-    - is button_pressed K_RETURN
+    - is button_pressed INTERACT
     height: 1
     type: event
     width: 2
@@ -13,9 +14,10 @@ events:
   Board B:
     actions:
     - translated_dialog spyder_dojo_board_b
+    - translated_dialog spyder_dojo_yin2
     conditions:
     - is char_facing_tile player
-    - is button_pressed K_RETURN
+    - is button_pressed INTERACT
     height: 1
     type: event
     width: 2
@@ -24,9 +26,10 @@ events:
   Board C:
     actions:
     - translated_dialog spyder_dojo_board_c
+    - translated_dialog spyder_dojo_zhu2
     conditions:
     - is char_facing_tile player
-    - is button_pressed K_RETURN
+    - is button_pressed INTERACT
     height: 1
     type: event
     width: 2
@@ -35,9 +38,10 @@ events:
   Board D:
     actions:
     - translated_dialog spyder_dojo_board_d
+    - translated_dialog spyder_dojo_xiang2
     conditions:
     - is char_facing_tile player
-    - is button_pressed K_RETURN
+    - is button_pressed INTERACT
     height: 1
     type: event
     width: 2
@@ -55,7 +59,6 @@ events:
     - char_face spyder_dojo_fu_student1,up
     conditions:
     - not char_exists spyder_dojo_fu_student1
-    - is check_party_parameter player,stage,stage2,greater_than,0
     type: event
   Create Fu Student2:
     actions:
@@ -63,7 +66,6 @@ events:
     - char_face spyder_dojo_fu_student2,up
     conditions:
     - not char_exists spyder_dojo_fu_student2
-    - is check_party_parameter player,stage,stage1,greater_than,0
     type: event
   Create Xiang:
     actions:
@@ -92,9 +94,9 @@ events:
     type: event
   Environment:
     actions:
-    - set_variable environment:interior
+    - set_environment interior
     conditions:
-    - not variable_set environment:interior
+    - not environment_is interior
     type: event
   Music:
     actions:
@@ -173,7 +175,16 @@ events:
     - talk spyder_dojo_fu_student1
     conditions:
     - is money_is player,greater_or_equal,500
+    - is check_party_parameter player,stage,stage2,greater_than,0
     - not variable_set student1_yn
+    type: event
+  Talk Student1 No Stage:
+    actions:
+    - translated_dialog spyder_dojo_fu_student1_stage
+    behav:
+    - talk spyder_dojo_fu_student1
+    conditions:
+    - not check_party_parameter player,stage,stage2,greater_than,0
     type: event
   Talk Student1 No:
     actions:
@@ -189,15 +200,17 @@ events:
     - talk spyder_dojo_fu_student1
     conditions:
     - not money_is player,greater_or_equal,500
+    - is check_party_parameter player,stage,stage2,greater_than,0
     type: event
   Talk Student1 Yes:
     actions:
+    - clear_variable student1_yn
     - get_player_monster dojo_stage,evolution_stage,stage2
     - dojo_method dojo_stage,monster
-    - clear_variable student1_yn
     - modify_money player,-500
     conditions:
     - is variable_set student1_yn:yes
+    - not variable_set potion_xiang:no_choice
     type: event
   Talk Student2 Money:
     actions:
@@ -208,6 +221,7 @@ events:
     - talk spyder_dojo_fu_student2
     conditions:
     - is money_is player,greater_or_equal,500
+    - is check_party_parameter player,stage,stage1,greater_than,0
     - not variable_set student2_yn
     type: event
   Talk Student2 No:
@@ -215,6 +229,14 @@ events:
     - clear_variable student2_yn
     conditions:
     - is variable_set student2_yn:no
+    type: event
+  Talk Student2 No Stage:
+    actions:
+    - translated_dialog spyder_dojo_fu_student2_stage
+    behav:
+    - talk spyder_dojo_fu_student2
+    conditions:
+    - not check_party_parameter player,stage,stage1,greater_than,0
     type: event
   Talk Student2 No Money:
     actions:
@@ -224,15 +246,17 @@ events:
     - talk spyder_dojo_fu_student2
     conditions:
     - not money_is player,greater_or_equal,500
+    - is check_party_parameter player,stage,stage1,greater_than,0
     type: event
   Talk Student2 Yes:
     actions:
+    - clear_variable student2_yn
     - get_player_monster dojo_stage,evolution_stage,stage1
     - dojo_method dojo_stage,monster
-    - clear_variable student2_yn
     - modify_money player,-500
     conditions:
     - is variable_set student2_yn:yes
+    - not variable_set potion_xiang:no_choice
     type: event
   Talk Xiang No Money:
     actions:
@@ -247,13 +271,12 @@ events:
   Talk Xiang Potion:
     actions:
     - get_player_monster potion_xiang
-    - get_monster_tech forgot_tech,potion_xiang,true
     - dojo_method potion_xiang,technique
-    - remove_tech forgot_tech,true
     - set_variable xiang_potion_choice:yes
     conditions:
     - is variable_set xiang_yn:yes
     - not variable_set xiang_potion_choice:yes
+    - is current_state WorldState
     type: event
   Talk Xiang Reset:
     actions:
@@ -264,6 +287,7 @@ events:
     conditions:
     - not variable_set dojo_notech
     - is variable_set xiang_potion_choice:yes
+    - is current_state WorldState
     type: event
   Talk Xiang Wait:
     actions:
@@ -274,6 +298,7 @@ events:
     conditions:
     - is variable_set dojo_notech
     - is variable_set xiang_potion_choice:yes
+    - is current_state WorldState
     type: event
   Talk Xiang1:
     actions:
@@ -394,7 +419,7 @@ events:
     type: event
   Teleport to Dojo 2:
     actions:
-    - transition_teleport spyder_dojo2.tmx,10,9,0.3
+    - transition_teleport player,spyder_dojo2.tmx,10,9,0.3
     - char_face player,right
     conditions:
     - is char_at player
@@ -404,7 +429,7 @@ events:
     y: 5
   Teleport to Flower City:
     actions:
-    - transition_teleport spyder_flower_city.tmx,34,18,0.3
+    - transition_teleport player,spyder_flower_city.tmx,34,18,0.3
     - char_face player,down
     conditions:
     - is char_at player

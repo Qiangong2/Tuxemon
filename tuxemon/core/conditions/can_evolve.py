@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -15,10 +15,19 @@ if TYPE_CHECKING:
 @dataclass
 class CanEvolveCondition(CoreCondition):
     """
-    Checks if the target Monster meets its evolution criteria.
+    Checks whether the target Monster currently meets its evolution criteria.
 
-    This condition evaluates whether the Monster's current state matches
-    its evolution requirements.
+    **Returns**
+    - ``True`` if the Monster can evolve under its current state and context.
+    - ``False`` if the Monster cannot evolve or has no evolution paths.
+
+    **Example**
+
+    .. code-block:: json
+
+        "conditions": [
+            "is can_evolve"
+        ]
     """
 
     name = "can_evolve"

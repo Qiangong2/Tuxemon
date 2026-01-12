@@ -1,22 +1,36 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 import logging
 from collections.abc import Mapping, Sequence
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any
 from uuid import UUID, uuid4
 
 from pygame.surface import Surface
 
-from tuxemon import graphics, prepare
-from tuxemon.core.asset import CoreAssetManager
+from tuxemon import graphics
+from tuxemon.core.asset import get_assets
 from tuxemon.core.core_effect import ItemEffectResult
 from tuxemon.core.core_processor import ConditionProcessor, EffectProcessor
-from tuxemon.db import ItemBehaviors, ItemCategory, ItemModel, State, db
+from tuxemon.database.runtime import db
+from tuxemon.db import (
+    ExperienceMethod,
+    ItemBehaviors,
+    ItemCategory,
+    ItemModel,
+    ItemRarity,
+    MenuAction,
+    SoundProperties,
+    State,
+    StatModel,
+    VisualProperties,
+)
 from tuxemon.locale import T
 from tuxemon.modifiers import ModifiersHandler
+from tuxemon.monster_dir.stats import BasicStats
 from tuxemon.surfanim import FlipAxes
+from tuxemon.user_config import CONFIG
 
 if TYPE_CHECKING:
     from tuxemon.monster import Monster
@@ -34,23 +48,24 @@ INFINITE_ITEMS: int = -1
 class Item:
     """An item object is an item that can be used either in or out of combat."""
 
-    def __init__(self, save_data: Optional[Mapping[str, Any]] = None) -> None:
+    def __init__(self, save_data: Mapping[str, Any] | None = None) -> None:
         save_data = save_data or {}
 
         self.slug: str = ""
-        self.name: str = ""
-        self.description: str = ""
         self.instance_id: UUID = uuid4()
         self.quantity: int = 1
-        self.animation: Optional[str] = None
-        self.flip_axes: FlipAxes = FlipAxes.NONE
+        self.visuals = VisualProperties(
+            animation=None, flip_axes=FlipAxes.NONE, loop=-1
+        )
+        self.sound = SoundProperties(sfx=None, volume=1.5)
         self.modifiers: ModifiersHandler = ModifiersHandler()
         # The path to the sprite to load.
         self.sprite: str = ""
         self.category: ItemCategory = ItemCategory.none
-        self.surface: Optional[Surface] = None
+        self.surface: Surface | None = None
         self.surface_size_original: tuple[int, int] = (0, 0)
 
+        self.rarity: ItemRarity = ItemRarity.COMMON
         self.sort: str = ""
         self.confirm_text: str = ""
         self.cancel_text: str = ""
@@ -60,31 +75,45 @@ class Item:
         self.usable_in: Sequence[State] = []
         self.immunity_to_status: Sequence[str] = []
         self.behaviors: ItemBehaviors
+        self.money_multiplier: float = 1.0
+        self.reward_method: ExperienceMethod = ExperienceMethod.DEFAULT
         self.cost: int = 0
         self.wear: int = 0
         self.max_wear: int = 0
         self.break_chance: float = 0.0
-        self.menu_actions_data: Sequence[Mapping[str, str]] = []
+        self.menu_actions_data: Sequence[MenuAction] = []
+        self.granted_techniques: Sequence[str] = []
+        self.granted_statuses: Sequence[str] = []
 
-        self.core_assets = CoreAssetManager()
+        self.core_assets = get_assets()
         self.effects: Sequence[PluginObject] = []
         self.conditions: Sequence[PluginObject] = []
+        self.stat_modifiers: dict[str, StatModel] = {}
+        self.temporary_stat_boosts: BasicStats = BasicStats()
 
         self.set_state(save_data)
 
     @classmethod
     def create(
-        cls, slug: str, save_data: Optional[Mapping[str, Any]] = None
+        cls, slug: str, save_data: Mapping[str, Any] | None = None
     ) -> Item:
         method = cls(save_data)
         method.load(slug)
         return method
 
     @classmethod
-    def test(cls, save_data: Optional[Mapping[str, Any]] = None) -> Item:
+    def test(cls, save_data: Mapping[str, Any] | None = None) -> Item:
         """Creates an Item instance for testing purposes."""
         method = cls(save_data)
         return method
+
+    @property
+    def name(self) -> str:
+        return T.translate(self.slug)
+
+    @property
+    def description(self) -> str:
+        return T.translate(f"{self.slug}_description")
 
     @property
     def has_wear(self) -> bool:
@@ -93,7 +122,7 @@ class Item:
     @property
     def wear_ratio(self) -> float:
         if self.max_wear == 0:
-            return 0.0  # Item doesn’t use wear, no ratio
+            return 0.0  # Item doesn't use wear, no ratio
         return min(max(self.wear / self.max_wear, 0.0), 1.0)
 
     def load(self, slug: str) -> None:
@@ -107,8 +136,6 @@ class Item:
         """
         results = ItemModel.lookup(slug, db)
         self.slug = results.slug
-        self.name = T.translate(self.slug)
-        self.description = T.translate(f"{self.slug}_description")
         self.modifiers = ModifiersHandler(results.modifiers)
 
         # item use notifications (translated!)
@@ -122,23 +149,27 @@ class Item:
         self.dynamic_menu = results.dynamic_menu
         self.behaviors = results.behaviors
         self.cost = results.cost
+        self.money_multiplier = results.money_multiplier
+        self.reward_method = results.reward_method
         self.max_wear = results.max_wear
         self.break_chance = results.break_chance
+        self.rarity = results.rarity
         self.sort = results.sort
         self.immunity_to_status = results.immunity_to_status
         self.category = results.category
         self.sprite = results.sprite
         self.usable_in = results.usable_in
-        self.effects = self.core_assets.parse_effects(results.effects)
+        self.stat_modifiers = results.stat_modifiers
+        self.effect_defs = results.effects
         self.conditions = self.core_assets.parse_conditions(results.conditions)
         self.condition_handler = ConditionProcessor(self.conditions)
-        self.effect_handler = EffectProcessor(self.effects)
         self.surface = graphics.load_and_scale(self.sprite)
         self.surface_size_original = self.surface.get_size()
+        self.granted_techniques = results.granted_techniques
+        self.granted_statuses = results.granted_statuses
 
-        # Load the animation sprites that will be used for this technique
-        self.animation = results.animation
-        self.flip_axes = results.flip_axes
+        self.visuals = results.visuals
+        self.sound = results.sound
 
     def is_immune(self, status: str) -> bool:
         return (
@@ -216,14 +247,18 @@ class Item:
         return self.condition_handler.validate(session=session, target=target)
 
     def use(
-        self, session: Session, user: NPC, target: Optional[Monster]
+        self, session: Session, user: NPC, target: Monster | None
     ) -> ItemEffectResult:
         """
         Applies the item's effects using EffectProcessor and returns the results.
         """
+        self.effects = self.core_assets.parse_effects(self.effect_defs)
+        self.effect_handler = EffectProcessor(self.effects)
         result = self.effect_handler.process_item(
             session=session, source=self, target=target
         )
+        if session.client:
+            session.client.active_effect_manager.add_item(self)
         self.consume_if_needed(user, result)
         return result
 
@@ -233,14 +268,14 @@ class Item:
         and if it's supposed to be consumed based on the result.
         """
         should_consume = (
-            prepare.CONFIG.items_consumed_on_failure or result.success
+            CONFIG.items_consumed_on_failure or result.success
         ) and self.behaviors.consumable
 
         if should_consume:
             logger.debug(
                 f"Consuming item '{self.slug}' from NPC '{user.slug}'."
             )
-            user.items.remove_item(self)
+            user.bag.remove_item(self)
         else:
             logger.debug(
                 f"Item '{self.slug}' not consumed (consumable={self.behaviors.consumable}, success={result.success})."
@@ -279,9 +314,9 @@ class Item:
 
 
 def decode_items(
-    json_data: Optional[Sequence[Mapping[str, Any]]],
+    json_data: Sequence[Mapping[str, Any]] | None,
 ) -> list[Item]:
-    return [Item(save_data=itm) for itm in json_data or {}]
+    return [Item(save_data=itm) for itm in (json_data or [])]
 
 
 def encode_items(itms: Sequence[Item]) -> Sequence[Mapping[str, Any]]:

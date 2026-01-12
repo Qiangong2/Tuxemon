@@ -4,6 +4,11 @@
   "moveset": [
     {
       "level_learned": 1,
+      "technique": "struggle",
+      "learning_method": "fallback"
+    },
+    {
+      "level_learned": 1,
       "technique": "slice"
     },
     {
@@ -81,8 +86,14 @@
   "height": 155,
   "weight": 200,
   "sounds": {
-    "combat_call": "sound_steel_clang",
-    "faint_call": "sound_steel_clang_faint"
+    "combat_call": {
+      "sfx": "sound_steel_clang",
+      "volume": 1.5
+    },
+    "faint_call": {
+      "sfx": "sound_steel_clang_faint",
+      "volume": 1.5
+    }
   },
   "catch_rate": 100.0,
   "lower_catch_resistance": 0.95,

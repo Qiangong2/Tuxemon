@@ -4,6 +4,11 @@
   "moveset": [
     {
       "level_learned": 1,
+      "technique": "struggle",
+      "learning_method": "fallback"
+    },
+    {
+      "level_learned": 1,
       "technique": "hammerhead"
     },
     {
@@ -79,8 +84,14 @@
   "height": 120,
   "weight": 45,
   "sounds": {
-    "combat_call": "sound_frog",
-    "faint_call": "sound_frog"
+    "combat_call": {
+      "sfx": "sound_frog",
+      "volume": 1.5
+    },
+    "faint_call": {
+      "sfx": "sound_frog_faint",
+      "volume": 1.5
+    }
   },
   "catch_rate": 100.0,
   "lower_catch_resistance": 0.9,

@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -17,7 +17,19 @@ if TYPE_CHECKING:
 @dataclass
 class LockdownEffect(CoreEffect):
     """
-    This effect has a chance to apply the lockdown status effect.
+    Applies the "lockdown" status effect.
+
+    This effect restricts the target monster's ability to use items during
+    combat. When triggered, it generates a translated message indicating
+    that the target is under lockdown.
+
+    **Example**
+
+    .. code-block:: json
+
+        "effects": [
+            "lockdown"
+        ]
     """
 
     name = "lockdown"
@@ -26,7 +38,7 @@ class LockdownEffect(CoreEffect):
         self, session: Session, status: Status
     ) -> StatusEffectResult:
         extra: list[str] = []
-        host = status.get_host()
+        host = status.host
         if status.has_phase(EffectPhase.ENQUEUE_ITEM):
             params = {"target": host.name.upper()}
             extra = [T.format("combat_state_lockdown_item", params)]

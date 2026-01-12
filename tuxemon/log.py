@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 import logging
 import subprocess
 import sys
@@ -8,8 +8,8 @@ import warnings
 from operator import itemgetter
 from pathlib import Path
 
-from tuxemon import prepare
 from tuxemon.constants import paths
+from tuxemon.user_config import CONFIG
 
 
 def get_git_hash() -> str:
@@ -37,7 +37,7 @@ def configure() -> None:
         "error": logging.ERROR,
         "critical": logging.CRITICAL,
     }
-    config = prepare.CONFIG.logging
+    config = CONFIG.logging
     loggers = {}
 
     log_level = LOG_LEVELS.get(config.debug_level, logging.INFO)

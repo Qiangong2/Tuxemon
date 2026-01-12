@@ -98,13 +98,13 @@ events:
     - translated_dialog eclipse_park_assistant
     conditions:
     - is char_facing_tile player
-    - is button_pressed K_RETURN
+    - is button_pressed INTERACT
     type: event
     x: 7
     y: 5
   Teleport Mountain:
     actions:
-    - transition_teleport eclipse_lion_mountain_low.tmx,7,18,0.3
+    - transition_teleport player,eclipse_lion_mountain_low.tmx,7,18,0.3
     - char_face player,up
     conditions:
     - is char_at player
@@ -116,7 +116,7 @@ events:
     y: 2
   Teleport Park:
     actions:
-    - transition_teleport eclipse_park.tmx,8,3,0.3
+    - transition_teleport player,eclipse_park.tmx,8,3,0.3
     - char_face player,down
     conditions:
     - is char_at player

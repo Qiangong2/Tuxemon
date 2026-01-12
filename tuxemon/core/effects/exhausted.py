@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -16,8 +16,19 @@ if TYPE_CHECKING:
 @dataclass
 class ExhaustedEffect(CoreEffect):
     """
-    Exhausted status
+    Applies the "exhausted" status to a monster.
 
+    This effect represents a state of fatigue where the monster clears its
+    current statuses and may trigger a follow-up condition when attempting
+    to perform a technique.
+
+    **Example**
+
+    .. code-block:: json
+
+        "effects": [
+            "exhausted"
+        ]
     """
 
     name = "exhausted"
@@ -25,7 +36,7 @@ class ExhaustedEffect(CoreEffect):
     def apply_status(
         self, session: Session, status: Status
     ) -> StatusEffectResult:
-        host = status.get_host()
+        host = status.host
         _statuses: list[Status] = []
         if status.has_phase(EffectPhase.PERFORM_TECH):
             host.status.clear_status(session)

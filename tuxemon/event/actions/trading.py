@@ -1,16 +1,15 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, final
-from uuid import UUID
 
-from tuxemon.db import db
-from tuxemon.event import get_monster_by_iid
+from tuxemon.database.runtime import db
 from tuxemon.event.eventaction import EventAction
-from tuxemon.trade_manager import TradeManager, TradeResult
+from tuxemon.tools import get_valid_uuid
+from tuxemon.trade_manager import TradeResult
 
 if TYPE_CHECKING:
     from tuxemon.session import Session
@@ -44,24 +43,24 @@ class TradingAction(EventAction):
     added: str
 
     def start(self, session: Session) -> None:
-        trade_manager = TradeManager()
         player = session.player
-        try:
-            player_monster_id = UUID(
-                player.game_variables.get(self.variable, "")
+        player_monster_id = get_valid_uuid(
+            player.game_variables, self.variable
+        )
+        if player_monster_id is None:
+            logger.info(
+                f"No valid monster selected for variable '{self.variable}'"
             )
-            player_monster = get_monster_by_iid(session, player_monster_id)
-        except (ValueError, KeyError):
-            logger.error("Invalid monster ID or variable not found.")
-            return
+            return  # Exit early if no valid UUID
 
+        player_monster = session.client.get_monster_by_iid(player_monster_id)
         if player_monster is None:
             logger.error("Player's monster not found.")
             return
 
         if self.added in db.database["monster"]:
             # Trade for a new monster from the database
-            result = trade_manager.execute_scripted_trade(
+            result = session.client.trade_manager.execute_scripted_trade(
                 player_monster, self.added
             )
 
@@ -76,22 +75,23 @@ class TradingAction(EventAction):
                 logger.error("Player's monster not found in party.")
         else:
             # Trade for an existing monster from another party
-            try:
-                other_monster_id = UUID(
-                    player.game_variables.get(self.added, "")
+            other_monster_id = get_valid_uuid(
+                player.game_variables, self.added
+            )
+            if other_monster_id is None:
+                logger.info(
+                    f"No valid monster selected for variable '{self.added}'"
                 )
-                other_monster = get_monster_by_iid(session, other_monster_id)
-            except (ValueError, KeyError):
-                logger.error(
-                    "Invalid monster ID or variable not found for the added monster."
-                )
-                return
+                return  # Exit early if no valid UUID
 
+            other_monster = session.client.get_monster_by_iid(other_monster_id)
             if other_monster is None:
                 logger.error("Other monster not found.")
                 return
 
-            result = trade_manager.execute_trade(player_monster, other_monster)
+            result = session.client.trade_manager.execute_trade(
+                player_monster, other_monster
+            )
 
             if result == TradeResult.SUCCESS:
                 logger.info("Trade completed successfully!")

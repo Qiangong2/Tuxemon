@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -18,12 +18,27 @@ if TYPE_CHECKING:
 @dataclass
 class PricklyBackEffect(CoreEffect):
     """
-    Each time you are hit by a Physical move the attacker takes damage equal to
-    your maximum HP divided by the divisor.
+    Applies the "prickly" status effect.
 
-    Parameters:
-        divisor: The divisor used to calculate the damage.
-        ranges: The ranges of moves that trigger the effect.
+    This effect causes attackers to take damage whenever they hit the host
+    monster with a physical move. The damage dealt is equal to the host's
+    maximum HP divided by the specified divisor. Only moves within the
+    defined ranges trigger the effect.
+
+    **Parameters**
+
+    - ``divisor``: Integer value used to calculate the damage.
+      - Damage is calculated as ``host.hp // divisor``.
+    - ``ranges``: Colon-separated string of move ranges that trigger the effect
+      (e.g., ``melee:ranged``).
+
+    **Example**
+
+    .. code-block:: json
+
+        "effects": [
+            "prickly 4 melee:ranged"
+        ]
     """
 
     name = "prickly"
@@ -33,7 +48,7 @@ class PricklyBackEffect(CoreEffect):
     def apply_status(
         self, session: Session, status: Status
     ) -> StatusEffectResult:
-        host = status.get_host()
+        host = status.host
 
         if not status.has_phase(EffectPhase.PERFORM_STATUS):
             return StatusEffectResult(name=status.name, success=False)

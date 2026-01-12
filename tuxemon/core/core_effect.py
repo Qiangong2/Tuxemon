@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -46,6 +46,12 @@ class CoreEffect:
 
     def __post_init__(self) -> None:
         cast_dataclass_parameters(self)
+
+    def update(self, session: Session, dt: float) -> None:
+        pass
+
+    def is_finished(self) -> bool:
+        return True
 
     def apply_globally(self, session: Session) -> EffectResult:
         return EffectResult()

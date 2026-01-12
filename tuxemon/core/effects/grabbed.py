@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -16,13 +16,26 @@ if TYPE_CHECKING:
 @dataclass
 class GrabbedEffect(CoreEffect):
     """
-    This effect has a chance to apply the grabbed status effect.
+    Applies the "grabbed" status to a monster.
 
-    It applies an effect on ranged and reach techniques.
+    This effect reduces the potency and power of the monster's ranged or
+    reach techniques by dividing their default values with the specified
+    divisor. It represents being physically restrained, limiting the
+    effectiveness of certain moves.
 
-    Parameters:
-        divisor: The divisor.
-        ranges: Technique range separated by ":".
+    **Parameters**
+
+    - ``divisor``: The divisor used to reduce potency and power (must be non-zero).
+    - ``ranges``: Colon-separated list of technique ranges affected
+      (e.g. ``ranged:reach``).
+
+    **Example**
+
+    .. code-block:: json
+
+        "effects": [
+            "grabbed 2 ranged:reach"
+        ]
     """
 
     name = "grabbed"
@@ -36,7 +49,7 @@ class GrabbedEffect(CoreEffect):
             raise ValueError("StuckEffect divisor must be non-zero.")
 
         done: bool = False
-        host = status.get_host()
+        host = status.host
         ranges = self.ranges.split(":")
         moves = [
             tech for tech in host.moves.get_moves() if tech.range in ranges

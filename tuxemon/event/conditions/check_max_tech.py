@@ -1,14 +1,14 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
 
-from tuxemon.event import MapCondition, get_npc
+from tuxemon.db import SpatialCondition
 from tuxemon.event.eventcondition import EventCondition
+from tuxemon.formula import config_monster
 from tuxemon.monster import Monster
-from tuxemon.prepare import MAX_MOVES
 from tuxemon.session import Session
 
 logger = logging.getLogger(__name__)
@@ -33,7 +33,7 @@ class CheckMaxTechCondition(EventCondition):
     Script parameters:
         character: Either "player" or NPC slug name (e.g. "npc_maple").
         nr: Optional integer specifying the minimum number of techniques.
-            Defaults to the constant MAX_MOVES.
+            Defaults to the config_monster.max_moves.
 
     Examples:
         - "is check_max_tech player"
@@ -42,10 +42,10 @@ class CheckMaxTechCondition(EventCondition):
 
     name = "check_max_tech"
 
-    def test(self, session: Session, condition: MapCondition) -> bool:
+    def test(self, session: Session, condition: SpatialCondition) -> bool:
         target_name = condition.parameters[0]
 
-        target_character = get_npc(session, target_name)
+        target_character = session.get_npc(target_name)
         if target_character is None:
             logger.error(f"Character '{target_name}' not found.")
             return False
@@ -54,7 +54,7 @@ class CheckMaxTechCondition(EventCondition):
             max_techs = (
                 int(condition.parameters[1])
                 if len(condition.parameters) > 1
-                else MAX_MOVES
+                else config_monster.max_moves
             )
         except ValueError:
             logger.error(
@@ -66,15 +66,18 @@ class CheckMaxTechCondition(EventCondition):
 
         matching_monsters: list[Monster] = []
         for monster in target_character.monsters:
+            threshold = (
+                int(condition.parameters[1])
+                if len(condition.parameters) > 1
+                else monster.max_moves
+            )
+
             num_moves = len(monster.moves.current_moves)
             logger.debug(
                 f"Checking monster: {monster.name} (ID: {monster.instance_id}) with {num_moves} moves"
             )
 
-            if num_moves > max_techs:
-                logger.debug(
-                    f"  Monster '{monster.name}' exceeds technique threshold"
-                )
+            if num_moves > threshold:
                 matching_monsters.append(monster)
 
         session.client.event_data[self.name] = matching_monsters

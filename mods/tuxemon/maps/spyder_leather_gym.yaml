@@ -6,7 +6,7 @@ events:
     - translated_dialog spyder_leathergym_board
     conditions:
     - is char_facing_tile player
-    - is button_pressed K_RETURN
+    - is button_pressed INTERACT
     type: event
     x: 6
     y: 2
@@ -37,7 +37,7 @@ events:
     - translated_dialog spyder_leathergym_chadine1
     conditions:
     - is char_facing_tile player
-    - is button_pressed K_RETURN
+    - is button_pressed INTERACT
     type: event
     x: 5
     y: 8
@@ -99,9 +99,9 @@ events:
     type: event
   Enviromment:
     actions:
-    - set_variable environment:interior
+    - set_environment interior
     conditions:
-    - not variable_set environment:interior
+    - not environment_is interior
     type: event
   Gigachad:
     actions:
@@ -145,7 +145,7 @@ events:
     type: event
   Teleport to Leather Town:
     actions:
-    - transition_teleport spyder_leather_town.tmx,24,21,0.3
+    - transition_teleport player,spyder_leather_town.tmx,24,21,0.3
     - char_face player,down
     conditions:
     - is char_at player

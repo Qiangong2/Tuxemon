@@ -1,15 +1,15 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 from pygame import SRCALPHA
 from pygame.surface import Surface
 
-from tuxemon import prepare
 from tuxemon.graphics import ColorLike
+from tuxemon.prepare import SCREEN_SIZE
 
 if TYPE_CHECKING:
     from tuxemon.movement import MovementManager
@@ -22,7 +22,7 @@ class WorldTransition:
         self.world = world
         self.movement = movement
         self.transition_alpha = 0
-        self.transition_surface: Optional[Surface] = None
+        self.transition_surface: Surface | None = None
         self.in_transition = False
 
     def set_transition_surface(self, color: ColorLike) -> None:
@@ -32,7 +32,7 @@ class WorldTransition:
         ):
             return
 
-        new_surface = Surface(prepare.SCREEN_SIZE, SRCALPHA)
+        new_surface = Surface(SCREEN_SIZE, SRCALPHA)
         new_surface.fill(color)
         self.transition_surface = new_surface
 
@@ -44,7 +44,7 @@ class WorldTransition:
         self,
         duration: float,
         color: ColorLike,
-        character: Optional[NPC] = None,
+        character: NPC | None = None,
     ) -> None:
         self.set_transition_surface(color)
         self.world.animate(
@@ -61,7 +61,7 @@ class WorldTransition:
         self,
         duration: float,
         color: ColorLike,
-        character: Optional[NPC] = None,
+        character: NPC | None = None,
     ) -> None:
         self.set_transition_surface(color)
         self.world.animate(
@@ -71,12 +71,13 @@ class WorldTransition:
             duration=duration,
             round_values=True,
         )
-        self.unlock_character_controls(character, duration)
 
         def cleanup() -> None:
             self.set_transition_state(False)
+            if character:
+                self.movement.unlock_controls(character)
 
-        self.world.task(cleanup, interval=duration)
+        self.world.task(cleanup, interval=max(duration, 0))
 
     def fade_and_teleport(
         self,
@@ -87,11 +88,6 @@ class WorldTransition:
     ) -> None:
         def fade_in() -> None:
             self.fade_in(duration, color, character)
-
-        self.movement.lock_controls(character)
-        self.world.remove_animations_of(self.world)
-        self.world.stop_scheduled_callbacks()
-        self.movement.stop_and_reset_char(character)
 
         self.fade_out(duration, color, character)
         task = self.world.task(teleport_function, interval=duration)
@@ -104,16 +100,16 @@ class WorldTransition:
             if self.transition_alpha > 0:
                 surface.blit(self.transition_surface, (0, 0))
 
-    def lock_character_controls(self, character: Optional[NPC]) -> None:
+    def lock_character_controls(self, character: NPC | None) -> None:
         if character:
             self.movement.stop_char(character)
             self.movement.lock_controls(character)
 
     def unlock_character_controls(
-        self, character: Optional[NPC], duration: float
+        self, character: NPC | None, delay: float = 0.0
     ) -> None:
         if character:
             self.world.task(
                 lambda: self.movement.unlock_controls(character),
-                interval=max(duration, 0),
+                interval=max(delay, 0),
             )

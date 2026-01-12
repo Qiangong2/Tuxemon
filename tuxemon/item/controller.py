@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 import logging
@@ -119,20 +119,16 @@ class ItemController:
 
         if self.item.menu_actions_data:
             for action_data in self.item.menu_actions_data:
-                key = action_data.get("key")
-                display_text = action_data.get(
-                    "display_text",
-                    key.replace("_", " ").title() if key else "Unnamed Option",
-                )
-                if key:
-                    action_func = self.get_basic_action(key)
-                    options.append(
-                        ChoiceOption(
-                            key=key,
-                            display_text=display_text,
-                            action=action_func,
-                        )
+                key = action_data.key
+                display_text = T.translate(action_data.display_text)
+                action_func = self.get_basic_action(key)
+                options.append(
+                    ChoiceOption(
+                        key=key,
+                        display_text=display_text,
+                        action=action_func,
                     )
+                )
         else:
             if self.item.confirm_text:
                 options.append(

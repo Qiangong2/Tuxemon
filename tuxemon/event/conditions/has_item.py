@@ -1,11 +1,11 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
 
-from tuxemon.event import MapCondition, get_npc
+from tuxemon.db import SpatialCondition
 from tuxemon.event.eventcondition import EventCondition
 from tuxemon.session import Session
 from tuxemon.tools import compare
@@ -35,16 +35,16 @@ class HasItemCondition(EventCondition):
 
     name = "has_item"
 
-    def test(self, session: Session, condition: MapCondition) -> bool:
+    def test(self, session: Session, condition: SpatialCondition) -> bool:
         def op(itm_qty: int, op: str, qty: int) -> bool:
             return compare(op, itm_qty, qty)
 
         npc_slug, itm_slug = condition.parameters[:2]
-        npc = get_npc(session, npc_slug)
+        npc = session.get_npc(npc_slug)
         if npc is None:
             logger.error(f"{npc_slug} doesn't exist.")
             return False
-        itm = npc.items.find_item(itm_slug)
+        itm = npc.bag.find_item(itm_slug)
         if itm is None:
             return False
         else:

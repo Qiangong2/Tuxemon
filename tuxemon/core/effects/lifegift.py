@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 import logging
@@ -20,13 +20,25 @@ logger = logging.getLogger(__name__)
 @dataclass
 class LifeGiftEffect(CoreEffect):
     """
-    This effect has a chance to apply the lifegift status effect.
+    Applies the "lifegift" status effect.
 
-    Parameters:
-        user: The monster losing HPs.
-        target: The monster getting HPs.
-        divisor: The number by which target HP is to be divided.
+    This effect transfers HP from a linked monster to the host monster,
+    simulating a gift of life energy. The amount transferred is determined
+    by dividing the linked monster's HP by the specified divisor.
 
+    **Parameters**
+
+      - ``divisor``: Integer value used to calculate the HP transfer amount.
+      - The linked monster's HP is divided by this number to determine
+        how much HP is gifted.
+
+    **Example**
+
+    .. code-block:: json
+
+        "effects": [
+            "lifegift 2"
+        ]
     """
 
     name = "lifegift"
@@ -36,8 +48,8 @@ class LifeGiftEffect(CoreEffect):
         self, session: Session, status: Status
     ) -> StatusEffectResult:
         lifegift: bool = False
-        host = status.get_host()
-        linked = status.get_linked_monster()
+        host = status.host
+        linked = status.linked_monster
         if (
             status.has_phase(EffectPhase.PERFORM_STATUS)
             and linked

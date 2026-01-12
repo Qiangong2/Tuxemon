@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 from collections.abc import Callable
@@ -9,12 +9,14 @@ from typing import TYPE_CHECKING, Any, ClassVar, Optional
 import pygame_menu
 from pygame_menu import locals
 
-from tuxemon import prepare
-from tuxemon.db import MonsterModel, db
+from tuxemon.database.runtime import db
+from tuxemon.db import MonsterModel
 from tuxemon.locale import T
 from tuxemon.menu.menu import PygameMenuState
 from tuxemon.platform.const import buttons
+from tuxemon.platform.const.graphics import BG_JOURNAL, DIMGRAY_COLOR
 from tuxemon.platform.events import PlayerInput
+from tuxemon.prepare import SCREEN_SIZE
 from tuxemon.tools import fix_measure
 
 if TYPE_CHECKING:
@@ -88,7 +90,7 @@ class JournalState(PygameMenuState):
                 lab: Any = menu.add.label(
                     label,
                     font_size=self.font_type.small,
-                    font_color=prepare.DIMGRAY_COLOR,
+                    font_color=DIMGRAY_COLOR,
                     label_id=mon.slug,
                 )
                 lab.translate(btn_x_offset, btn_y_offset)
@@ -99,9 +101,9 @@ class JournalState(PygameMenuState):
         if not lookup_cache:
             _lookup_monsters()
 
-        width, height = prepare.SCREEN_SIZE
+        width, height = SCREEN_SIZE
 
-        theme = self._setup_theme(prepare.BG_JOURNAL)
+        theme = self._setup_theme(BG_JOURNAL)
         theme.scrollarea_position = locals.POSITION_EAST
         theme.widget_alignment = locals.ALIGN_LEFT
 

@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 import logging
@@ -20,6 +20,8 @@ logger = logging.getLogger(__name__)
 QUANTITY_INCREMENT = 1
 QUANTITY_PAGE_INCREMENT = 10
 MIN_QUANTITY = 1
+REPEAT_DELAY = 0.3  # seconds before repeat starts
+REPEAT_INTERVAL = 0.1  # seconds between repeats
 
 
 class QuantityMenu(Menu[None]):
@@ -81,9 +83,14 @@ class QuantityMenu(Menu[None]):
                 return None
             else:
                 self._update_quantity(event.button)
+                self._clamp_quantity()
+                self.reload_items()
 
-            self._clamp_quantity()
-            self.reload_items()
+        elif event.held:
+            if event.is_held(REPEAT_DELAY):
+                self._update_quantity(event.button)
+                self._clamp_quantity()
+                self.reload_items()
 
         return None
 

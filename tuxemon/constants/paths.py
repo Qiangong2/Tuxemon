@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 import logging
 import sys
 from pathlib import Path
@@ -12,6 +12,7 @@ logger = logging.getLogger(__name__)
 PLUGIN_INCLUDE_PATTERNS = [
     "event.actions",
     "event.conditions",
+    "event.behaviors",
     "core.effects",
     "core.conditions",
 ]
@@ -21,6 +22,9 @@ PLUGIN_INCLUDE_PATTERNS = [
 # LIBDIR is where the tuxemon lib is
 LIBDIR = Path(__file__).resolve().parent.parent
 logger.debug(f"libdir: {LIBDIR}")
+
+ROOT_PACKAGE_NAME = LIBDIR.name
+logger.debug(f"root package name: {ROOT_PACKAGE_NAME}")
 
 # BASEDIR is where tuxemon was launched from
 BASEDIR = Path(sys.path[0]).resolve()
@@ -44,6 +48,7 @@ logger.debug(f"Mods subfolders: {mods_subfolders}")
 # action/condition plugins (eventually move out of lib folder)
 CONDITIONS_PATH = LIBDIR / "event" / "conditions"
 ACTIONS_PATH = LIBDIR / "event" / "actions"
+BEHAVS_PATH = LIBDIR / "event" / "behaviors"
 
 CORE_EFFECT_PATH = LIBDIR / "core" / "effects"
 CORE_CONDITION_PATH = LIBDIR / "core" / "conditions"
@@ -67,6 +72,10 @@ logger.debug(f"user game data: {USER_GAME_DATA_DIR}")
 # game savegame dir
 USER_GAME_SAVE_DIR = USER_STORAGE_DIR / "saves"
 logger.debug(f"save games: {USER_GAME_SAVE_DIR}")
+
+# game recording dir
+USER_RECORDING_DIR = USER_STORAGE_DIR / "recordings"
+logger.debug(f"recordings: {USER_RECORDING_DIR}")
 
 # game cache dir
 CACHE_DIR = USER_STORAGE_DIR / "cache"

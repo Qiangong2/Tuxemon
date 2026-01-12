@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 import logging
@@ -7,16 +7,14 @@ import random
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, final
-from uuid import UUID
 
 import yaml
 
-from tuxemon import prepare
 from tuxemon.constants import paths
-from tuxemon.event import get_monster_by_iid
 from tuxemon.event.eventaction import EventAction
 from tuxemon.session import Session
 from tuxemon.technique.technique import Technique
+from tuxemon.tools import get_valid_uuid
 
 logger = logging.getLogger(__name__)
 
@@ -84,12 +82,13 @@ class ReplaceTechsFromYamlAction(EventAction):
     def start(self, session: Session) -> None:
         player = session.player
 
-        if not player.game_variables.has(self.variable):
-            logger.error(f"Game variable '{self.variable}' not found")
-            return
-
-        monster_id = UUID(player.game_variables.get(self.variable))
-        monster = get_monster_by_iid(session, monster_id)
+        monster_id = get_valid_uuid(player.game_variables, self.variable)
+        if monster_id is None:
+            logger.info(
+                f"No valid monster selected for variable '{self.variable}'"
+            )
+            return  # Exit early if no valid UUID
+        monster = session.client.get_monster_by_iid(monster_id)
         if monster is None:
             logger.error("Monster not found")
             return
@@ -112,9 +111,13 @@ class ReplaceTechsFromYamlAction(EventAction):
             if "slug" in item
         ]
 
-        if len(move_slugs) > prepare.MAX_MOVES:
+        if len(move_slugs) > monster.max_moves:
+            logger.warning(
+                f"Moveset '{self.set_name}' contains more moves than allowed "
+                f"({len(move_slugs)} > {monster.max_moves}). Randomly selecting {monster.max_moves}."
+            )
             moves_to_use = random.choices(
-                move_slugs, weights=weights, k=prepare.MAX_MOVES
+                move_slugs, weights=weights, k=monster.max_moves
             )
         else:
             moves_to_use = move_slugs

@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 from collections.abc import Sequence
@@ -9,13 +9,13 @@ import pygame
 from pygame.font import Font, get_default_font
 from pygame.surface import Surface
 
-from tuxemon import prepare
 from tuxemon.graphics import ColorLike
+from tuxemon.platform.const.graphics import GREEN_COLOR, RED_COLOR
 from tuxemon.ui.text_renderer import TextRenderer
 
 if TYPE_CHECKING:
     from tuxemon.config import TuxemonConfig
-    from tuxemon.event import MapCondition
+    from tuxemon.db import SpatialCondition
     from tuxemon.state.manager import StateManager
     from tuxemon.state.state import State
 
@@ -56,7 +56,7 @@ class Renderer:
         self.state_drawer.draw()
 
     def draw_debug(
-        self, partial_events: list[Sequence[tuple[bool, MapCondition]]]
+        self, partial_events: list[Sequence[tuple[bool, SpatialCondition]]]
     ) -> None:
         """Draws debug overlays if enabled."""
         self.debug_drawer.draw_event_debug(partial_events)
@@ -142,8 +142,8 @@ class EventDebugDrawer:
         y_offset: int = 200,
         initial_x: int = 4,
         initial_y: int = 20,
-        success_color: ColorLike = prepare.GREEN_COLOR,
-        failure_color: ColorLike = prepare.RED_COLOR,
+        success_color: ColorLike = GREEN_COLOR,
+        failure_color: ColorLike = RED_COLOR,
     ) -> None:
         """
         Initializes the EventDebugDrawer.
@@ -174,7 +174,7 @@ class EventDebugDrawer:
         self.failure_color = failure_color
 
     def draw_event_debug(
-        self, partial_events: list[Sequence[tuple[bool, MapCondition]]]
+        self, partial_events: list[Sequence[tuple[bool, SpatialCondition]]]
     ) -> None:
         """Overlay event data on the screen."""
         initial_x, initial_y = self.initial_x, self.initial_y

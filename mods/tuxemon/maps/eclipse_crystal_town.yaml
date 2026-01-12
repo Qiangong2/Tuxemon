@@ -1,4 +1,19 @@
 events:
+  Event 5:
+    actions:
+    - char_stop player
+    - lock_controls
+    - set_layer 0:0:0:255
+    - play_sound japanese_temple_bell_small
+    - translated_dialog eclipse_event5_1
+    - translated_dialog eclipse_event5_2,,top
+    - play_sound japanese_temple_bell_small
+    - set_layer
+    - set_variable eclipse_event5:yes
+    - unlock_controls
+    conditions:
+    - not variable_set eclipse_event5:yes
+    type: event
   Create Barmaid:
     actions:
     - create_npc eclipse_crystal_barmaid,26,13
@@ -21,7 +36,7 @@ events:
     type: event
   Crystal Bank:
     actions:
-    - transition_teleport eclipse_crystal_bank1.tmx,2,15,0.3
+    - transition_teleport player,eclipse_crystal_bank1.tmx,2,15,0.3
     - char_face player,down
     conditions:
     - is char_at player
@@ -31,7 +46,7 @@ events:
     y: 7
   Lion Mountain1:
     actions:
-    - transition_teleport eclipse_lion_mountain_low.tmx,0,9,0.3
+    - transition_teleport player,eclipse_lion_mountain_low.tmx,0,9,0.3
     - char_face player,right
     conditions:
     - is char_at player
@@ -41,7 +56,7 @@ events:
     y: 9
   Lion Mountain2:
     actions:
-    - transition_teleport eclipse_lion_mountain_low.tmx,0,10,0.3
+    - transition_teleport player,eclipse_lion_mountain_low.tmx,0,10,0.3
     - char_face player,right
     conditions:
     - is char_at player
@@ -54,11 +69,11 @@ events:
     - translated_dialog here_to_east
     conditions:
     - is char_facing_tile player
-    - is button_pressed K_RETURN
+    - is button_pressed INTERACT
     type: event
     x: 37
     y: 7
-  Music:
+  Play Music:
     actions:
     - play_music music_town_theme
     conditions:
@@ -78,7 +93,7 @@ events:
     type: event
   Teleport Cafe:
     actions:
-    - transition_teleport eclipse_crystal_town_cafe.tmx,8,11,0.3
+    - transition_teleport player,eclipse_crystal_town_cafe.tmx,8,11,0.3
     - char_face player,up
     conditions:
     - is char_at player
@@ -88,7 +103,7 @@ events:
     y: 4
   Teleport House:
     actions:
-    - transition_teleport eclipse_crystal_town_house.tmx,4,7,0.3
+    - transition_teleport player,eclipse_crystal_town_house.tmx,4,7,0.3
     - char_face player,up
     conditions:
     - is char_at player
@@ -98,7 +113,7 @@ events:
     y: 17
   Teleport Route7 1:
     actions:
-    - transition_teleport eclipse_route7.tmx,35,0,0.3
+    - transition_teleport player,eclipse_route7.tmx,35,0,0.3
     - char_face player,down
     conditions:
     - is char_at player
@@ -108,7 +123,7 @@ events:
     y: 19
   Teleport Route7 2:
     actions:
-    - transition_teleport eclipse_route7.tmx,36,0,0.3
+    - transition_teleport player,eclipse_route7.tmx,36,0,0.3
     - char_face player,down
     conditions:
     - is char_at player
@@ -121,7 +136,7 @@ events:
     - translated_dialog eclipse_crystal_alert_skating
     conditions:
     - is char_facing_tile player
-    - is button_pressed K_RETURN
+    - is button_pressed INTERACT
     type: event
     x: 26
     y: 9
@@ -130,13 +145,13 @@ events:
     - translated_dialog welcome_location_town
     conditions:
     - is char_facing_tile player
-    - is button_pressed K_RETURN
+    - is button_pressed INTERACT
     type: event
     x: 32
     y: 17
   Tuxecenter:
     actions:
-    - transition_teleport eclipse_crystal_center.tmx,6,10,0.3
+    - transition_teleport player,eclipse_crystal_center.tmx,6,10,0.3
     - char_face player,up
     conditions:
     - is char_at player
@@ -144,3 +159,16 @@ events:
     type: event
     x: 34
     y: 4
+  Create Hiker:
+    actions:
+    - create_npc eclipse_route7_pia,35,8
+    conditions:
+    - not char_exists eclipse_route7_pia
+    type: event
+  Talk Hiker:
+    actions:
+    - translated_dialog eclipse_crystal_hiker1
+    - translated_dialog eclipse_crystal_hiker2
+    behav:
+    - talk eclipse_route7_pia
+    type: event

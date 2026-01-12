@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 from typing import Any, ClassVar, Optional
@@ -70,7 +70,12 @@ class SetKeyState(PygameMenuState):
             if event.value == pressed_key_str:
                 # Update the configuration file with the new key
                 self.client.config.update_control(self.value, pressed_key)
-                return event
+                keyboard = self.client.input_manager.core_devices.keyboard
+                if keyboard is not None:
+                    keyboard.reload_mapping(
+                        self.client.config.input.keyboard_button_map
+                    )
+                    return event
 
         return None
 

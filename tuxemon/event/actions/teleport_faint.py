@@ -1,12 +1,11 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
 from typing import Optional, final
 
-from tuxemon.event import get_npc
 from tuxemon.event.eventaction import EventAction
 from tuxemon.session import Session
 from tuxemon.tools import parse_flag
@@ -45,7 +44,7 @@ class TeleportFaintAction(EventAction):
     rgb: Optional[str] = None
 
     def start(self, session: Session) -> None:
-        character = get_npc(session, self.character)
+        character = session.get_npc(self.character)
         if character is None:
             logger.error(f"{self.character} not found")
             return
@@ -67,13 +66,10 @@ class TeleportFaintAction(EventAction):
 
         action = client.event_engine
 
-        if healing:
-            action.execute_action("set_monster_health")
-            action.execute_action("set_monster_status")
-
         action.execute_action(
             "transition_teleport",
             [
+                self.character,
                 teleport.map_name,
                 teleport.x,
                 teleport.y,
@@ -81,3 +77,7 @@ class TeleportFaintAction(EventAction):
                 self.rgb,
             ],
         )
+
+        if healing and character.current_map == teleport.map_name:
+            action.execute_action("set_monster_health")
+            action.execute_action("set_monster_status")

@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 import logging
@@ -8,19 +8,16 @@ from functools import partial
 from typing import TYPE_CHECKING, Optional, final
 from uuid import UUID
 
-from tuxemon.event import get_monster_by_iid, get_npc
 from tuxemon.event.eventaction import EventAction
 from tuxemon.locale import T
 from tuxemon.monster import Monster
-from tuxemon.tools import open_choice_dialog, open_dialog
-from tuxemon.ui.menu_options import ChoiceOption, MenuOptions
+from tuxemon.tools import get_valid_uuid, open_choice_dialog, open_dialog
+from tuxemon.ui.menu_options import MenuOptions, create_yes_no_options
 
 if TYPE_CHECKING:
     from tuxemon.session import Session
 
 logger = logging.getLogger(__name__)
-
-MAX_ACTIVE_STATES: int = 2
 
 
 @final
@@ -49,7 +46,7 @@ class EvolutionAction(EventAction):
     def start(self, session: Session) -> None:
         self.session = session
         self.client = session.client
-        character = get_npc(session, self.npc_slug)
+        character = session.get_npc(self.npc_slug)
 
         if character is None:
             logger.error(f"{self.npc_slug} not found")
@@ -57,7 +54,7 @@ class EvolutionAction(EventAction):
 
         self.char = character
 
-        if len(self.client.active_states) > MAX_ACTIVE_STATES:
+        if self.client.has_extra_states():
             return
 
         self._pending_map: dict[UUID, str] = {}
@@ -73,20 +70,18 @@ class EvolutionAction(EventAction):
 
     def process_direct_evolutions(self, variable: str, evolution: str) -> None:
         """Process direct evolutions for the character"""
-        if not self.char.game_variables.has(variable):
-            logger.error(f"Variable '{variable}' doesn't exist.")
-            return
+        monster_id = get_valid_uuid(self.char.game_variables, variable)
+        if monster_id is None:
+            logger.info(f"No valid monster selected for variable '{variable}'")
+            return  # Exit early if no valid UUID
 
-        monster_id = UUID(self.char.game_variables.get(variable))
-        monster = get_monster_by_iid(self.session, monster_id)
+        monster = self.client.get_monster_by_iid(monster_id)
 
         if monster is None:
             logger.error(f"Monster '{monster_id}' doesn't exist.")
             return
 
-        if not monster.evolution_handler.has_evolution_to(
-            evolution
-        ) and not monster.evolution_handler.has_history_to(evolution):
+        if not monster.evolution_handler.is_valid_evolution_target(evolution):
             logger.error(
                 f"Monster '{evolution}' isn't in the evolutionary path."
             )
@@ -137,10 +132,9 @@ class EvolutionAction(EventAction):
             f"Pending evolutions for selected monster: {pending_evolutions}"
         )
 
-        registry.clear_pending(monster_to_evolve.instance_id)
-        logger.debug(
-            f"Cleared pending evolutions for monster: {monster_to_evolve.name}"
-        )
+        if not pending_evolutions:
+            logger.debug("No pending evolutions found for selected monster.")
+            return
 
         slug = pending_evolutions[0]
         evolved = Monster.create(slug)
@@ -158,21 +152,13 @@ class EvolutionAction(EventAction):
             "evolve": evolved.name.upper(),
         }
         msg = T.format("evolution_confirmation", params)
-        open_dialog(self.session.client, [msg])
+        open_dialog(self.session.client, [msg], dialog_speed="max")
 
-        options = [
-            ChoiceOption(
-                key="yes",
-                display_text=T.translate("yes"),
-                action=partial(self.confirm_evolution, monster, evolved),
-            ),
-            ChoiceOption(
-                key="no",
-                display_text=T.translate("no"),
-                action=partial(self.deny_evolution, monster),
-            ),
-        ]
-
+        options = create_yes_no_options(
+            yes_action=partial(self.confirm_evolution, monster, evolved),
+            no_action=partial(self.deny_evolution, monster),
+            reverse_order=True,
+        )
         open_choice_dialog(self.session.client, MenuOptions(options))
 
     def confirm_evolution(self, monster: Monster, evolved: Monster) -> None:
@@ -182,8 +168,9 @@ class EvolutionAction(EventAction):
         logger.info(f"{monster.name} evolves into {evolved.name}!")
 
         registry = self.char.evolution_registry
-        registry.clear_missed(monster.instance_id, evolved.slug)
-        registry.clear_pending(monster.instance_id)
+        monster.evolution_handler.confirm_pending_evolution(
+            registry, evolved.slug
+        )
         self._pending_map.pop(monster.instance_id, None)
 
         monster.evolution_handler.evolve_monster(evolved)
@@ -193,15 +180,13 @@ class EvolutionAction(EventAction):
 
     def deny_evolution(self, monster: Monster) -> None:
         """Deny the evolution"""
-        monster.got_experience = False
-        monster.levelling_up = False
+        monster.experience_handler.reset_status_flags()
         logger.info(f"{monster.name}'s evolution refused!")
 
         slug = self._pending_map.get(monster.instance_id)
         if slug:
             registry = self.char.evolution_registry
-            registry.log_missed(monster.instance_id, slug, monster.level)
-            registry.clear_pending(monster.instance_id)
+            monster.evolution_handler.deny_pending_evolution(registry, slug)
             self._pending_map.pop(monster.instance_id, None)
 
         self.client.pop_state()

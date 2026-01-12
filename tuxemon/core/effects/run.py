@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -19,7 +19,19 @@ if TYPE_CHECKING:
 @dataclass
 class RunEffect(CoreEffect):
     """
-    Represents a combat action where the monster attempts to flee.
+    Applies the "run" effect to a technique.
+
+    This effect represents a combat action where the monster attempts to
+    flee from battle. The chance of success depends on the escape method,
+    the number of previous attempts, and combat conditions.
+
+    **Example**
+
+    .. code-block:: json
+
+        "effects": [
+            "run"
+        ]
     """
 
     name = "run"

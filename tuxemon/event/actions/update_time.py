@@ -1,13 +1,11 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
 from typing import final
 
-from tuxemon import prepare
-from tuxemon.event import get_npc
 from tuxemon.event.eventaction import EventAction
 from tuxemon.session import Session
 from tuxemon.time_handler import (
@@ -17,6 +15,7 @@ from tuxemon.time_handler import (
     get_current_time,
     is_leap_year,
 )
+from tuxemon.user_config import CONFIG
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +41,7 @@ class UpdateTimeAction(EventAction):
     character: str
 
     def start(self, session: Session) -> None:
-        character = get_npc(session, self.character)
+        character = session.get_npc(self.character)
         if character is None:
             logger.error(f"{self.character} not found")
             return
@@ -64,5 +63,5 @@ class UpdateTimeAction(EventAction):
             "stage_of_day", calculate_day_stage_of_day(current_time)
         )
         game_variables.set(
-            "season", determine_season(current_time, prepare.CONFIG.hemisphere)
+            "season", determine_season(current_time, CONFIG.hemisphere)
         )

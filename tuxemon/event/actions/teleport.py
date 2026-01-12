@@ -1,12 +1,11 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
 from typing import final
 
-from tuxemon.event import get_npc
 from tuxemon.event.eventaction import EventAction
 from tuxemon.session import Session
 from tuxemon.teleporter import TeleportRequest
@@ -44,7 +43,7 @@ class TeleportAction(EventAction):
     def start(self, session: Session) -> None:
         teleport_queue = session.client.teleporter.teleport_queue
 
-        char = get_npc(session, self.character)
+        char = session.get_npc(self.character)
         if char is None:
             logger.error(
                 f"TeleportAction: Character '{self.character}' not found."
@@ -56,7 +55,7 @@ class TeleportAction(EventAction):
             mapname=self.map_name,
             x=self.x,
             y=self.y,
-            source_map=session.client.get_map_name(),
+            source_map=char.current_map,
             source_x=char.tile_pos[0],
             source_y=char.tile_pos[1],
         )
@@ -71,3 +70,4 @@ class TeleportAction(EventAction):
             logger.info(
                 f"Teleported '{char.slug}' to {self.map_name} ({self.x}, {self.y})"
             )
+        session.client.movement_manager.unlock_controls(char)

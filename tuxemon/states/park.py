@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 from collections.abc import Callable
@@ -8,9 +8,10 @@ from typing import ClassVar
 import pygame_menu
 from pygame_menu import locals
 
-from tuxemon import prepare
 from tuxemon.locale import T
 from tuxemon.menu.menu import PygameMenuState
+from tuxemon.platform.const.graphics import BG_MISSIONS
+from tuxemon.prepare import SCREEN_SIZE
 from tuxemon.session import Session
 
 MenuGameObj = Callable[[], object]
@@ -26,9 +27,9 @@ class ParkState(PygameMenuState):
     def __init__(self, session: Session) -> None:
         self.session = session
         self.park_session = session.client.park_session
-        width, height = prepare.SCREEN_SIZE
+        width, height = SCREEN_SIZE
 
-        theme = self._setup_theme(prepare.BG_MISSIONS)
+        theme = self._setup_theme(BG_MISSIONS)
         theme.scrollarea_position = locals.POSITION_EAST
         theme.widget_alignment = locals.ALIGN_CENTER
 

@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 import unittest
 from unittest.mock import MagicMock
 
@@ -7,12 +7,13 @@ from tuxemon.boundary import BoundaryChecker
 from tuxemon.client import LocalPygameClient
 from tuxemon.db import Direction
 from tuxemon.map.collision_manager import CollisionManager
-from tuxemon.map.map import RegionProperties, dirs2
+from tuxemon.map.map import dirs2
 from tuxemon.map.map_manager import MapManager
+from tuxemon.map.map_region import RegionProperties
 from tuxemon.movement import Pathfinder
 from tuxemon.npc import NPC
 from tuxemon.npc_manager import NPCManager
-from tuxemon.prepare import CONFIG
+from tuxemon.user_config import CONFIG
 
 
 class TestPathfinder(unittest.TestCase):

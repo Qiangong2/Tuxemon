@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 import logging
@@ -7,7 +7,6 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Any, final
 
-from tuxemon.event import get_npc
 from tuxemon.event.eventaction import EventAction
 from tuxemon.map.map import parse_path_parameters
 from tuxemon.session import Session
@@ -54,7 +53,7 @@ class CharMoveAction(EventAction):
             return
 
         character_name = self.raw_parameters[0]
-        self.character = get_npc(session, character_name)
+        self.character = session.get_npc(character_name)
 
         if self.character is None:
             logger.error(f"Character '{character_name}' not found")
@@ -73,12 +72,11 @@ class CharMoveAction(EventAction):
 
         if path:
             path.reverse()
-            self.character.path = path
-            self.character.next_waypoint()
+            self.character.set_path_and_start(path)
         else:
             logger.error("No valid path was generated")
 
-    def update(self, session: Session) -> None:
+    def update(self, session: Session, dt: float) -> None:
         if self.character is None:
             self.stop()
             return

@@ -1,12 +1,11 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
 from typing import final
 
-from tuxemon.event import get_npc
 from tuxemon.event.eventaction import EventAction
 from tuxemon.session import Session
 
@@ -20,12 +19,18 @@ class UpdateCipherAction(EventAction):
     Updates the list of unlocked letters for a character used by the CipherProcessor.
 
     Script usage:
-        .. code-block::
-            update_cipher <character>[,letter]
+
+        .. code-block:: text
+
+        update_cipher <character>[,letter]
 
     Parameters:
-        character: Either "player" or npc slug name (e.g. "npc_maple").
-        letter: A single uppercase letter (or multiple separated by ':') to add to
+
+        character:
+            Either "player" or npc slug name (e.g. "npc_maple").
+
+        letter:
+            A single uppercase letter (or multiple separated by ':') to add to
             the character's unlocked set. If omitted, no new letters will be added,
             but the CipherProcessor will be updated with the current unlocked state.
     """
@@ -35,7 +40,7 @@ class UpdateCipherAction(EventAction):
     letters: str
 
     def start(self, session: Session) -> None:
-        character = get_npc(session, self.character)
+        character = session.get_npc(self.character)
         if character is None:
             logger.error(f"{self.character} not found")
             return

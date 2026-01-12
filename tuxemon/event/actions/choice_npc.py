@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 import logging
@@ -11,7 +11,7 @@ from tuxemon.event.eventaction import EventAction
 from tuxemon.locale import T
 from tuxemon.npc import NPC
 from tuxemon.session import Session
-from tuxemon.ui.menu_options import ChoiceOption, MenuOptions
+from tuxemon.ui.menu_options import MenuOptions, create_choice_options
 from tuxemon.ui.text_formatter import TextFormatter
 
 logger = logging.getLogger(__name__)
@@ -51,18 +51,18 @@ class ChoiceNpcAction(EventAction):
 
         # make menu options for each string between the colons
         var_list: list[str] = choices.split(":")
-        options: list[ChoiceOption] = []
 
-        for val in var_list:
-            text = T.translate(val)
-            action = partial(_set_variable, val, player)
-            options.append(
-                ChoiceOption(key=val, display_text=text, action=action)
-            )
+        actions = {
+            val: partial(_set_variable, val, player) for val in var_list
+        }
+        options = create_choice_options(actions)
+
+        for opt in options:
+            opt.display_text = T.translate(opt.key)
 
         session.client.push_state("ChoiceNpc", menu=MenuOptions(options))
 
-    def update(self, session: Session) -> None:
+    def update(self, session: Session, dt: float) -> None:
         try:
             session.client.get_state_by_name("ChoiceNpc")
         except ValueError:

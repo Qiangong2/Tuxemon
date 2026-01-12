@@ -1,12 +1,11 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
 from typing import final
 
-from tuxemon.event import get_npc
 from tuxemon.event.eventaction import EventAction
 from tuxemon.session import Session
 
@@ -37,7 +36,7 @@ class ModifyFactionReputationAction(EventAction):
     amount: int
 
     def start(self, session: Session) -> None:
-        char = get_npc(session, self.character)
+        char = session.get_npc(self.character)
         if not char:
             logger.error(f"[Reputation] NPC '{self.character}' not found.")
             return
@@ -55,6 +54,7 @@ class ModifyFactionReputationAction(EventAction):
             f"[Reputation] {char.slug}'s rep in {self.faction_slug} changed by {self.amount}. "
             f"New rep: {faction.get_reputation(char.slug)}"
         )
-        faction.check_promotion(char.slug, char.game_variables.get_state())
-        faction.check_degradation(char.slug)
+        faction.evaluate_rank_change(
+            char.slug, char.game_variables.get_state()
+        )
         faction_manager.clear_membership_cache(char.slug)

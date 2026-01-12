@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 import logging
@@ -10,8 +10,11 @@ from typing import Any, Optional
 
 from pygame.surface import Surface
 
-from tuxemon import graphics, prepare, tools
-from tuxemon.db import ColorModel, FlairModel, db
+from tuxemon import graphics, tools
+from tuxemon.database.runtime import db
+from tuxemon.db import ColorModel, FlairModel
+from tuxemon.platform.const.graphics import MISSING_IMAGE
+from tuxemon.prepare import SCALE
 from tuxemon.sprite import Sprite
 
 logger = logging.getLogger(__name__)
@@ -31,7 +34,7 @@ class SpriteLoader:
         except OSError:
             pass
         logger.error(f"Could not find sprite {sprite}")
-        return prepare.MISSING_IMAGE
+        return MISSING_IMAGE
 
     def load(self, path: str, **kwargs: Any) -> Surface:
         """Loads the monster's sprite images as Pygame surfaces."""
@@ -203,7 +206,7 @@ class FlairApplier:
                 f"gfx/sprites/flairs/{folder}/{flair.slug}"
             )
 
-            if path == prepare.MISSING_IMAGE:
+            if path == MISSING_IMAGE:
                 logger.warning(f"Missing flair image: {flair.slug}")
                 continue
 
@@ -297,7 +300,7 @@ class MonsterSpriteHandler:
         self,
         sprite_type: str,
         frame_duration: float = 0.25,
-        scale: float = prepare.SCALE,
+        scale: float = SCALE,
         **kwargs: Any,
     ) -> Sprite:
         """Returns a Sprite object, applying flairs if necessary."""
@@ -330,7 +333,7 @@ class MonsterSpriteHandler:
         self._flair_cache[cache_key] = image
         return Sprite(image=image)
 
-    def load_sprites(self, scale: float = prepare.SCALE) -> dict[str, Surface]:
+    def load_sprites(self, scale: float = SCALE) -> dict[str, Surface]:
         """Loads all monster sprites and caches them."""
         sprite_paths = {
             "front": self.front_path,

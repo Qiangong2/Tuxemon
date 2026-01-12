@@ -1,25 +1,26 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 import logging
 from collections.abc import Callable, Generator
 from enum import Enum, auto
-from typing import TYPE_CHECKING, ClassVar, Optional
+from typing import TYPE_CHECKING, ClassVar
 
 from pygame.rect import Rect
 
-from tuxemon import prepare
 from tuxemon.db import ItemCategory
 from tuxemon.item.filter import ItemFilter
 from tuxemon.item.item import Item
 from tuxemon.locale import T
 from tuxemon.menu.interface import MenuItem
 from tuxemon.menu.menu import PopUpMenu
-from tuxemon.monster import Monster
+from tuxemon.prepare import SCREEN_RECT
 from tuxemon.states.item_menu import ItemMenuState
 
 if TYPE_CHECKING:
+    from tuxemon.monster import Monster
+    from tuxemon.npc import NPC
     from tuxemon.session import Session
     from tuxemon.states.combat_state import CombatState
 
@@ -43,12 +44,17 @@ class MainParkMenuState(PopUpMenu[MenuGameObj]):
     columns = 2
 
     def __init__(
-        self, session: Session, cmb: CombatState, monster: Monster
+        self,
+        session: Session,
+        cmb: CombatState,
+        character: NPC,
+        monster: Monster,
     ) -> None:
         super().__init__()
         self.rect = self.calculate_menu_rectangle()
         self.session = session
         self.combat = cmb
+        self.character = character
         self.player = session.client.combat_session.left_player  # human
         self.enemy = session.client.combat_session.right_player  # ai
         self.monster = monster
@@ -64,13 +70,13 @@ class MainParkMenuState(PopUpMenu[MenuGameObj]):
         self.encounter = session.client.park_session.start_encounter(
             self.opponents[0]
         )
-        self.itm_description: Optional[str] = None
-        params = {"player": monster.get_owner().name}
+        self.itm_description: str | None = None
+        params = {"player": self.character.name}
         message = T.format("combat_player_choice", params)
-        self.combat.dialog.alert(message)
+        self.dialog.alert(message, self.combat.text_area)
 
     def calculate_menu_rectangle(self) -> Rect:
-        rect_screen = prepare.SCREEN_RECT.copy()
+        rect_screen = SCREEN_RECT.copy()
         menu_width = rect_screen.w // 2.5
         menu_height = rect_screen.h // 4
         rect = Rect(0, 0, menu_width, menu_height)
@@ -126,14 +132,14 @@ class MainParkMenuState(PopUpMenu[MenuGameObj]):
         category = sum(
             [
                 itm.quantity
-                for itm in self.player.items.get_items()
+                for itm in self.player.items
                 if itm.category == cat_slug
             ]
         )
         return category
 
     def throw_tuxeball(self) -> None:
-        tuxeball = self.player.items.find_item("tuxeball_park")
+        tuxeball = self.player.bag.find_item("tuxeball_park")
         if tuxeball:
             if self.encounter.check_for_flee():
                 logger.info(f"{self.encounter.monster.slug} fled!")
@@ -147,15 +153,17 @@ class MainParkMenuState(PopUpMenu[MenuGameObj]):
             self.itm_description = choice.description
 
         def choose_item() -> None:
-            items_filtered = ItemFilter(self.player.items.get_items())
-            items_filtered.set_filter_usable_in_state("MainCombatMenuState")
+            items_filtered = ItemFilter(self.player.items)
+            items_filtered.set_filter_combat_targets(
+                self.session, self.player.monsters, self.opponents
+            )
             menu = self.client.push_state(
                 ItemMenuState(self.player, self.name, items_filtered)
             )
             menu.is_valid_entry = validate  # type: ignore[method-assign]
             menu.on_menu_selection = choose_target  # type: ignore[method-assign]
 
-        def validate(item: Optional[Item]) -> bool:
+        def validate(item: Item | None) -> bool:
             """Validates if the selected item from the sub-menu is allowed."""
             ret = False
             if item:

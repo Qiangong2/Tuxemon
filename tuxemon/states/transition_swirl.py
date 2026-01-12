@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 import logging
@@ -8,8 +8,8 @@ from typing import ClassVar, Optional
 from pygame.surface import Surface
 from pygame.transform import rotate, scale
 
-from tuxemon import prepare
 from tuxemon.platform.events import PlayerInput
+from tuxemon.prepare import SCREEN
 from tuxemon.state.state import State
 
 logger = logging.getLogger(__name__)
@@ -34,8 +34,8 @@ class SwirlTransition(State):
         super().__init__()
         logger.info("Initializing Swirl transition")
         self.image = image
-        self.center_x = prepare.SCREEN.get_width() // 2
-        self.center_y = prepare.SCREEN.get_height() // 2
+        self.center_x = SCREEN.get_width() // 2
+        self.center_y = SCREEN.get_height() // 2
         self.angle = 0.0
         self.scale = scale
         self.speed = speed

@@ -4,6 +4,11 @@
   "moveset": [
     {
       "level_learned": 1,
+      "technique": "struggle",
+      "learning_method": "fallback"
+    },
+    {
+      "level_learned": 1,
       "technique": "buzz"
     },
     {
@@ -127,8 +132,14 @@
   "height": 38,
   "weight": 3.5,
   "sounds": {
-    "combat_call": "sound_retro_beep_05",
-    "faint_call": "sound_retro_beep_05_faint"
+    "combat_call": {
+      "sfx": "sound_retro_beep_05",
+      "volume": 1.5
+    },
+    "faint_call": {
+      "sfx": "sound_retro_beep_05_faint",
+      "volume": 1.5
+    }
   },
   "catch_rate": 100,
   "lower_catch_resistance": 0.95,

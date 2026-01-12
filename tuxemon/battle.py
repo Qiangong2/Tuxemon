@@ -1,8 +1,9 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 import logging
+import time
 from collections.abc import Mapping, Sequence
 from typing import Any, Optional
 from uuid import UUID, uuid4
@@ -15,7 +16,7 @@ SIMPLE_PERSISTANCE_ATTRIBUTES = (
     "fighter",
     "opponent",
     "outcome",
-    "steps",
+    "timestamp",
     "location",
     "turns",
 )
@@ -29,7 +30,7 @@ class Battle:
         self.fighter: str = ""
         self.opponent: str = ""
         self.outcome: OutputBattle = OutputBattle.draw
-        self.steps: int = 1
+        self.timestamp: float = time.time()
         self.location: str = ""
         self.turns: int = 1
 
@@ -75,7 +76,7 @@ def decode_battle(
     json_data: Optional[Sequence[Mapping[str, Any]]],
 ) -> list[Battle]:
     """Converts saved battle data into Battle instances."""
-    return [Battle.from_save_data(battle) for battle in json_data or []]
+    return [Battle.from_save_data(battle) for battle in (json_data or [])]
 
 
 def encode_battle(battles: Sequence[Battle]) -> Sequence[Mapping[str, Any]]:

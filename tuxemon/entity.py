@@ -1,23 +1,23 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Sequence
 from enum import Enum
-from typing import TYPE_CHECKING, Any, Generic, Optional, TypeVar
+from typing import TYPE_CHECKING, Generic, Optional, TypeVar
 from uuid import UUID, uuid4
 
 from tuxemon.db import Direction
-from tuxemon.map.map import dirs3, proj
-from tuxemon.math import Point3, Vector3
-from tuxemon.prepare import CONFIG
+from tuxemon.map.map import dirs2
+from tuxemon.math import Vector2
 from tuxemon.tools import vector2_to_tile_pos
+from tuxemon.user_config import CONFIG
 
 if TYPE_CHECKING:
     from tuxemon.session import Session
 
 
-SaveDict = TypeVar("SaveDict", bound=Mapping[str, Any])
+SaveDict = TypeVar("SaveDict")
 
 
 class EntityState(Enum):
@@ -29,30 +29,23 @@ class EntityState(Enum):
 
 class Body:
     """
-    Handles physics-related attributes and movement of an entity.
+    Handles 2D movement of an entity.
     """
 
     def __init__(
         self,
-        position: Point3,
-        velocity: Optional[Vector3] = None,
-        acceleration: Optional[Vector3] = None,
+        position: Vector2,
+        velocity: Optional[Vector2] = None,
+        acceleration: Optional[Vector2] = None,
     ) -> None:
         self.position = position
-        self.velocity = velocity or Vector3(0, 0, 0)
-        self.acceleration = acceleration or Vector3(0, 0, 0)
+        self.velocity = velocity or Vector2(0, 0)
+        self.acceleration = acceleration or Vector2(0, 0)
 
     @property
     def is_moving(self) -> bool:
         """Returns whether the entity is currently moving."""
-        return self.velocity != Vector3(0, 0, 0)
-
-    @property
-    def acceleration_magnitude(self) -> float:
-        """
-        Returns the magnitude of the acceleration vector.
-        """
-        return self.acceleration.magnitude
+        return self.velocity != Vector2(0, 0)
 
     def update(self, time_delta: float) -> None:
         """
@@ -71,14 +64,18 @@ class Body:
         Resets attributes selectively.
         """
         if reset_position:
-            self.position = Point3(0, 0, 0)
+            self.position = Vector2(0, 0)
         if reset_velocity:
-            self.velocity = Vector3(0, 0, 0)
+            self.velocity = Vector2(0, 0)
         if reset_acceleration:
-            self.acceleration = Vector3(0, 0, 0)
+            self.acceleration = Vector2(0, 0)
 
 
 class Mover:
+    """
+    Handles movement state transitions and movement logic.
+    """
+
     def __init__(
         self,
         body: Body,
@@ -91,59 +88,68 @@ class Mover:
         self.facing = facing
         self.base_moverate = base_moverate
         self.moverate_modifier = moverate_modifier
-        self.direction_map = {tuple(v.normalized): k for k, v in dirs3.items()}
         self.move_direction: Optional[Direction] = None
-
-    @property
-    def current_direction(self) -> Vector3:
-        return dirs3[self.facing]
-
-    @property
-    def effective_moverate(self) -> float:
-        return self.moverate * self.moverate_modifier
 
     @property
     def moverate(self) -> float:
         return self.base_moverate * self.moverate_modifier
 
-    def move(self, direction: Vector3) -> None:
+    @property
+    def is_moving_state(self) -> bool:
+        return self.state in (
+            EntityState.WALKING,
+            EntityState.RUNNING,
+            EntityState.JUMPING,
+        )
+
+    def move(self, direction: Direction) -> None:
         """Applies movement in a given direction."""
-        normalized_direction = tuple(direction.normalized)
-        if normalized_direction in self.direction_map:
-            self.body.velocity = Vector3(*normalized_direction) * self.moverate
-            self.facing = self.direction_map[normalized_direction]
-            self.state = (
-                EntityState.RUNNING
-                if self.base_moverate == CONFIG.player_runrate
-                else EntityState.WALKING
-            )
-        else:
-            raise ValueError("Invalid direction")
+        direction_vector = dirs2[direction]  # 2D direction table
+        self.body.velocity = direction_vector * self.moverate
+        self.facing = direction
+
+        new_state = (
+            EntityState.RUNNING
+            if self.base_moverate == CONFIG.player_runrate
+            else EntityState.WALKING
+        )
+        self.set_state(new_state)
 
     def stop(self) -> None:
-        """Stops movement without affecting acceleration."""
-        self.body.velocity = Vector3(0, 0, 0)
-        self.state = EntityState.IDLE
-        self.base_moverate = CONFIG.player_walkrate
+        """Stops movement and transitions to IDLE."""
+        self.body.velocity = Vector2(0, 0)
+        self.set_state(EntityState.IDLE)
 
     def running(self) -> None:
         """Boosts moverate to running speed."""
         if self.body.is_moving:
             self.base_moverate = CONFIG.player_runrate
-            self.state = EntityState.RUNNING
+            self.set_state(EntityState.RUNNING)
 
     def walking(self) -> None:
         """Resets moverate back to walking speed."""
         if self.body.is_moving:
             self.base_moverate = CONFIG.player_walkrate
-            self.state = EntityState.WALKING
+            self.set_state(EntityState.WALKING)
 
-    def jump(self, strength: float = 5.0) -> None:
-        """Applies a vertical impulse to simulate a jump."""
-        if self.state != EntityState.JUMPING and self.body.position.z == 0:
-            self.body.velocity.z = strength
-            self.body.acceleration.z = -9.8  # gravity-like pull
-            self.state = EntityState.JUMPING
+    def jump(self) -> None:
+        """Triggers a jump animation state."""
+        if self.state != EntityState.JUMPING:
+            self.set_state(EntityState.JUMPING)
+
+    def set_state(self, new_state: EntityState) -> None:
+        """
+        Controls the entity's state transitions.
+        """
+        if self.state == new_state:
+            return
+
+        # Reset movement when going idle
+        if new_state == EntityState.IDLE:
+            self.body.velocity = Vector2(0, 0)
+            self.base_moverate = CONFIG.player_walkrate
+
+        self.state = new_state
 
     def update_movement_state(self, running: bool) -> None:
         """
@@ -180,9 +186,9 @@ class Entity(Generic[SaveDict]):
         self.session = session
         self.client = session.client
         self.instance_id: UUID = uuid4()
-        self.body = Body(position=Point3(0, 0, 0))
+        self.body = Body(position=Vector2(0, 0))
         self.mover = Mover(self.body)
-        self.tile_pos: tuple[int, int] = (0, 0)
+        self._current_map: Optional[str] = None
         self.update_location: bool = False
         self.is_player: bool = False
         self.ignore_collisions: bool = False
@@ -194,7 +200,29 @@ class Entity(Generic[SaveDict]):
 
     def pos_update(self) -> None:
         """WIP.  Required to be called after position changes."""
-        self.tile_pos = vector2_to_tile_pos(proj(self.body.position))
+        self.network_notify_location_change()
+
+    def network_notify_start_moving(self, direction: Direction) -> None:
+        r"""WIP guesswork ¯\_(ツ)_/¯"""
+        self.network = self.client.network_manager
+        if self.network.is_connected():
+            assert self.network.client
+            self.network.client.update_player(
+                direction, event_type="CLIENT_MOVE_START"
+            )
+
+    def network_notify_stop_moving(self) -> None:
+        r"""WIP guesswork ¯\_(ツ)_/¯"""
+        self.network = self.client.network_manager
+        if self.network.is_connected():
+            assert self.network.client
+            self.network.client.update_player(
+                self.facing, event_type="CLIENT_MOVE_COMPLETE"
+            )
+
+    def network_notify_location_change(self) -> None:
+        r"""WIP guesswork ¯\_(ツ)_/¯"""
+        self.update_location = True
 
     def update_physics(self, td: float) -> None:
         """
@@ -206,15 +234,6 @@ class Entity(Generic[SaveDict]):
         self.body.update(td)
         self.pos_update()
 
-        if (
-            self.mover.state == EntityState.JUMPING
-            and self.body.position.z <= 0
-        ):
-            self.body.position.z = 0
-            self.body.velocity.z = 0
-            self.body.acceleration.z = 0
-            self.mover.state = EntityState.IDLE
-
     def set_position(self, pos: Sequence[float]) -> None:
         """
         Set the entity's position in the game world.
@@ -222,9 +241,18 @@ class Entity(Generic[SaveDict]):
         Parameters:
             pos: Position to be set.
         """
-        self.body.position = Point3(*pos)
+        self.body.position = Vector2(*pos)
         self.add_collision(pos)
         self.pos_update()
+
+    def set_current_map(self, map_slug: Optional[str]) -> None:
+        """
+        Set the entity's map in the game world.
+
+        Parameters:
+            map_slug: Map to be set.
+        """
+        self._current_map = map_slug
 
     def set_moverate(self, moverate: float) -> None:
         """
@@ -278,12 +306,22 @@ class Entity(Generic[SaveDict]):
     # === PHYSICS END =========================================================
 
     @property
-    def position(self) -> Point3:
+    def tile_pos(self) -> tuple[int, int]:
+        """Return the tile position of the entity."""
+        return vector2_to_tile_pos(self.body.position)
+
+    @property
+    def current_map(self) -> Optional[str]:
+        """Return the current map of the entity."""
+        return self._current_map
+
+    @property
+    def position(self) -> Vector2:
         """Return the current position of the entity."""
         return self.body.position
 
     @property
-    def velocity(self) -> Vector3:
+    def velocity(self) -> Vector2:
         """Return the current velocity of the entity."""
         return self.body.velocity
 
@@ -302,10 +340,6 @@ class Entity(Generic[SaveDict]):
         return self.mover.facing
 
     @property
-    def is_airborne(self) -> bool:
-        return self.body.position.z > 0
-
-    @property
     def move_direction(self) -> Optional[Direction]:
         """
         Move direction allows other functions to move the entity in a
@@ -315,9 +349,9 @@ class Entity(Generic[SaveDict]):
         """
         return self.mover.move_direction
 
-    def jump(self, strength: float = 5.0) -> None:
+    def jump(self) -> None:
         """Triggers a jump for the entity."""
-        self.mover.jump(strength)
+        self.mover.jump()
 
     def get_state(self, session: Session) -> SaveDict:
         """

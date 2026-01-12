@@ -1,19 +1,18 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 import logging
 import time
-from threading import Thread
+from collections.abc import Callable
 
 import pygame
 from pygame.surface import Surface
 
 from tuxemon.base_client import BaseClient, ClientState
-from tuxemon.cli.processor import CommandProcessor
 from tuxemon.config import TuxemonConfig
-from tuxemon.map.map_view import DebugRenderer, MapRenderer
-from tuxemon.session import local_session
+from tuxemon.map.map_tuxemon import NullMap
+from tuxemon.map.map_view import DebugRenderer, MapRenderer, NullRenderer
 from tuxemon.state.draw import EventDebugDrawer, Renderer, StateDrawer
 
 logger = logging.getLogger(__name__)
@@ -71,16 +70,25 @@ class LocalPygameClient(BaseClient):
             self.event_debug_drawer,
         )
         self.debug_renderer = DebugRenderer(self.map_manager, self.npc_manager)
-        self.map_renderer = MapRenderer(
+        map_renderer = MapRenderer(
             self.camera_manager, self.npc_manager, self.debug_renderer
         )
+        self.set_renderer(map_renderer)
 
-        if self.config.cli:
-            local_session.set_client(self)
-            self.cli = CommandProcessor(local_session)
-            thread = Thread(target=self.cli.run)
-            thread.daemon = True
-            thread.start()
+    def reset_renderer(self) -> None:
+        current_map = self.map_manager.current_map
+        if isinstance(current_map, NullMap):
+            self.set_renderer(NullRenderer())
+            logger.debug("Renderer reset to NullRenderer.")
+        else:
+            self.debug_renderer = DebugRenderer(
+                self.map_manager, self.npc_manager
+            )
+            map_renderer = MapRenderer(
+                self.camera_manager, self.npc_manager, self.debug_renderer
+            )
+            self.set_renderer(map_renderer)
+            logger.debug("Renderer reset to MapRenderer.")
 
     def main(self) -> None:
         """
@@ -109,10 +117,7 @@ class LocalPygameClient(BaseClient):
                 if time_since_draw >= frame_length:
                     time_since_draw -= frame_length
                     draw()
-                    if self.input_manager.controller_overlay:
-                        self.input_manager.controller_overlay.draw(screen)
-                    if self.input_manager.show_visualizer:
-                        self.input_manager.draw_visualizer(screen)
+                    self.input_manager.draw_inputs(screen)
                     flip()
                 if self.config.show_fps:
                     self.renderer.update(clock_tick)
@@ -125,24 +130,14 @@ class LocalPygameClient(BaseClient):
         """
         Main loop for entire game.
 
-        This method gets update every frame
-        by Asteria Networking's "listen()" function. Every frame we get the
-        amount of time that has passed each frame, check game conditions,
-        and draw the game to the screen.
-
         Parameters:
             time_delta: Elapsed time since last frame.
         """
-        self.network_manager.update(time_delta)
-        events = self.input_manager.process_events()
-        self.key_events = list(self.event_manager.process_events(events))
-        self.event_data = {}
-        self.event_engine.update(time_delta)
-
-        if self.event_data:
-            logger.debug("Event Data:" + str(self.event_data))
-
         self.update_states(time_delta)
+
+    def queue_command(self, command: Callable[[], None]) -> None:
+        self.command_queue.put(command)
+        logger.debug("Queued command for execution in main thread.")
 
     def draw(self) -> None:
         """Centralized draw logic."""

@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from unittest import TestCase
 from unittest.mock import MagicMock
 
@@ -86,8 +86,8 @@ class TestMissionManager(TestCase):
         item2.slug = "lotion"
         item2.quantity = 2
 
-        self.character.items = MagicMock(spec=BagHandler)
-        self.character.items.find_item.side_effect = lambda slug: (
+        self.character.bag = MagicMock(spec=BagHandler)
+        self.character.bag.find_item.side_effect = lambda slug: (
             item1 if slug == "potion" else item2 if slug == "lotion" else None
         )
 
@@ -100,7 +100,7 @@ class TestMissionManager(TestCase):
             check_items(self.character, self.mission.required_items)
         )
 
-        self.character.items.find_item.side_effect = lambda slug: (
+        self.character.bag.find_item.side_effect = lambda slug: (
             item1 if slug == "potion" else None
         )
         self.assertFalse(

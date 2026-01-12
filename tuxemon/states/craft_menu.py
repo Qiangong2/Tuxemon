@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 from functools import partial
@@ -8,11 +8,12 @@ from typing import TYPE_CHECKING, ClassVar, Optional
 import pygame_menu
 from pygame_menu import locals
 
-from tuxemon import prepare
 from tuxemon.constants import paths
 from tuxemon.item.crafting_system import CraftingSystem
 from tuxemon.locale import T
 from tuxemon.menu.menu import PygameMenuState
+from tuxemon.platform.const.graphics import BG_MISSIONS
+from tuxemon.prepare import SCREEN_SIZE
 from tuxemon.tools import open_dialog
 
 if TYPE_CHECKING:
@@ -33,9 +34,9 @@ class CraftMenuState(PygameMenuState):
         self.character = character
         self.file_yaml = file_yaml
         self.method = method
-        width, height = prepare.SCREEN_SIZE
+        width, height = SCREEN_SIZE
 
-        theme = self._setup_theme(prepare.BG_MISSIONS)
+        theme = self._setup_theme(BG_MISSIONS)
         theme.scrollarea_position = locals.POSITION_EAST
 
         width = int(0.8 * width)
@@ -60,9 +61,7 @@ class CraftMenuState(PygameMenuState):
         craftable_recipes = []
 
         for slug, recipe in self.crafting_system.recipes.items():
-            if self.crafting_system.check_can_craft(
-                slug, self.character.items
-            ):
+            if self.crafting_system.check_can_craft(slug, self.character.bag):
                 craftable_recipes.append((slug, recipe))
 
         if not craftable_recipes:
@@ -83,15 +82,20 @@ class CraftMenuState(PygameMenuState):
         def craft(recipe_slug: str) -> None:
             self.client.remove_state_by_name("CraftMenuState")
             result = self.crafting_system.craft_item_for_bag(
-                recipe_slug, self.character.items
+                recipe_slug, self.character.bag
             )
             if result.revealed_content_slug:
                 open_dialog(
                     self.client,
                     [T.translate(result.revealed_content_slug)],
+                    dialog_speed="max",
                 )
             else:
-                open_dialog(self.client, [T.translate(result.message_slug)])
+                open_dialog(
+                    self.client,
+                    [T.translate(result.message_slug)],
+                    dialog_speed="max",
+                )
 
         menu.add.button(title=T.translate(slug), action=partial(craft, slug))
         if recipe.recipe_text:

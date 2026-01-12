@@ -1,43 +1,47 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 import logging
-from collections import defaultdict
+from collections import OrderedDict, defaultdict
 from collections.abc import Generator, MutableMapping
 from math import cos, pi, sin
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 import pytmx
 import yaml
 from natsort import natsorted
 
-from tuxemon import prepare
 from tuxemon.compat import Rect
 from tuxemon.constants.asset_loader import fetch_asset
-from tuxemon.db import Direction, Orientation
-from tuxemon.event import EventObject
+from tuxemon.constants.paths import mods_folder
+from tuxemon.db import BoundingBox, Direction, EventObject, Orientation
 from tuxemon.event.eventparser import EventParser
 from tuxemon.graphics import scaled_image_loader
 from tuxemon.lib.bresenham import bresenham
 from tuxemon.map.map import (
-    RegionProperties,
     angle_of_points,
-    extract_region_properties,
     orientation_by_angle,
     point_to_grid,
     snap_rect,
     tiles_inside_rect,
 )
-from tuxemon.map.map_tuxemon import TuxemonMap
+from tuxemon.map.map_region import RegionProperties, extract_region_properties
+from tuxemon.map.map_tuxemon import AbstractMap, NullMap, TuxemonMap
+from tuxemon.platform.const.sizes import (
+    MAP_CACHE_SIZE,
+    REGION_KEYS,
+    SURFACE_KEYS,
+)
+from tuxemon.prepare import TILE_SIZE
 from tuxemon.tools import copy_dict_with_keys
 
 logger = logging.getLogger(__name__)
 
 RegionTile = tuple[
     tuple[int, int],
-    Optional[RegionProperties],
+    RegionProperties | None,
 ]
 
 
@@ -52,95 +56,115 @@ def parse_yaml(path: Path) -> Any:
             raise ValueError(f"Error parsing YAML file: {e}")
 
 
-class EventLoader:
-    """
-    Handles loading collision and specific events from YAML files.
-    """
-
-    def __init__(self) -> None:
-        self.yaml_loader = YAMLEventLoader()
-
-    def load_collision_events(
-        self, yaml_file: Path
-    ) -> MutableMapping[tuple[int, int], Optional[RegionProperties]]:
-        """
-        Loads collision event data from a YAML file.
-
-        Parameters:
-            yaml_file: The path to the YAML file.
-
-        Returns:
-            A dictionary mapping coordinates to collision properties.
-        """
-        try:
-            return self.yaml_loader.load_collision(yaml_file)
-        except Exception as e:
-            logger.error(
-                f"Failed to load collision events from {yaml_file}: {e}"
-            )
-            return {}
-
-    def load_specific_events(
-        self, yaml_file: Path, event_type: str
-    ) -> list[EventObject]:
-        """
-        Loads specific events (e.g., 'event' or 'init') from a YAML file.
-
-        Parameters:
-            yaml_file: The path to the YAML file.
-            event_type: The type of event to load.
-
-        Returns:
-            A list of events of the specified type.
-        """
-        try:
-            return self.yaml_loader.load_events(yaml_file, event_type)[
-                event_type
-            ]
-        except Exception as e:
-            logger.error(
-                f"Failed to load '{event_type}' events from {yaml_file}: {e}"
-            )
-            return []
-
-
 class MapLoader:
-    def __init__(self) -> None:
-        self.event_loader = EventLoader()
+    """
+    Orchestrates the loading of map data with an integrated LRU caching system.
+    """
 
-    def load_map_data(self, path: str) -> TuxemonMap:
+    def __init__(
+        self, cache_size: int | None = None, enable_cache: bool = True
+    ) -> None:
         """
-        Loads map data from a TMX file and associated YAML event files.
+        Initializes the MapLoader with optional cache configuration.
 
         Parameters:
-            path: The path to the TMX map file.
-
-        Returns:
-            A TuxemonMap object containing the loaded map data and events.
+            cache_size: Maximum number of maps to retain in the LRU cache.
+                        If None, defaults to MAP_CACHE_SIZE.
+            enable_cache: Flag to enable or disable caching behavior.
+                        If False, maps are always loaded fresh from disk.
         """
-        logger.debug(f"Load map '{path}'.")
-        txmn_map = self._load_map_from_disk(path)
-        self._process_and_merge_events(txmn_map, path)
+        self.tmx_loader = TMXMapLoader()
+        self.yaml_loader = YAMLEventLoader()
+        self.cache_size = cache_size or MAP_CACHE_SIZE
+        self.enable_cache = enable_cache
+        self._cache: OrderedDict[str, AbstractMap] = OrderedDict()
+
+    def load_map_data(self, path: str) -> AbstractMap:
+        """
+        Loads map data, checking the cache first for performance.
+        If path is None, returns a NullMap with optional event loading.
+
+        Parameters:
+            path: Path to the TMX map file.
+        """
+        name = Path(path).stem
+
+        resolved = fetch_asset("maps", f"{name}.tmx")
+        if not resolved:
+            raise FileNotFoundError(f"Map '{name}' not found in assets.")
+
+        normalized_path = str(Path(resolved).resolve())
+
+        if self.enable_cache:
+            cached = self.get_cached_map(normalized_path)
+            if cached:
+                return cached
+
+        txmn_map = self.load_map_from_disk(normalized_path)
+        yaml_files = self.resolve_yaml_files(txmn_map, normalized_path)
+        self.process_and_merge_events(txmn_map, yaml_files)
+
+        if self.enable_cache:
+            self.update_cache(normalized_path, txmn_map)
+
         return txmn_map
 
-    def _load_map_from_disk(self, path: str) -> TuxemonMap:
+    def load_null_map(self, yaml_path: str | None) -> AbstractMap:
+        logger.debug("Loading NullMap with optional events.")
+        null_map = NullMap()
+        if yaml_path:
+            file = mods_folder / yaml_path
+            self.process_and_merge_events(null_map, [file])
+        return null_map
+
+    def get_cached_map(self, normalized_path: str) -> AbstractMap | None:
+        if normalized_path in self._cache:
+            logger.debug(f"Cache hit for map '{normalized_path}'.")
+            map_data = self._cache.pop(normalized_path)
+            self._cache[normalized_path] = map_data
+            return map_data
+        return None
+
+    def load_map_from_disk(self, normalized_path: str) -> AbstractMap:
+        logger.info(
+            f"Cache miss for map '{normalized_path}'. Loading from disk."
+        )
+        return self.tmx_loader.load(normalized_path)
+
+    def resolve_yaml_files(
+        self, txmn_map: AbstractMap, normalized_path: str
+    ) -> list[Path]:
+        yaml_files = [Path(normalized_path).with_suffix(".yaml")]
+        if txmn_map.scenario:
+            _scenario = fetch_asset("maps", f"{txmn_map.scenario}.yaml")
+            yaml_files.append(Path(_scenario))
+        return yaml_files
+
+    def update_cache(
+        self, normalized_path: str, map_data: AbstractMap
+    ) -> None:
+        self._cache[normalized_path] = map_data
+        if len(self._cache) > self.cache_size:
+            evicted_path, _ = self._cache.popitem(last=False)
+            logger.debug(
+                f"Cache full. Evicted least recently used map: '{evicted_path}'."
+            )
+
+    def process_and_merge_events(
+        self, txmn_map: AbstractMap, yaml_files: list[Path]
+    ) -> None:
         """
-        Loads only the TMX map data from the file.
+        Processes and merges events from YAML files into the map.
 
         Parameters:
-            path: The path to the TMX map file.
-
-        Returns:
-            A TuxemonMap object with the loaded map data.
+            txmn_map: The AbstractMap object to update.
+            yaml_files: List of YAML file paths to load events from.
         """
-        try:
-            return TMXMapLoader().load(path)
-        except Exception as e:
-            logger.error(f"Failed to load TMX map from {path}: {e}")
-            raise
+        yaml_collision, events = self._process_events(yaml_files)
+        self._merge_events(txmn_map, yaml_collision, events)
 
     def _process_events(self, yaml_files: list[Path]) -> tuple[
-        MutableMapping[tuple[int, int], Optional[RegionProperties]],
+        MutableMapping[tuple[int, int], RegionProperties | None],
         defaultdict[str, list[EventObject]],
     ]:
         """
@@ -153,21 +177,28 @@ class MapLoader:
             Tuple containing collision map and event dictionary.
         """
         yaml_collision: MutableMapping[
-            tuple[int, int], Optional[RegionProperties]
+            tuple[int, int], RegionProperties | None
         ] = {}
         events: defaultdict[str, list[EventObject]] = defaultdict(list)
 
         for yaml_file in yaml_files:
             if yaml_file.exists():
-                yaml_collision.update(
-                    self.event_loader.load_collision_events(yaml_file)
-                )
-                events["event"].extend(
-                    self.event_loader.load_specific_events(yaml_file, "event")
-                )
-                events["init"].extend(
-                    self.event_loader.load_specific_events(yaml_file, "init")
-                )
+                try:
+                    yaml_collision.update(
+                        self.yaml_loader.load_collision(yaml_file)
+                    )
+                    events["event"].extend(
+                        self.yaml_loader.load_events(yaml_file, "event")[
+                            "event"
+                        ]
+                    )
+                    events["init"].extend(
+                        self.yaml_loader.load_events(yaml_file, "init")["init"]
+                    )
+                except Exception as e:
+                    logger.error(
+                        f"Failed to load events from {yaml_file}: {e}"
+                    )
             else:
                 logger.warning(f"YAML file {yaml_file} not found")
 
@@ -175,17 +206,17 @@ class MapLoader:
 
     def _merge_events(
         self,
-        txmn_map: TuxemonMap,
+        txmn_map: AbstractMap,
         yaml_collision: MutableMapping[
-            tuple[int, int], Optional[RegionProperties]
+            tuple[int, int], RegionProperties | None
         ],
         events: dict[str, list[EventObject]],
     ) -> None:
         """
-        Merges processed events into the TuxemonMap.
+        Merges processed events into the AbstractMap.
 
         Parameters:
-            txmn_map: The TuxemonMap object to update.
+            txmn_map: The AbstractMap object to update.
             yaml_collision: Collision event data.
             events: Dictionary containing events and init sequences.
         """
@@ -197,27 +228,53 @@ class MapLoader:
         txmn_map.add_events(events["event"])
         txmn_map.add_inits(events["init"])
 
-        # Debugging after merging
-        logger.debug(f"Total TMX events after merge: {len(txmn_map.events)}")
-        logger.debug(f"Total TMX inits after merge: {len(txmn_map.inits)}")
+    def add_to_cache(self, path: str, map_data: AbstractMap) -> None:
+        if not self.enable_cache:
+            logger.debug("Caching disabled. Skipping manual insert.")
+            return
+        normalized_path = str(Path(path).resolve())
+        self._cache.pop(normalized_path, None)
+        self._cache[normalized_path] = map_data
+        if len(self._cache) > self.cache_size:
+            evicted_path, _ = self._cache.popitem(last=False)
+            logger.debug(f"Evicted LRU map: '{evicted_path}'.")
 
-    def _process_and_merge_events(
-        self, txmn_map: TuxemonMap, path: str
-    ) -> None:
+    def remove_from_cache(self, path: str) -> bool:
+        normalized_path = str(Path(path).resolve())
+        if normalized_path in self._cache:
+            self._cache.pop(normalized_path)
+            return True
+        return False
+
+    def set_cache_enabled(self, enabled: bool) -> None:
         """
-        Processes and merges events from YAML files into the map.
+        Enables or disables caching behavior at runtime.
 
         Parameters:
-            txmn_map: The TuxemonMap object to update.
-            path: The path to the TMX map file for deriving YAML paths.
+            enabled: True to enable caching, False to disable.
         """
-        yaml_files = [Path(path).with_suffix(".yaml")]
-        if txmn_map.scenario:
-            _scenario = fetch_asset("maps", f"{txmn_map.scenario}.yaml")
-            yaml_files.append(Path(_scenario))
+        self.enable_cache = enabled
+        logger.info(f"Map caching {'enabled' if enabled else 'disabled'}.")
 
-        yaml_collision, events = self._process_events(yaml_files)
-        self._merge_events(txmn_map, yaml_collision, events)
+    def cache_info(self) -> dict[str, Any]:
+        """
+        Returns cache statistics for introspection.
+
+        Returns:
+            Dictionary with current cache size and cached map keys.
+        """
+        return {
+            "enabled": self.enable_cache,
+            "size": len(self._cache),
+            "keys": list(self._cache.keys()),
+        }
+
+    def clear_cache(self) -> None:
+        """
+        Clears the entire map cache.
+        """
+        self._cache.clear()
+        logger.info("Map cache cleared.")
 
 
 class YAMLEventLoader:
@@ -225,7 +282,7 @@ class YAMLEventLoader:
 
     def load_collision(
         self, path: Path
-    ) -> MutableMapping[tuple[int, int], Optional[RegionProperties]]:
+    ) -> MutableMapping[tuple[int, int], RegionProperties | None]:
         """
         Load collision data from a YAML file.
 
@@ -242,7 +299,7 @@ class YAMLEventLoader:
         yaml_data: dict[str, list[dict[str, Any]]] = parse_yaml(path)
 
         collision_dict: MutableMapping[
-            tuple[int, int], Optional[RegionProperties]
+            tuple[int, int], RegionProperties | None
         ] = {}
 
         if "collisions" in yaml_data:
@@ -280,12 +337,19 @@ class YAMLEventLoader:
         events_dict: dict[str, list[EventObject]] = {"event": [], "init": []}
 
         for name, event_data in yaml_data["events"].items():
-            event_type = str(event_data.get("type"))
+            _event_type = event_data.get("type")
+            event_type = str(_event_type) if _event_type is not None else None
             if event_type == source:
+                priority = int(event_data.get("priority", 0))
+                _timeout = event_data.get("timeout")
+                timeout = float(_timeout) if _timeout is not None else None
+                _delay = event_data.get("delay")
+                delay = float(_delay) if _delay is not None else None
                 x, y = event_data.get("x", 0), event_data.get("y", 0)
                 w, h = event_data.get("width", 1), event_data.get("height", 1)
+                box = BoundingBox(x=x, y=y, width=w, height=h)
                 event = event_parser.create_event_object(
-                    event_data, event_type, name, x, y, w, h
+                    event_data, name, box, priority, timeout, delay
                 )
                 events_dict[event_type].append(event)
         return events_dict
@@ -335,7 +399,7 @@ class TMXMapLoader:
         """
         data = self.load_tiled_map(filename)
         tile_size = (data.tilewidth, data.tileheight)
-        data.tilewidth, data.tileheight = prepare.TILE_SIZE
+        data.tilewidth, data.tileheight = TILE_SIZE
 
         collision_map, collision_lines_map = self.load_collision_data(
             data, tile_size
@@ -364,10 +428,10 @@ class TMXMapLoader:
     def load_collision_data(
         self, data: pytmx.TiledMap, tile_size: tuple[int, int]
     ) -> tuple[
-        dict[tuple[int, int], Optional[RegionProperties]],
+        dict[tuple[int, int], RegionProperties | None],
         set[tuple[tuple[int, int], Direction]],
     ]:
-        collision_map: dict[tuple[int, int], Optional[RegionProperties]] = {}
+        collision_map: dict[tuple[int, int], RegionProperties | None] = {}
         collision_lines_map: set[tuple[tuple[int, int], Direction]] = set()
         gids_with_props = {}
         gids_with_colliders = {}
@@ -415,7 +479,7 @@ class TMXMapLoader:
         gids_with_surface: dict[int, Any] = {}
 
         for gid, props in data.tile_properties.items():
-            for surface_key in prepare.SURFACE_KEYS:
+            for surface_key in SURFACE_KEYS:
                 surface = props.get(surface_key)
                 if surface is not None:
                     if gid not in gids_with_surface:
@@ -449,7 +513,7 @@ class TMXMapLoader:
         self,
         obj: pytmx.TiledObject,
         tile_size: tuple[int, int],
-        collision_map: dict[tuple[int, int], Optional[RegionProperties]],
+        collision_map: dict[tuple[int, int], RegionProperties | None],
         collision_lines_map: set[tuple[tuple[int, int], Direction]],
         x: int,
         y: int,
@@ -457,7 +521,7 @@ class TMXMapLoader:
         if obj.type and obj.type.lower().startswith("collision"):
             if getattr(obj, "closed", True):
                 region_conditions = copy_dict_with_keys(
-                    obj.properties, prepare.REGION_KEYS
+                    obj.properties, REGION_KEYS
                 )
                 _extract = extract_region_properties(region_conditions)
                 collision_map[(x, y)] = _extract
@@ -543,9 +607,7 @@ class TMXMapLoader:
         Yields:
             Tuples with form (tile position, properties).
         """
-        region_conditions = copy_dict_with_keys(
-            region.properties, prepare.REGION_KEYS
-        )
+        region_conditions = copy_dict_with_keys(region.properties, REGION_KEYS)
         rect = snap_rect(
             Rect((region.x, region.y, region.width, region.height)), grid_size
         )
@@ -594,6 +656,5 @@ class TMXMapLoader:
             elif key.startswith("behav"):
                 event_data["behav"].append(value)
 
-        return event_parser.create_event_object(
-            event_data, obj.type or "event", obj.name, x, y, w, h
-        )
+        box = BoundingBox(x=x, y=y, width=w, height=h)
+        return event_parser.create_event_object(event_data, obj.name, box)

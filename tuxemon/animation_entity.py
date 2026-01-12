@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 import logging
@@ -8,7 +8,8 @@ from typing import TYPE_CHECKING, Optional
 from pygame.surface import Surface
 
 from tuxemon.constants.asset_loader import fetch_asset
-from tuxemon.db import AnimationModel, db
+from tuxemon.database.runtime import db
+from tuxemon.db import AnimationModel
 from tuxemon.graphics import create_animation, load_frames_files
 from tuxemon.map.map_view import AnimationInfo
 
@@ -25,7 +26,7 @@ class AnimationEntity:
         self,
         slug: str,
         duration: Optional[float] = None,
-        loop: Optional[bool] = None,
+        loop: Optional[int] = None,
     ) -> None:
         self.slug = slug
         self.duration = duration
@@ -58,7 +59,7 @@ class AnimationManager:
         self,
         slug: str,
         duration: Optional[float] = None,
-        loop: Optional[bool] = None,
+        loop: Optional[int] = None,
     ) -> SurfaceAnimation:
         """
         Retrieves a cached animation or creates a new one.
@@ -126,9 +127,9 @@ def setup_and_play_animation(
         manager: Instance of AnimationManager to manage caching and playback.
     """
     if loop == "loop":
-        loop_mode = True
+        loop_mode = -1
     elif loop == "noloop":
-        loop_mode = False
+        loop_mode = 0
     else:
         raise ValueError(f"{loop} value must be 'loop' or 'noloop'")
 

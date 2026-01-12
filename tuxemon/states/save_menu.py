@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 import logging
@@ -13,13 +13,15 @@ from pygame.rect import Rect
 from pygame.surface import Surface
 from pygame.transform import smoothscale
 
-from tuxemon import prepare, save
+from tuxemon import save
 from tuxemon.locale import T
 from tuxemon.menu.interface import MenuItem
 from tuxemon.menu.menu import PopUpMenu
+from tuxemon.platform.const.graphics import WHITE_COLOR
+from tuxemon.prepare import SCREEN_RECT
 from tuxemon.save import get_save_path
 from tuxemon.tools import open_choice_dialog
-from tuxemon.ui.menu_options import ChoiceOption, MenuOptions
+from tuxemon.ui.menu_options import MenuOptions, create_choice_options
 from tuxemon.ui.text import draw_text
 
 if TYPE_CHECKING:
@@ -27,7 +29,6 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-cfgcheck = prepare.CONFIG
 
 SLOT_WIDTH_RATIO = 0.80
 SLOT_HEIGHT_RATIO = 6
@@ -58,7 +59,7 @@ class SaveMenuState(PopUpMenu[None]):
             )
 
     def initialize_items(self) -> None:
-        rect = prepare.SCREEN_RECT.copy()
+        rect = SCREEN_RECT.copy()
         slot_rect = Rect(
             0,
             0,
@@ -84,7 +85,8 @@ class SaveMenuState(PopUpMenu[None]):
         slot_image = Surface(rect.size, SRCALPHA)
 
         # Load the save data
-        save_data = save.load(slot_num)
+        save_path = save.get_save_path(slot_num)
+        save_data = save.load(save_path)
         if not save_data:
             logger.critical(f"Save data not found for slot {slot_num}.")
             raise RuntimeError(
@@ -102,21 +104,22 @@ class SaveMenuState(PopUpMenu[None]):
         return slot_image
 
     def _get_thumbnail(self, save_data: SaveData, rect: Rect) -> Surface:
-        if "screenshot" in save_data:
-            screenshot = b64decode(save_data["screenshot"])
-            size = (
-                save_data["screenshot_width"],
-                save_data["screenshot_height"],
-            )
+        if (
+            save_data.screenshot is not None
+            and save_data.screenshot_width is not None
+            and save_data.screenshot_height is not None
+        ):
+            screenshot = b64decode(save_data.screenshot)
+            size = (save_data.screenshot_width, save_data.screenshot_height)
             thumb_image = frombuffer(screenshot, size, "RGB").convert()
             thumb_rect = thumb_image.get_rect().fit(rect)
             return smoothscale(thumb_image, thumb_rect.size)
-        else:
-            thumb_rect = rect.copy()
-            thumb_rect.width //= 5
-            thumb_image = Surface(thumb_rect.size)
-            thumb_image.fill(prepare.WHITE_COLOR)
 
+        # Fallback thumbnail if screenshot data is missing or incomplete
+        thumb_rect = rect.copy()
+        thumb_rect.width //= 5
+        thumb_image = Surface(thumb_rect.size)
+        thumb_image.fill(WHITE_COLOR)
         return thumb_image
 
     def _draw_slot_text(
@@ -134,18 +137,20 @@ class SaveMenuState(PopUpMenu[None]):
         )
 
         x = int(rect.width * 0.5)
-        draw_text(
-            slot_image,
-            save_data["npc_state"]["player_name"],
-            (x, 0, 500, 500),
-            font=self.font,
-        )
-        draw_text(
-            slot_image,
-            save_data["time"],
-            (x, 50, 500, 500),
-            font=self.font,
-        )
+        if save_data.npc_state and save_data.npc_state.player_name:
+            draw_text(
+                slot_image,
+                save_data.npc_state.player_name,
+                (x, 0, 500, 500),
+                font=self.font,
+            )
+        if save_data.time:
+            draw_text(
+                slot_image,
+                save_data.time,
+                (x, 50, 500, 500),
+                font=self.font,
+            )
 
     def save(self) -> None:
         self.client.event_engine.execute_action(
@@ -172,29 +177,17 @@ class SaveMenuState(PopUpMenu[None]):
             self.client.remove_state_by_name("ChoiceState")
 
         def ask_confirmation() -> None:
-            # Open menu to confirm the save
-            options = [
-                ChoiceOption(
-                    key="overwrite",
-                    display_text=T.translate("save_overwrite"),
-                    action=positive_answer,
-                ),
-                ChoiceOption(
-                    key="keep",
-                    display_text=T.translate("save_keep"),
-                    action=negative_answer,
-                ),
-                ChoiceOption(
-                    key="delete",
-                    display_text=T.translate("save_delete"),
-                    action=delete_answer,
-                ),
-            ]
-
+            actions = {
+                "overwrite": positive_answer,
+                "keep": negative_answer,
+                "delete": delete_answer,
+            }
+            options = create_choice_options(actions)
             menu = MenuOptions(options)
             open_choice_dialog(self.client, menu, escape_key_exits=True)
 
-        save_data = save.load(self.selected_index + 1)
+        save_path = save.get_save_path(self.selected_index + 1)
+        save_data = save.load(save_path)
         if save_data:
             ask_confirmation()
         else:

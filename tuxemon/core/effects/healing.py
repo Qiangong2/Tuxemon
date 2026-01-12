@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -17,11 +17,20 @@ if TYPE_CHECKING:
 @dataclass
 class HealingEffect(CoreEffect):
     """
-    Healing is based on healing power.
+    Applies the "healing" effect to a technique.
 
-    Healing power indicates that the technique heals its user an
-    amount equal to the damage done by a reliable technique of
-    the same power.
+    This effect restores HP to the user or its targets based on the
+    technique's healing power. The healing amount is calculated using
+    the same formula as the damage that would be dealt by a reliable
+    technique of equal power.
+
+    **Example**
+
+    .. code-block:: json
+
+        "effects": [
+            "healing"
+        ]
     """
 
     name = "healing"

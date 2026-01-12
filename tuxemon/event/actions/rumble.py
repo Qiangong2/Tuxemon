@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -68,4 +68,4 @@ class RumbleAction(EventAction):
             fade_level=self.fade_level,
             direction=self.direction,
         )
-        session.client.rumble.rumble(params)
+        session.client.rumble_manager.rumble(params)

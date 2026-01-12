@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 import logging
@@ -19,7 +19,27 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class FoodPreferenceEffect(CoreEffect):
-    """Attempts to capture the target."""
+    """
+    Applies a bond change based on the target monster's food preferences.
+
+    This effect compares the provided warm and cold tastes against the monster's
+    own tastes. Matching preferences increase bond, opposite tastes decrease it,
+    and neutral combinations apply an average change. Opposites are determined
+    using the configured taste map.
+
+    **Parameters**
+
+    - ``warm``: The warm taste to compare (string).
+    - ``cold``: The cold taste to compare (string).
+
+    **Example**
+
+    .. code-block:: json
+
+        "effects": [
+            "food_preference spicy sweet"
+        ]
+    """
 
     name = "food_preference"
     warm: str

@@ -1,10 +1,10 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 from dataclasses import dataclass
 
-from tuxemon.event import MapCondition
+from tuxemon.db import BoundingBox, Operator, SpatialCondition
 from tuxemon.event.conditions.button_pressed import ButtonPressedCondition
 from tuxemon.event.conditions.char_facing_tile import CharFacingTileCondition
 from tuxemon.event.eventcondition import EventCondition
@@ -24,23 +24,21 @@ class ToUseTileCondition(EventCondition):
 
     name = "to_use_tile"
 
-    def test(self, session: Session, condition: MapCondition) -> bool:
+    def test(self, session: Session, condition: SpatialCondition) -> bool:
         character_facing_tile = CharFacingTileCondition().test(
             session,
             condition,
         )
+        box = BoundingBox(x=0, y=0, width=0, height=0)
         button_pressed = ButtonPressedCondition().test(
             session,
-            MapCondition(
+            SpatialCondition(
                 type="button_pressed",
                 parameters=[
-                    "K_RETURN",
+                    "INTERACT",
                 ],
-                operator="is",
-                width=0,
-                height=0,
-                x=0,
-                y=0,
+                operator=Operator.IS,
+                box=box,
                 name="",
             ),
         )

@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 import logging
@@ -12,7 +12,6 @@ from pydantic import BaseModel, Field
 from pygame.surface import Surface
 
 from tuxemon.constants import paths
-from tuxemon.item.shop_utils import filter_party
 from tuxemon.locale import T
 from tuxemon.menu.interface import MenuItem
 from tuxemon.menu.quantity import QuantityAndCostMenu
@@ -93,10 +92,17 @@ class ShopHealingMenuState(ShopMenuState[Monster]):
 
     def _display_asset_description(self, asset: MenuItem[Monster]) -> None:
         if asset.description:
-            self.dialog.alert(asset.description, dialog_speed="max")
+            self.dialog.alert(
+                asset.description, self.text_area, dialog_speed="max"
+            )
 
     def _filter_inventory(self) -> list[Monster]:
-        return filter_party(self.buyer, self.seller, self.economy)
+        return self.applier.filter_monsters(
+            self.buyer,
+            self.seller,
+            self.economy,
+            self.client.shop_manager,
+        )
 
     def _populate_menu(self, inventory: list[Monster]) -> None:
         for monster in inventory:

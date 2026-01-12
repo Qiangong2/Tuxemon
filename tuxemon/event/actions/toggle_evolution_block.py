@@ -1,14 +1,13 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, final
-from uuid import UUID
 
-from tuxemon.event import get_monster_by_iid, get_npc
 from tuxemon.event.eventaction import EventAction
+from tuxemon.tools import get_valid_uuid
 
 if TYPE_CHECKING:
     from tuxemon.session import Session
@@ -42,7 +41,7 @@ class ToggleEvolutionBlockAction(EventAction):
 
     def start(self, session: Session) -> None:
         self.session = session
-        character = get_npc(session, self.npc_slug)
+        character = session.get_npc(self.npc_slug)
 
         if character is None:
             logger.error(f"Character '{self.npc_slug}' not found.")
@@ -50,23 +49,16 @@ class ToggleEvolutionBlockAction(EventAction):
 
         registry = character.evolution_registry
 
-        if not character.game_variables.has(self.monster_variable):
-            logger.error(
-                f"Variable '{self.monster_variable}' not found in {self.npc_slug}'s game variables."
+        monster_id = get_valid_uuid(
+            character.game_variables, self.monster_variable
+        )
+        if monster_id is None:
+            logger.info(
+                f"No valid monster selected for variable '{self.monster_variable}'"
             )
-            return
+            return  # Exit early if no valid UUID
 
-        try:
-            monster_id = UUID(
-                character.game_variables.get(self.monster_variable)
-            )
-        except ValueError:
-            logger.error(
-                f"Invalid UUID in variable '{self.monster_variable}': {character.game_variables.get(self.monster_variable)}"
-            )
-            return
-
-        monster = get_monster_by_iid(self.session, monster_id)
+        monster = session.client.get_monster_by_iid(monster_id)
         if monster is None:
             logger.warning(
                 f"Monster with ID '{monster_id}' not found. Cannot toggle evolution block."

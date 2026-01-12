@@ -1,13 +1,13 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
 from typing import Optional, final
 
-from tuxemon import prepare
 from tuxemon.event.eventaction import EventAction
+from tuxemon.platform.const.sizes import MUSIC_FADEOUT
 from tuxemon.session import Session
 
 logger = logging.getLogger(__name__)
@@ -33,7 +33,5 @@ class FadeoutMusicAction(EventAction):
     duration: Optional[int] = None
 
     def start(self, session: Session) -> None:
-        duration = (
-            prepare.MUSIC_FADEOUT if self.duration is None else self.duration
-        )
+        duration = MUSIC_FADEOUT if self.duration is None else self.duration
         session.client.current_music.stop(duration)

@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 import logging
@@ -7,11 +7,11 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Optional, final
 
+from tuxemon.database.runtime import db
 from tuxemon.db import (
     DialogueContent,
     DialogueProfile,
     NpcModel,
-    db,
 )
 from tuxemon.event.eventaction import EventAction
 from tuxemon.item.item import Item
@@ -56,16 +56,15 @@ class CreateNpcAction(EventAction):
             return
 
         npc = NPC(slug, session=session)
-        session.client.npc_manager.add_npc(npc)
-
-        client = session.client.event_engine
-        client.execute_action(
-            "char_position", [slug, self.tile_pos_x, self.tile_pos_y], True
+        session.client.npc_manager.place_npc_on_map(
+            npc, slug, self.tile_pos_x, self.tile_pos_y
         )
+
         npc.behavior = self.behavior
         npc_details = load_party(slug)
         npc.template = npc_details.template
         npc.combat = npc_details.combat
+        npc.audio = npc_details.audio
         game_variables = session.player.game_variables.get_state()
         if npc_details.monsters:
             load_party_monsters(npc, npc_details, game_variables)
@@ -97,14 +96,14 @@ def load_party_monsters(
             npc_monster.variables, game_variables
         ):
             monster = party_monster(npc_monster)
-            npc.party.add_monster(monster, len(npc.monsters))
+            npc.party.insert_monster_to_party(monster, len(npc.monsters))
 
 
 def party_monster(npc_monster: PartyMemberModel) -> Monster:
     """Creates a new monster object from the database details."""
     monster = Monster.spawn_base(npc_monster.slug, npc_monster.level)
     monster.money_modifier = npc_monster.money_mod
-    monster.experience_modifier = npc_monster.exp_req_mod
+    monster.set_experience_modifier(npc_monster.exp_req_mod)
     monster.gender = npc_monster.gender
     return monster
 
@@ -113,13 +112,13 @@ def load_party_items(
     npc: NPC, bag: NpcModel, game_variables: dict[str, Any]
 ) -> None:
     """Loads the NPC's items from the database."""
-    npc.items.clear_items()
+    npc.bag.clear_items()
     for npc_item in bag.items:
         if npc_item.variables and check_variables(
             npc_item.variables, game_variables
         ):
             item = Item.create(npc_item.slug, npc_item.model_dump())
-            npc.items.add_item(item, npc_item.quantity)
+            npc.bag.add_item(item, npc_item.quantity)
 
 
 def check_variables(

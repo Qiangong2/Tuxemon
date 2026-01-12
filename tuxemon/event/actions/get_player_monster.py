@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 import logging
@@ -127,7 +127,7 @@ class GetPlayerMonsterAction(EventAction):
                 elif filter_name == "current_hp":
                     field = target.current_hp
                 elif filter_name in list(StatType):
-                    field = target.return_stat(StatType(filter_name))
+                    field = target.return_stat(filter_name)
                 extra = int(self.extra)
                 if value_name in list(Comparison):
                     self.result = compare(value_name, field, extra)
@@ -161,7 +161,7 @@ class GetPlayerMonsterAction(EventAction):
         ):
             menu.escape_key_exits = False
 
-    def update(self, session: Session) -> None:
+    def update(self, session: Session, dt: float) -> None:
         try:
             session.client.get_state_by_name("MonsterMenuState")
         except ValueError:

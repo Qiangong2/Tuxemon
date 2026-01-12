@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 import logging
@@ -8,8 +8,8 @@ from typing import ClassVar, Optional
 
 from pygame.surface import Surface
 
-from tuxemon import prepare
 from tuxemon.platform.events import PlayerInput
+from tuxemon.prepare import SCREEN
 from tuxemon.state.state import State
 
 logger = logging.getLogger(__name__)
@@ -34,7 +34,7 @@ class StaticTransition(State):
         self.screenshot: Optional[Surface] = None
 
     def resume(self) -> None:
-        self.screenshot = Surface.copy(prepare.SCREEN)
+        self.screenshot = Surface.copy(SCREEN)
 
     def update(self, time_delta: float) -> None:
         self.elapsed_time += time_delta

@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 import logging
@@ -53,9 +53,17 @@ class SaveGameAction(EventAction):
         except Exception as e:
             logger.error("Unable to save game!!")
             logger.exception(e)
-            open_dialog(session.client, [T.translate("save_failure")])
+            open_dialog(
+                session.client,
+                [T.translate("save_failure")],
+                dialog_speed="max",
+            )
         else:
             if self.index is not None:
-                open_dialog(session.client, [T.translate("save_success")])
+                open_dialog(
+                    session.client,
+                    [T.translate("save_success")],
+                    dialog_speed="max",
+                )
             else:
                 logger.info(T.translate("save_success"))

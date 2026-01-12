@@ -1,12 +1,11 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
 from typing import Optional, final
 
-from tuxemon.event import get_npc
 from tuxemon.event.eventaction import EventAction
 from tuxemon.session import Session
 
@@ -20,26 +19,34 @@ class SetTemplateAction(EventAction):
     Switch template (sprite and combat_front).
 
     Please remember that if you change the combat_front,
-    automatically will change the combat_back.
+    it automatically changes the combat_back.
 
-    Eg if you put xxx, it's going to be xxx_back.png
+    Example: if you put xxx, it's going to be xxx_back.png.
 
     By using default:
+
         set_template player,default
-    it's going to reassign the default sprite
+
+    it's going to reassign the default sprite.
 
     Script usage:
-        .. code-block::
 
-            set_template <character>,<sprite>[,combat_front]
+        .. code-block:: text
+
+           set_template <character>,<sprite>[,combat_front]
 
     Script parameters:
-        character: Either "player" or npc slug name (e.g. "npc_maple").
-        sprite: must be inside mods/tuxemon/sprites
-        eg: adventurer_brown_back.png -> adventurer
-        combat_front: must be inside mods/tuxemon/gfx/sprites/player
-        eg: adventurer.png -> adventurer
 
+        character:
+            Either "player" or npc slug name (e.g. "npc_maple").
+
+        sprite:
+            Must be inside mods/tuxemon/sprites.
+            Example: adventurer_brown_back.png -> adventurer.
+
+        combat_front:
+            Must be inside mods/tuxemon/gfx/sprites/player.
+            Example: adventurer.png -> adventurer.
     """
 
     name = "set_template"
@@ -48,7 +55,7 @@ class SetTemplateAction(EventAction):
     combat_front: Optional[str] = None
 
     def start(self, session: Session) -> None:
-        character = get_npc(session, self.character)
+        character = session.get_npc(self.character)
         if character is None:
             logger.error(f"{self.character} not found")
             return

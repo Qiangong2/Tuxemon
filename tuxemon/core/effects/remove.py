@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 import random
@@ -18,15 +18,33 @@ if TYPE_CHECKING:
 @dataclass
 class RemoveEffect(CoreEffect):
     """
-    This effect has a chance to remove a status effect.
+    Applies the "remove" effect to a technique.
 
-    Parameters:
-        status: The Status slug (e.g. enraged) or 'positive', 'negative', 'all'.
-        objectives: The targets (e.g. own_monster, enemy_monster, etc.), if
-            single "enemy_monster" or "enemy_monster:own_monster"
+    This effect attempts to remove one or more status effects from the
+    specified targets. The status to be removed can be a specific slug
+    (e.g., ``enraged``), or a category such as ``positive``, ``negative``,
+    or ``all``.
 
-    eg "remove xxx,own_monster" removes only xxx
-    eg "remove all,own_monster" removes everything
+    **Parameters**
+
+    - ``status``: Determines which status effect(s) to remove.
+      - Specific slug (e.g., ``enraged``): Removes only that status.
+      - ``positive``: Removes only positive status effects.
+      - ``negative``: Removes only negative status effects.
+      - ``all``: Removes all status effects.
+    - ``objectives``: Colon-separated string specifying which monsters are
+      affected. Examples:
+      - ``own_monster`` → removes statuses from the user.
+      - ``enemy_monster`` → removes statuses from the target.
+      - ``enemy_monster:own_monster`` → removes statuses from both.
+
+    **Example**
+
+    .. code-block:: json
+
+        "effects": [
+            "remove all own_monster"
+        ]
     """
 
     name = "remove"
@@ -48,7 +66,7 @@ class RemoveEffect(CoreEffect):
                 objectives, user, target
             )
             for monster in monsters:
-                current_status = monster.status.get_current_status()
+                current_status = monster.status.current_status
                 if self.status == "all":
                     monster.status.clear_status(session)
                 elif (
@@ -60,14 +78,14 @@ class RemoveEffect(CoreEffect):
                         self.status == "positive"
                         and current_status.category == CategoryStatus.positive
                     ):
-                        monster.status.remove_status()
+                        monster.status.clear_status(session)
                     elif (
                         self.status == "negative"
                         and current_status.category == CategoryStatus.negative
                     ):
-                        monster.status.remove_status()
+                        monster.status.clear_status(session)
                 elif current_status and self.status == current_status.slug:
-                    monster.status.remove_status()
+                    monster.status.clear_status(session)
 
         if monsters:
             event_bus = session.client.event_bus

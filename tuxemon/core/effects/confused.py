@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 import random
@@ -21,12 +21,24 @@ if TYPE_CHECKING:
 @dataclass
 class ConfusedEffect(CoreEffect):
     """
-    Confused: Instead of the technique chosen, the Confused monster uses a
-    random technique (from the ones they have available, other than the one
-    chosen) 50% of the time.
+    Applies the "confused" status to a monster.
 
-    Parameters:
-        chance: The chance of the confused effect occurring (float between 0 and 1).
+    This effect causes the monster to sometimes ignore its chosen technique
+    and instead use a random alternative. By default, there is a 50% chance
+    of confusion occurring, but the probability can be configured.
+
+    **Parameters**
+
+    - ``chance``: The probability of the confused effect occurring (float between 0 and 1).
+      Higher values increase the likelihood of confusion.
+
+    **Example**
+
+    .. code-block:: json
+
+        "effects": [
+            "confused 0.5"
+        ]
     """
 
     name = "confused"
@@ -36,7 +48,7 @@ class ConfusedEffect(CoreEffect):
         self, session: Session, status: Status
     ) -> StatusEffectResult:
         CONFUSED_KEY = self.name
-        host = status.get_host()
+        host = status.host
         var = session.client.combat_session.get_variable(CONFUSED_KEY)
 
         if not 0 <= self.chance <= 1:

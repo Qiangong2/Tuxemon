@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 import logging
 from dataclasses import dataclass
 from typing import Optional
@@ -58,19 +58,6 @@ class RumbleParams:
             f"  direction={self.direction}\n"
             f")"
         )
-
-
-class Rumble:
-    """
-    A class to handle controller haptic feedback and rumbling effects.
-    """
-
-    def __init__(self) -> None:
-        """Initialize the Rumble instance."""
-
-    def rumble(self, params: RumbleParams) -> None:
-        """Simulate a rumble effect on the controller."""
-        logger.debug(f"Rumbling parameters: {params.__str__()}.")
 
 
 def find_library(locations: list[str]) -> Optional[str]:

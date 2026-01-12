@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 import logging
@@ -13,7 +13,9 @@ from tuxemon.db import (
 from tuxemon.faction.faction import Faction
 
 if TYPE_CHECKING:
+    from tuxemon.event.eventbus import EventBus
     from tuxemon.npc_manager import NPCManager
+    from tuxemon.session import Session
 
 logger = logging.getLogger(__name__)
 
@@ -21,9 +23,31 @@ logger = logging.getLogger(__name__)
 class FactionManager:
     """Centralized manager for all faction operations."""
 
-    def __init__(self) -> None:
+    def __init__(self, event_bus: EventBus) -> None:
+        self._event_bus = event_bus
         self._factions: dict[str, Faction] = {}
         self._membership_cache: dict[str, list[Faction]] = {}
+        self._maintenance_interval: float = 600.0
+        self._maintenance_timer: float = 0.0
+
+    def update(self, dt: float, session: Session) -> None:
+        if not self._factions:
+            return
+
+        self._maintenance_timer += dt
+
+        for faction in self._factions.values():
+            faction.update(dt)
+
+        if self._maintenance_timer >= self._maintenance_interval:
+            self._maintenance_timer = 0.0
+
+            for faction in self._factions.values():
+                for npc_id in faction.members:
+                    faction.evaluate_rank_change(
+                        npc_id, session.player.game_variables.get_state()
+                    )
+            self.clear_membership_cache()
 
     def load_core_factions(self, faction_slugs: list[str]) -> None:
         if not faction_slugs:
@@ -32,7 +56,7 @@ class FactionManager:
 
         for slug in faction_slugs:
             try:
-                faction = Faction()
+                faction = Faction(event_bus=self._event_bus)
                 faction.load_from_db(slug)
                 self.register(faction)
                 logger.debug(f"Successfully loaded core faction: {slug}")
@@ -47,6 +71,8 @@ class FactionManager:
             logger.warning(
                 f"Faction '{faction.slug}' already registered. Overwriting."
             )
+        if not faction._event_bus:
+            faction._event_bus = self._event_bus
         self._factions[faction.slug] = faction
         logger.debug(f"Registered faction: {faction.slug}")
         self.on_faction_loaded(faction)
@@ -141,7 +167,7 @@ class FactionManager:
     def set_state(self, npc_manager: NPCManager) -> dict[str, Any]:
         factions_save_data: dict[str, Any] = {}
 
-        npc_slugs = npc_manager.get_all_npc_slugs()
+        npc_slugs = npc_manager.get_all_slugs()
         for faction_slug, faction in self._factions.items():
             faction_data = faction.to_save_data(npc_slugs)
             if faction_data:

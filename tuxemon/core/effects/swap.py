@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 import logging
@@ -19,9 +19,19 @@ logger = logging.getLogger(__name__)
 @dataclass
 class SwapEffect(CoreEffect):
     """
-    Used just for combat: change order of monsters.
+    Applies the "swap" effect to a technique.
 
-    Position of monster in party will be changed.
+    This effect changes the order of monsters in combat by swapping the
+    user monster with the target monster. It is used exclusively in battle
+    to reposition monsters within the party lineup.
+
+    **Example**
+
+    .. code-block:: json
+
+        "effects": [
+            "swap"
+        ]
     """
 
     name = "swap"

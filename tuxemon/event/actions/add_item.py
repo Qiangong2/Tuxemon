@@ -1,12 +1,11 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Optional, final
 
-from tuxemon.db import db
-from tuxemon.event import get_npc
+from tuxemon.database.runtime import db
 from tuxemon.event.eventaction import EventAction
 from tuxemon.item.item import Item
 from tuxemon.session import Session
@@ -38,7 +37,7 @@ class AddItemAction(EventAction):
     def start(self, session: Session) -> None:
         player = session.player
         self.npc_slug = self.npc_slug or "player"
-        trainer = get_npc(session, self.npc_slug)
+        trainer = session.get_npc(self.npc_slug)
         if not trainer:
             raise ValueError(f"NPC '{self.npc_slug}' not found")
 
@@ -54,7 +53,7 @@ class AddItemAction(EventAction):
         else:
             item_id = self.item_slug
 
-        existing = trainer.items.find_item(item_id)
+        existing = trainer.bag.find_item(item_id)
 
         if existing:
             if self.quantity is None or self.quantity == 0:
@@ -62,7 +61,7 @@ class AddItemAction(EventAction):
             elif self.quantity > 0:
                 existing.increase_quantity(self.quantity)
             elif self.quantity < 0:
-                trainer.items.remove_item(existing, abs(self.quantity))
+                trainer.bag.remove_item(existing, abs(self.quantity))
         elif self.quantity is None or self.quantity > 0:
             itm = Item.create(item_id)
-            trainer.items.add_item(itm, self.quantity or 1)
+            trainer.bag.add_item(itm, self.quantity or 1)

@@ -1,23 +1,22 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
-import datetime as dt
-from datetime import datetime
+from datetime import date, datetime
 
-from tuxemon import prepare
+from tuxemon.user_config import CONFIG
 
 
 def get_current_time() -> datetime:
     """Gets the current date and time"""
-    return dt.datetime.now()
+    return datetime.now()
 
 
 def today_ordinal() -> int:
     """
     It gives today's proleptic Gregorian ordinal.
     """
-    return dt.date.today().toordinal()
+    return date.today().toordinal()
 
 
 def calculate_day_night_cycle(time: datetime) -> str:
@@ -63,7 +62,7 @@ def calculate_day_stage_of_day(time: datetime) -> str:
 
 
 def determine_season(
-    time: datetime, hemisphere: str = prepare.CONFIG.hemisphere
+    time: datetime, hemisphere: str = CONFIG.hemisphere
 ) -> str:
     """Determines the current season based on the time and hemisphere.
 

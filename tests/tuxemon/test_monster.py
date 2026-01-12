@@ -1,12 +1,13 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 import unittest
 from unittest.mock import MagicMock
 
-from tuxemon import prepare
-from tuxemon.db import Modifier, db
+from tuxemon.database.runtime import db
+from tuxemon.db import Modifier
+from tuxemon.formula import config_monster
 from tuxemon.monster import Monster
-from tuxemon.prepare import MAX_LEVEL
+from tuxemon.monster_dir.stats import IndividualValues
 from tuxemon.shape import ShapeHandler
 from tuxemon.taste import Taste
 from tuxemon.time_handler import today_ordinal
@@ -28,7 +29,7 @@ class SetLevel(MonsterTestBase):
 
     def test_set_level_clamps_max(self):
         self.mon.set_level(10000)
-        self.assertEqual(self.mon.level, MAX_LEVEL)
+        self.assertEqual(self.mon.level, config_monster.level_range[1])
 
     def test_set_level_clamps_to_1(self):
         self.mon.set_level(-100)
@@ -64,8 +65,9 @@ class SetStats(MonsterTestBase):
     def setUp(self):
         self.mon = Monster()
         self.mon.name = "agnite"
-        self.mon.level = 5
-        self.value = self.mon.level + prepare.COEFF_STATS
+        self.mon.set_level(5)
+        self.mon.individual_values = IndividualValues()
+        self.value = self.mon.level + config_monster.coeff_stats
         self._shape_model = {"dragon": self._shape}
         db.database["shape"] = self._shape_model
 

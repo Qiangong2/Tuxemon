@@ -4,6 +4,11 @@
   "moveset": [
     {
       "level_learned": 1,
+      "technique": "struggle",
+      "learning_method": "fallback"
+    },
+    {
+      "level_learned": 1,
       "technique": "riposte"
     },
     {
@@ -97,8 +102,14 @@
   "height": 165,
   "weight": 75,
   "sounds": {
-    "combat_call": "sound_game_shot_light_gun",
-    "faint_call": "sound_game_shot_light_gun_faint"
+    "combat_call": {
+      "sfx": "sound_game_shot_light_gun",
+      "volume": 1.5
+    },
+    "faint_call": {
+      "sfx": "sound_game_shot_light_gun_faint",
+      "volume": 1.5
+    }
   },
   "catch_rate": 70.0,
   "lower_catch_resistance": 0.95,

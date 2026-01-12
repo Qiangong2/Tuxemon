@@ -53,7 +53,7 @@ events:
     type: event
   Go Outside:
     actions:
-    - transition_teleport spyder_timber_town.tmx,11,19,0.3
+    - transition_teleport player,spyder_timber_town.tmx,11,19,0.3
     - char_face player,down
     conditions:
     - is char_at player
@@ -69,6 +69,7 @@ events:
     - lock_controls
     - char_face spyder_cottontown_barmaid,up
     - wait 1
+    - play_sound coinecho
     - char_face spyder_cottontown_barmaid,down
     - unlock_controls
     - translated_dialog okaythen2
@@ -89,7 +90,7 @@ events:
     - translated_dialog_choice yes:no,chooses
     conditions:
     - is char_facing_tile player
-    - is button_pressed K_RETURN
+    - is button_pressed INTERACT
     type: event
     x: 1
     y: 5
@@ -129,7 +130,7 @@ events:
     - access_pc player
     conditions:
     - is char_facing_tile player
-    - is button_pressed K_RETURN
+    - is button_pressed INTERACT
     - not variable_set kernelquest:yes
     type: event
     x: 10
@@ -139,7 +140,7 @@ events:
     - translated_dialog spyder_pc_alert
     conditions:
     - is char_facing_tile player
-    - is button_pressed K_RETURN
+    - is button_pressed INTERACT
     - is variable_set kernelquest:yes
     type: event
     x: 10

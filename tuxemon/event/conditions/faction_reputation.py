@@ -1,11 +1,11 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
 
-from tuxemon.event import MapCondition, get_npc
+from tuxemon.db import SpatialCondition
 from tuxemon.event.eventcondition import EventCondition
 from tuxemon.session import Session
 from tuxemon.tools import compare
@@ -34,7 +34,7 @@ class FactionReputationCondition(EventCondition):
 
     name = "faction_reputation"
 
-    def test(self, session: Session, condition: MapCondition) -> bool:
+    def test(self, session: Session, condition: SpatialCondition) -> bool:
         if len(condition.parameters) != 4:
             return False
 
@@ -43,7 +43,7 @@ class FactionReputationCondition(EventCondition):
         )
         threshold = int(threshold_raw)
 
-        char = get_npc(session, character_slug)
+        char = session.get_npc(character_slug)
         if not char:
             logger.error(
                 f"[Condition] Character '{character_slug}' not found."

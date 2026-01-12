@@ -1,13 +1,13 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
-from typing import Any, ClassVar, Optional
+import logging
+from typing import TYPE_CHECKING, Any, ClassVar, Optional
 
 import pygame_menu
 from pygame_menu import locals
 
-from tuxemon import prepare
 from tuxemon.animation import Animation, ScheduleType
 from tuxemon.item.filter import ItemFilter
 from tuxemon.item.item import Item
@@ -17,7 +17,13 @@ from tuxemon.menu.menu import PygameMenuState
 from tuxemon.monster import Monster
 from tuxemon.platform.const import buttons
 from tuxemon.platform.events import PlayerInput
+from tuxemon.prepare import SCALE, SCREEN_SIZE
 from tuxemon.states.item_menu import ItemMenuState
+
+if TYPE_CHECKING:
+    from tuxemon.base_client import BaseClient
+
+logger = logging.getLogger(__name__)
 
 
 class MonsterItemState(PygameMenuState):
@@ -32,10 +38,13 @@ class MonsterItemState(PygameMenuState):
         menu: pygame_menu.Menu,
         monster: Monster,
     ) -> None:
-        owner = monster.get_owner()
+        owner = self.client.get_monster_owner(monster)
+        if owner is None:
+            logger.error(f"{monster.name} has no owner.")
+            return
 
         def add_item() -> None:
-            items_filtered = ItemFilter(owner.items.get_items())
+            items_filtered = ItemFilter(owner.items)
             items_filtered.add_filter(lambda item: item.behaviors.holdable)
             menu = self.client.push_state(
                 ItemMenuState(owner, self.name, items_filtered)
@@ -44,21 +53,20 @@ class MonsterItemState(PygameMenuState):
 
         def choose_target(menu_item: MenuItem[Item]) -> None:
             item = menu_item.game_object
-            monster.held_item.set_item(item)
-            owner.items.remove_item(item)
+            monster.equip_item(item)
+            owner.bag.remove_item(item)
             self.client.remove_state_by_name("ItemMenuState")
             self.client.remove_state_by_name("MonsterItemState")
             self.client.remove_state_by_name("MonsterMenuState")
 
         def remove_item() -> None:
-            item = monster.held_item.get_item()
-            if item is not None:
-                owner.items.add_item(item)
-            monster.held_item.clear_item()
+            item = monster.unequip_item()
+            if item:
+                owner.bag.add_item(item)
             self.client.remove_state_by_name("MonsterItemState")
             self.client.remove_state_by_name("MonsterMenuState")
 
-        held_item = monster.held_item.get_item()
+        held_item = monster.held_item
 
         if held_item is None:
             held = T.translate("no_held_item")
@@ -66,7 +74,7 @@ class MonsterItemState(PygameMenuState):
         else:
             label = f"{monster.name}: {held_item.name}"
             new_image = self._create_image(held_item.sprite)
-            new_image.scale(prepare.SCALE / 2, prepare.SCALE / 2)
+            new_image.scale(SCALE / 2, SCALE / 2)
             menu.add.image(
                 image_path=new_image.copy(), align=locals.ALIGN_CENTER
             )
@@ -89,11 +97,8 @@ class MonsterItemState(PygameMenuState):
                 align=locals.ALIGN_CENTER,
             )
         else:
-            owner = monster.get_owner()
             holdable = [
-                item
-                for item in owner.items.get_items()
-                if item.behaviors.holdable
+                item for item in owner.items if item.behaviors.holdable
             ]
             if holdable:
                 menu.add.button(
@@ -111,7 +116,7 @@ class MonsterItemState(PygameMenuState):
             source = element["source"]
         if monster is None:
             raise ValueError("No monster")
-        width, height = prepare.SCREEN_SIZE
+        width, height = SCREEN_SIZE
 
         super().__init__(height=height, width=width)
         self._source = source
@@ -128,7 +133,7 @@ class MonsterItemState(PygameMenuState):
             "MonsterMenuState",
             "MonsterTakeState",
         ]:
-            monsters = _get_monsters(self._monster, self._source)
+            monsters = _get_monsters(client, self._monster, self._source)
             slot = monsters.index(self._monster)
 
             if event.button == buttons.RIGHT and event.pressed:
@@ -167,8 +172,12 @@ class MonsterItemState(PygameMenuState):
         return ani
 
 
-def _get_monsters(monster: Monster, source: str) -> list[Monster]:
-    owner = monster.get_owner()
+def _get_monsters(
+    client: BaseClient, monster: Monster, source: str
+) -> list[Monster]:
+    owner = client.get_monster_owner(monster)
+    if owner is None:
+        return []
     if source == "MonsterTakeState":
         box = owner.monster_boxes.get_box_name(monster.instance_id)
         if box is None:

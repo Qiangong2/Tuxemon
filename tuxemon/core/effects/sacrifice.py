@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -16,17 +16,27 @@ if TYPE_CHECKING:
 @dataclass
 class SacrificeEffect(CoreEffect):
     """
-    Sacrifice:
-    Monster takes damage equal to its current (or part) HP,
+    Applies the "sacrifice" effect to a technique.
 
-    Parameters:
-        multiplier: The percentage of the current HP
+    This effect causes the user monster to faint by sacrificing its current
+    HP. The amount of HP sacrificed is also dealt as damage to the target.
+    The multiplier determines what fraction of the user's current HP is
+    converted into damage.
 
-    eg user 35/50 HP uses:
-        sacrifice 1
-    inflicts a damage of 35 HP (enemy)
-    inflicts a damage of 35 HP (user) > faints
+    **Parameters**
 
+    - ``multiplier``: Float value between 0 and 1 representing the fraction
+      of the user's current HP to sacrifice.
+      - ``1.0`` → sacrifices all current HP.
+      - ``0.5`` → sacrifices half of current HP.
+
+    **Example**
+
+    .. code-block:: json
+
+        "effects": [
+            "sacrifice 1"
+        ]
     """
 
     name = "sacrifice"

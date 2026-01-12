@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 from collections.abc import Generator
@@ -7,7 +7,6 @@ from typing import TYPE_CHECKING, ClassVar, Optional
 
 from pygame.rect import Rect
 
-from tuxemon import prepare
 from tuxemon.graphics import load_and_scale
 from tuxemon.item.controller import ItemController
 from tuxemon.item.filter import ItemFilter
@@ -17,7 +16,15 @@ from tuxemon.locale import T
 from tuxemon.menu.interface import MenuItem
 from tuxemon.menu.menu import Menu
 from tuxemon.platform.const import buttons
+from tuxemon.platform.const.graphics import (
+    BG_ITEMS,
+    BG_ITEMS_BACKPACK,
+    DIMGRAY_COLOR,
+    MISSING_IMAGE,
+)
+from tuxemon.platform.const.sizes import MAX_MENU_ITEMS
 from tuxemon.platform.events import PlayerInput
+from tuxemon.prepare import SCREEN_RECT
 from tuxemon.session import local_session
 from tuxemon.sprite import Sprite
 from tuxemon.tools import (
@@ -36,7 +43,7 @@ class ItemMenuState(Menu[Item]):
     """The item menu allows you to view and use items in your inventory."""
 
     name: ClassVar[str] = "ItemMenuState"
-    background_filename = prepare.BG_ITEMS
+    background_filename = BG_ITEMS
     draw_borders = False
 
     def __init__(
@@ -50,9 +57,7 @@ class ItemMenuState(Menu[Item]):
         self.source = source
         super().__init__()
 
-        self.filter_controller = item_filter or ItemFilter(
-            self.char.items.get_items()
-        )
+        self.filter_controller = item_filter or ItemFilter(self.char.items)
         self.sorter = sorter or ItemSorter()
         # this sprite is used to display the item
         # it's also animated to pop out of the backpack
@@ -66,7 +71,7 @@ class ItemMenuState(Menu[Item]):
         self.inventory = self.filter_controller.get_filtered_inventory()
 
         # this is the area where the item description is displayed
-        rect = prepare.SCREEN_RECT.copy()
+        rect = SCREEN_RECT.copy()
         rect.top = scale(106)
         rect.left = scale(3)
         rect.width = scale(250)
@@ -76,12 +81,12 @@ class ItemMenuState(Menu[Item]):
         self.sprites.add(self.text_area, layer=100)
         self.page_number_display = TextArea(self.font, self.font_color)
         self.sprites.add(self.page_number_display, layer=100)
-        self.page_size = prepare.MAX_MENU_ITEMS
+        self.page_size = MAX_MENU_ITEMS
 
         # load the backpack icon
         self.backpack_center = self.rect.width * 0.16, self.rect.height * 0.45
         self.load_sprite(
-            prepare.BG_ITEMS_BACKPACK,
+            BG_ITEMS_BACKPACK,
             center=self.backpack_center,
             layer=100,
         )
@@ -203,7 +208,7 @@ class ItemMenuState(Menu[Item]):
         """Animate the selected item being pulled from the bag."""
         image = item.surface
         if not image:
-            image = load_and_scale(prepare.MISSING_IMAGE)
+            image = load_and_scale(MISSING_IMAGE)
 
         self.item_sprite.image = image
         self.item_sprite.rect = image.get_rect(center=self.backpack_center)
@@ -216,7 +221,9 @@ class ItemMenuState(Menu[Item]):
     def show_item_description(self, item: Item) -> None:
         """Show the description of the selected item."""
         if item.description:
-            self.dialog.alert(item.description, dialog_speed="max")
+            self.dialog.alert(
+                item.description, self.text_area, dialog_speed="max"
+            )
 
     def reload_items(self) -> None:
         self.clear()
@@ -290,7 +297,7 @@ class ItemMenuState(Menu[Item]):
     ) -> MenuItem[Item]:
         name = f"{prefix}{item.name}"
         label = f"{name} x {item.quantity}" if show_quantity else name
-        image = self.shadow_text(label, bg=prepare.DIMGRAY_COLOR)
+        image = self.shadow_text(label, bg=DIMGRAY_COLOR)
         return MenuItem(
             image=image,
             label=name,

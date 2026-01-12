@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from pathlib import Path
 from unittest import TestCase
 from unittest.mock import MagicMock, patch
@@ -7,7 +7,6 @@ from unittest.mock import MagicMock, patch
 import pygame
 from pygame.surface import Surface
 
-from tuxemon import prepare
 from tuxemon.map.map_view import EntityFacing, SpriteController
 from tuxemon.npc import NPC
 from tuxemon.surfanim import SurfaceAnimation
@@ -76,7 +75,7 @@ class TestSpriteRenderer(TestCase):
             self.assertIsInstance(anim, SurfaceAnimation)
 
     def test_calculate_frame_duration(self):
-        # * 1000 / prepare.CONFIG.player_walkrate: This calculates the time
+        # * 1000 / user_config.CONFIG.player_walkrate: This calculates the time
         #  (in milliseconds) it takes for a single "step" in the walking animation.
         # * / 3: The walking animation has 3 distinct frames (two walking poses
         #  and two identical idle poses), so we divide the step time by 3 to get

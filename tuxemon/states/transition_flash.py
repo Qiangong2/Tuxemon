@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 import logging
@@ -7,9 +7,10 @@ from typing import ClassVar, Optional
 
 from pygame.surface import Surface
 
-from tuxemon import prepare
 from tuxemon.graphics import ColorLike
+from tuxemon.platform.const.graphics import WHITE_COLOR
 from tuxemon.platform.events import PlayerInput
+from tuxemon.prepare import SCREEN_SIZE
 from tuxemon.rumble.tools import RumbleParams
 from tuxemon.state.state import State
 
@@ -24,7 +25,7 @@ class FlashTransition(State):
 
     def __init__(
         self,
-        color: ColorLike = prepare.WHITE_COLOR,
+        color: ColorLike = WHITE_COLOR,
         flash_time: float = 0.2,
         max_flash_count: int = 7,
     ) -> None:
@@ -44,11 +45,12 @@ class FlashTransition(State):
         self.max_flash_count = max_flash_count
         self.flash_count = 0
         params = RumbleParams(target=-1, length=1.5)
-        self.client.rumble.rumble(params)
+        self.client.rumble_manager.rumble(params)
         self.color = color
+        self.transition_surface = Surface(SCREEN_SIZE)
+        self.transition_surface.fill(self.color)
 
     def resume(self) -> None:
-        self.transition_surface = Surface(prepare.SCREEN_SIZE)
         self.transition_surface.fill(self.color)
 
     def update(self, time_delta: float) -> None:

@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 from typing import Any, Generic, Optional, TypeVar
@@ -8,8 +8,18 @@ from pygame import draw as pg_draw
 from pygame.rect import Rect
 from pygame.surface import Surface
 
-from tuxemon import prepare, tools
+from tuxemon import tools
 from tuxemon.graphics import ColorLike, load_and_scale
+from tuxemon.platform.const.graphics import (
+    BLACK_COLOR,
+    GFX_HP_BAR,
+    GFX_XP_BAR,
+    HP_COLOR_BG,
+    HP_COLOR_FG,
+    WHITE_COLOR,
+    XP_COLOR_BG,
+    XP_COLOR_FG,
+)
 from tuxemon.sprite import Sprite
 from tuxemon.ui.graphic_box import GraphicBox
 
@@ -27,8 +37,8 @@ class Bar:
         self,
         value: float,
         border_filename: str,
-        fg_color: ColorLike = prepare.WHITE_COLOR,
-        bg_color: Optional[ColorLike] = prepare.BLACK_COLOR,
+        fg_color: ColorLike = WHITE_COLOR,
+        bg_color: Optional[ColorLike] = BLACK_COLOR,
     ) -> None:
         """
         Initializes the bar with a given value, border filename, foreground color, and background color.
@@ -39,8 +49,7 @@ class Bar:
             fg_color: The foreground color of the bar.
             bg_color: The background color of the bar.
         """
-        self._value = 0.0
-        self.value = value
+        self._value = max(0.0, min(1.0, value))
         self.border_filename = border_filename
         self.fg_color = fg_color
         self.bg_color = bg_color
@@ -134,7 +143,10 @@ class HpBar(Bar):
             value: The initial value of the HP bar.
         """
         super().__init__(
-            value, prepare.GFX_HP_BAR, prepare.HP_COLOR_FG, prepare.HP_COLOR_BG
+            max(0.0, min(1.0, value)),
+            GFX_HP_BAR,
+            HP_COLOR_FG,
+            HP_COLOR_BG,
         )
 
 
@@ -149,7 +161,10 @@ class ExpBar(Bar):
             value: The initial value of the EXP bar.
         """
         super().__init__(
-            value, prepare.GFX_XP_BAR, prepare.XP_COLOR_FG, prepare.XP_COLOR_BG
+            max(0.0, min(1.0, value)),
+            GFX_XP_BAR,
+            XP_COLOR_FG,
+            XP_COLOR_BG,
         )
 
 

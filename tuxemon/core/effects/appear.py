@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0
-# Copyright (c) 2014-2025 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+# Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -16,8 +16,18 @@ if TYPE_CHECKING:
 @dataclass
 class AppearEffect(CoreEffect):
     """
-    Tuxemon re-appears, it follows "disappear".
+    Makes a Tuxemon re-appear after it has previously disappeared.
 
+    This effect resets the monster's ``out_of_range`` state and publishes a
+    ``monster_appeared`` event. It typically follows the ``disappear`` effect.
+
+    **Example**
+
+    .. code-block:: json
+
+        "effects": [
+            "appear"
+        ]
     """
 
     name = "appear"
