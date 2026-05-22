@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import random as rd
 from dataclasses import dataclass
-from typing import Optional, Union, final
+from typing import final
 
 from tuxemon.event.eventaction import EventAction
 from tuxemon.session import Session
@@ -40,14 +40,15 @@ class ModifyMonsterBondAction(EventAction):
     """
 
     name = "modify_monster_bond"
-    variable: Optional[str] = None
-    amount: Optional[Union[int, float]] = None
-    lower_bound: Optional[int] = None
-    upper_bound: Optional[int] = None
+    variable: str | None = None
+    amount: int | float | None = None
+    lower_bound: int | None = None
+    upper_bound: int | None = None
 
     def start(self, session: Session) -> None:
         player = session.player
         if not player.monsters:
+            self.stop()
             return
 
         amount_bond = self.amount if self.amount else 1
@@ -60,17 +61,31 @@ class ModifyMonsterBondAction(EventAction):
 
         if self.variable is None:
             for mon in player.monsters:
-                mon.bond_handler.change_bond(amount_bond)
+                floor = mon.bond_handler.get_effective_min_bond(mon.stage)
+                crossed = mon.bond_handler.change_bond(amount_bond, floor)
+                if crossed:
+                    logger.debug(
+                        f"{mon.name} crossed bond milestones: {crossed}"
+                    )
         else:
             monster_id = get_valid_uuid(player.game_variables, self.variable)
             if monster_id is None:
                 logger.info(
                     f"No valid monster selected for variable '{self.variable}'"
                 )
+                self.stop()
                 return  # Exit early if no valid UUID
             monster = session.client.get_monster_by_iid(monster_id)
             if monster is None:
                 logger.error("Monster not found")
+                self.stop()
                 return
             else:
-                monster.bond_handler.change_bond(amount_bond)
+                floor = monster.bond_handler.get_effective_min_bond(
+                    monster.stage
+                )
+                crossed = monster.bond_handler.change_bond(amount_bond, floor)
+                if crossed:
+                    logger.debug(
+                        f"{monster.name} crossed bond milestones: {crossed}"
+                    )

@@ -5,8 +5,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from tuxemon.map.map_manager import MapManager, MapType
-from tuxemon.map.map_tuxemon import AbstractMap
+from tuxemon.map.manager import MapManager, MapType
+from tuxemon.map.tuxemon import AbstractMap
 
 
 @pytest.fixture
@@ -44,20 +44,20 @@ def mock_map():
 @pytest.mark.parametrize(
     "attr, expected",
     [
-        ("events", []),
-        ("inits", []),
-        ("current_map", None),
-        ("maps", {}),
-        ("map_slug", ""),
-        ("map_name", "Unknown Location"),
-        ("map_desc", ""),
-        ("map_inside", False),
-        ("map_size", (0, 0)),
-        ("map_type", MapType()),
-        ("map_north", ""),
-        ("map_south", ""),
-        ("map_east", ""),
-        ("map_west", ""),
+        pytest.param("events", (), id="init_events"),
+        pytest.param("inits", (), id="init_inits"),
+        pytest.param("current_map", None, id="init_current_map"),
+        pytest.param("maps", {}, id="init_maps"),
+        pytest.param("map_slug", "", id="init_map_slug"),
+        pytest.param("map_name", "Unknown Location", id="init_map_name"),
+        pytest.param("map_desc", "", id="init_map_desc"),
+        pytest.param("map_inside", False, id="init_map_inside"),
+        pytest.param("map_size", (0, 0), id="init_map_size"),
+        pytest.param("map_type", MapType(), id="init_map_type"),
+        pytest.param("map_north", "", id="init_map_north"),
+        pytest.param("map_south", "", id="init_map_south"),
+        pytest.param("map_east", "", id="init_map_east"),
+        pytest.param("map_west", "", id="init_map_west"),
     ],
 )
 def test_init(map_manager, attr, expected):
@@ -123,7 +123,7 @@ def test_map_type_property_logs_warning_for_invalid_type(
 ):
     m = mock_map(map_type="invalid")
 
-    with caplog.at_level("WARNING", logger="tuxemon.map.map_manager"):
+    with caplog.at_level("WARNING", logger="tuxemon.map.manager"):
         map_manager.load_map(m)
         _ = map_manager.map_type
 
@@ -133,9 +133,9 @@ def test_map_type_property_logs_warning_for_invalid_type(
 @pytest.mark.parametrize(
     "slug, expected",
     [
-        (None, "notype"),
-        ("town", "town"),
-        ("unknown", "notype"),
+        pytest.param(None, "notype", id="slug_none_defaults"),
+        pytest.param("town", "town", id="slug_known"),
+        pytest.param("unknown", "notype", id="slug_unknown_defaults"),
     ],
 )
 def test_map_type_slug_variants(map_manager, slug, expected):
@@ -146,14 +146,94 @@ def test_map_type_slug_variants(map_manager, slug, expected):
 @pytest.mark.parametrize(
     "prop, expected",
     [
-        ("collision_lines_map", set()),
-        ("surface_map", {}),
-        ("collision_map", {}),
-        ("map_north", ""),
-        ("map_south", ""),
-        ("map_east", ""),
-        ("map_west", ""),
+        pytest.param(
+            "collision_lines_map", set(), id="no_map_collision_lines"
+        ),
+        pytest.param("surface_map", {}, id="no_map_surface"),
+        pytest.param("collision_map", {}, id="no_map_collision"),
+        pytest.param("map_north", "", id="no_map_north"),
+        pytest.param("map_south", "", id="no_map_south"),
+        pytest.param("map_east", "", id="no_map_east"),
+        pytest.param("map_west", "", id="no_map_west"),
     ],
 )
 def test_properties_without_map(map_manager, prop, expected):
     assert getattr(map_manager, prop) == expected
+
+
+def test_events_sorted_on_load(map_manager):
+    e1 = MagicMock(priority=1)
+    e2 = MagicMock(priority=5)
+    e3 = MagicMock(priority=3)
+
+    m = MagicMock(spec=AbstractMap)
+    m.events = [e1, e2, e3]
+    m.inits = []
+    m.maps = {}
+    m.slug = "slug"
+    m.name = "name"
+    m.description = ""
+    m.inside = False
+    m.is_inside = False
+    m.size = (0, 0)
+    m.map_type = "town"
+    m.north_trans = m.south_trans = m.east_trans = m.west_trans = ""
+    m.collision_lines_map = set()
+    m.surface_map = {}
+    m.collision_map = {}
+    m.filename = "file"
+
+    map_manager.load_map(m)
+
+    assert map_manager.events == [e1, e2, e3]
+
+
+def test_set_events_sorts(map_manager, mock_map):
+    m = mock_map()
+    map_manager.load_map(m)
+
+    e1 = MagicMock(priority=1)
+    e2 = MagicMock(priority=10)
+    e3 = MagicMock(priority=5)
+
+    map_manager.set_events([e1, e2, e3])
+    assert map_manager.events == m.events
+
+
+def test_direct_mutation_does_not_break_order(map_manager, mock_map):
+    e1 = MagicMock(priority=1)
+    e2 = MagicMock(priority=5)
+
+    m = mock_map()
+    m.events = [e1, e2]
+    map_manager.load_map(m)
+
+    e3 = MagicMock(priority=100)
+    m.events.append(e3)
+    assert map_manager.events == [e1, e2, e3]
+
+
+def test_inits_sorted(map_manager, mock_map):
+    e1 = MagicMock(priority=2)
+    e2 = MagicMock(priority=9)
+    e3 = MagicMock(priority=1)
+
+    m = mock_map()
+    m.inits = [e1, e2, e3]
+
+    map_manager.load_map(m)
+    assert map_manager.inits == [e1, e2, e3]
+
+
+@pytest.mark.parametrize(
+    "slug, expected",
+    [
+        pytest.param("town", "town", id="slug_town"),
+        pytest.param("shop", "shop", id="slug_shop"),
+        pytest.param("unknown", "notype", id="slug_unknown_defaults"),
+        pytest.param(None, "notype", id="slug_none_defaults"),
+    ],
+)
+def test_map_type_slug(map_manager, slug, expected):
+    map_manager._map_type_slug = slug
+    assert map_manager.map_type.name == expected

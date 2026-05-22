@@ -32,9 +32,10 @@ class SetMissionAction(EventAction):
     character: str
 
     def start(self, session: Session) -> None:
-        character = session.get_npc(self.character)
+        character = session.client.get_npc(self.character)
         if character is None:
             logger.error(f"Character '{self.character}' not found.")
+            self.stop()
             return
 
         missions = (
@@ -42,6 +43,7 @@ class SetMissionAction(EventAction):
         )
         if not missions:
             logger.info(f"No missions met prerequisites for {self.character}.")
+            self.stop()
             return
 
         for mission in missions:
@@ -55,7 +57,7 @@ class SetMissionAction(EventAction):
 
             progress = mission.get_progress()
             if progress >= 100.0:
-                mission.update_status(MissionStatus.completed)
+                mission.update_status(MissionStatus.COMPLETED)
                 if mission.repeatable:
                     mission.completed_steps.clear()
-                    mission.update_status(MissionStatus.pending)
+                    mission.update_status(MissionStatus.PENDING)

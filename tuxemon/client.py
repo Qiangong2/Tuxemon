@@ -5,15 +5,18 @@ from __future__ import annotations
 import logging
 import time
 from collections.abc import Callable
+from typing import TYPE_CHECKING
 
 import pygame
-from pygame.surface import Surface
 
 from tuxemon.base_client import BaseClient, ClientState
 from tuxemon.config import TuxemonConfig
-from tuxemon.map.map_tuxemon import NullMap
-from tuxemon.map.map_view import DebugRenderer, MapRenderer, NullRenderer
+from tuxemon.map.tuxemon import NullMap
+from tuxemon.map.view import DebugRenderer, MapRenderer, NullRenderer
 from tuxemon.state.draw import EventDebugDrawer, Renderer, StateDrawer
+
+if TYPE_CHECKING:
+    from tuxemon.prepare import DisplayContext
 
 logger = logging.getLogger(__name__)
 
@@ -32,13 +35,13 @@ class LocalPygameClient(BaseClient):
 
     @classmethod
     def create(
-        cls, config: TuxemonConfig, screen: Surface
+        cls, config: TuxemonConfig, context: DisplayContext
     ) -> LocalPygameClient:
         """
         Initialize the LocalPygameClient with the given configuration and screen.
         """
         try:
-            client = LocalPygameClient(config, screen)
+            client = LocalPygameClient(config, context)
             logger.info("Client initialized successfully.")
         except (TypeError, ValueError) as e:
             logger.error(f"Failed to initialize client: {e}")
@@ -50,9 +53,8 @@ class LocalPygameClient(BaseClient):
             raise
         return client
 
-    def __init__(self, config: TuxemonConfig, screen: Surface) -> None:
-        super().__init__(config)
-        self.screen = screen
+    def __init__(self, config: TuxemonConfig, context: DisplayContext):
+        super().__init__(config, context)
 
         # movie creation
         self.frame_number = 0
@@ -62,16 +64,21 @@ class LocalPygameClient(BaseClient):
         self.state_drawer = StateDrawer(
             self.screen, self.state_manager, config
         )
-        self.event_debug_drawer = EventDebugDrawer(self.screen)
+        self.event_debug_drawer = EventDebugDrawer(self.context)
         self.renderer = Renderer(
             self.screen,
             self.state_drawer,
             self.config,
             self.event_debug_drawer,
         )
-        self.debug_renderer = DebugRenderer(self.map_manager, self.npc_manager)
+        self.debug_renderer = DebugRenderer(
+            self.map_manager, self.npc_manager, self.context
+        )
         map_renderer = MapRenderer(
-            self.camera_manager, self.npc_manager, self.debug_renderer
+            self.camera_manager,
+            self.npc_manager,
+            self.debug_renderer,
+            self.context,
         )
         self.set_renderer(map_renderer)
 
@@ -82,58 +89,63 @@ class LocalPygameClient(BaseClient):
             logger.debug("Renderer reset to NullRenderer.")
         else:
             self.debug_renderer = DebugRenderer(
-                self.map_manager, self.npc_manager
+                self.map_manager, self.npc_manager, self.context
             )
             map_renderer = MapRenderer(
-                self.camera_manager, self.npc_manager, self.debug_renderer
+                self.camera_manager,
+                self.npc_manager,
+                self.debug_renderer,
+                self.context,
             )
             self.set_renderer(map_renderer)
             logger.debug("Renderer reset to MapRenderer.")
 
     def main(self) -> None:
         """
-        Initiates the main game loop.
-
-        Since we are using Asteria networking to handle network events,
-        we pass this session.Client instance to networking which in turn
-        executes the "main_loop" method every frame.
-        This leaves the networking component responsible for the main loop.
+        Initiates the main game loop with a fixed timestep.
         """
         update = self.update
         draw = self.draw
         screen = self.screen
         flip = pygame.display.update
         clock = time.time
-        frame_length = 1.0 / self.config.fps
-        time_since_draw = 0.0
-        last_update = clock()
+
+        target_fps = self.config.fps
+        frame_length = 1.0 / target_fps
+
+        last_time = clock()
+        accumulator = 0.0
 
         while self.state != ClientState.DONE:
             if self.state == ClientState.RUNNING:
-                clock_tick = clock() - last_update
-                last_update = clock()
-                time_since_draw += clock_tick
-                update(clock_tick)
-                if time_since_draw >= frame_length:
-                    time_since_draw -= frame_length
-                    draw()
-                    self.input_manager.draw_inputs(screen)
-                    flip()
+                now = clock()
+                dt = now - last_time
+                last_time = now
+
+                # Prevent spiral of death if the game lags
+                if dt > 0.25:
+                    dt = 0.25
+
+                accumulator += dt
+
+                while accumulator >= frame_length:
+                    update(frame_length)
+                    accumulator -= frame_length
+
+                draw()
+                self.input_manager.draw_inputs(screen)
+                flip()
+
                 if self.config.show_fps:
-                    self.renderer.update(clock_tick)
-                time.sleep(0.01)
+                    self.renderer.update(frame_length)
+
             elif self.state == ClientState.EXITING:
                 self.perform_cleanup()
                 self.state = ClientState.DONE
 
-    def update(self, time_delta: float) -> None:
-        """
-        Main loop for entire game.
-
-        Parameters:
-            time_delta: Elapsed time since last frame.
-        """
-        self.update_states(time_delta)
+    def update(self, dt: float) -> None:
+        """Main loop for entire game."""
+        self.update_states(dt)
 
     def queue_command(self, command: Callable[[], None]) -> None:
         self.command_queue.put(command)

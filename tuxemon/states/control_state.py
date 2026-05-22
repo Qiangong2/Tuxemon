@@ -4,20 +4,22 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from functools import partial
-from typing import Any, ClassVar, Optional, Union
+from typing import TYPE_CHECKING, Any, ClassVar
 
-import pygame_menu
 from pygame_menu.locals import ALIGN_CENTER, POSITION_EAST
+from pygame_menu.menu import Menu
 from pygame_menu.sound import SOUND_TYPE_WIDGET_SELECTION
 
-from tuxemon.animation import Animation, ScheduleType
-from tuxemon.locale import T
+from tuxemon.locale.locale import T
 from tuxemon.menu.menu import PygameMenuState
 from tuxemon.menu.theme import get_theme
+from tuxemon.menu.transitions import PopInClamped
 from tuxemon.platform.const import buttons
-from tuxemon.platform.events import PlayerInput
-from tuxemon.prepare import SCREEN_SIZE
 from tuxemon.state.state import State
+
+if TYPE_CHECKING:
+    from tuxemon.base_client import BaseClient
+    from tuxemon.platform.events import PlayerInput
 
 
 class ControlState(PygameMenuState):
@@ -25,24 +27,29 @@ class ControlState(PygameMenuState):
 
     name: ClassVar[str] = "ControlState"
 
-    def __init__(self, **kwargs: Any) -> None:
-        """Used when initializing the state."""
-        theme = get_theme()
+    def __init__(
+        self,
+        client: BaseClient,
+        *args: Any,
+        main_menu: bool = False,
+        **kwargs: Any,
+    ) -> None:
+        self.main_menu = main_menu
+
+        super().__init__(client, *args, transition=PopInClamped(), **kwargs)
+
+        theme = get_theme(self.client.context.scaling)
         theme.scrollarea_position = POSITION_EAST
         theme.widget_alignment = ALIGN_CENTER
-        self.main_menu = "main_menu" in kwargs and kwargs["main_menu"]
-        kwargs.pop("main_menu", None)
-        super().__init__(**kwargs)
+        self._menu_config["theme"] = theme
+
         self.initialize_items(self.menu)
         self.reload_controls()
         self.reset_theme()
 
-    def initialize_items(
-        self,
-        menu: pygame_menu.Menu,
-    ) -> None:
+    def initialize_items(self, menu: Menu) -> None:
         def change_state(
-            state: Union[State, str], **change_state_kwargs: Any
+            state: State | str, **change_state_kwargs: Any
         ) -> Callable[[], State]:
             return partial(
                 self.client.push_state, state, **change_state_kwargs
@@ -101,19 +108,27 @@ class ControlState(PygameMenuState):
 
         if not self.main_menu:
 
-            def mute_music() -> None:
-                self.client.config.update_attribute(
-                    "gameplay", "music_volume", str(0)
-                )
-                self.client.current_music.set_volume(0)
+            def toggle_mute() -> None:
+                self.client.current_music.toggle_mute()
 
-            _volume = self.client.current_music.get_volume()
-            if _volume and _volume > 0.0:
-                menu.add.button(
-                    title=T.translate("menu_mute_music").upper(),
-                    action=mute_music,
-                    font_size=self.font_type.small,
+                # Persist logical volume (0 if muted, user volume otherwise)
+                new_vol = self.client.current_music.get_volume()
+                self.client.config.update_attribute(
+                    "gameplay", "music_volume", new_vol
                 )
+
+            is_muted = self.client.current_music.muted
+            title = (
+                T.translate("menu_unmute_music")
+                if is_muted
+                else T.translate("menu_mute_music")
+            )
+
+            menu.add.button(
+                title=title.upper(),
+                action=toggle_mute,
+                font_size=self.font_type.small,
+            )
 
             _music = self.client.config.music_volume
             default_music = int(float(_music) * 100)
@@ -151,7 +166,7 @@ class ControlState(PygameMenuState):
                 """
                 volume = round(val / 100, 1)
                 self.client.config.update_attribute(
-                    "gameplay", "music_volume", str(volume)
+                    "gameplay", "music_volume", volume
                 )
                 self.client.current_music.set_volume(volume)
 
@@ -161,7 +176,7 @@ class ControlState(PygameMenuState):
                 """
                 volume = round(val / 100, 1)
                 self.client.config.update_attribute(
-                    "gameplay", "sound_volume", str(volume)
+                    "gameplay", "sound_volume", volume
                 )
                 sound = self.menu.get_sound()
                 sound.set_sound_volume(SOUND_TYPE_WIDGET_SELECTION, volume)
@@ -213,31 +228,6 @@ class ControlState(PygameMenuState):
                 font_size=self.font_type.small,
             )
 
-    def update_animation_size(self) -> None:
-        width, height = SCREEN_SIZE
-        widgets_size = self.menu.get_size(widget=True)
-        _width, _height = widgets_size
-        # block width if more than screen width
-        _width = width if _width >= width else _width
-        _height = height if _height >= height else _height
-
-        self.menu.resize(
-            max(1, int(_width * self.animation_size)),
-            max(1, int(_height * self.animation_size)),
-        )
-
-    def animate_open(self) -> Animation:
-        """
-        Animate the menu popping in.
-
-        Returns:
-            Popping in animation.
-        """
-        self.animation_size = 0.0
-        ani = self.animate(self, animation_size=1.0, duration=0.2)
-        ani.schedule(self.update_animation_size, ScheduleType.ON_UPDATE)
-        return ani
-
     def reload_controls(self) -> None:
         self.client.config.input.reload_input_map()
         keyboard = self.client.input_manager.core_devices.keyboard
@@ -246,7 +236,7 @@ class ControlState(PygameMenuState):
                 self.client.config.input.keyboard_button_map
             )
 
-    def process_event(self, event: PlayerInput) -> Optional[PlayerInput]:
+    def process_event(self, event: PlayerInput) -> PlayerInput | None:
         if event.button in (buttons.BACK, buttons.B):
             self.reload_controls()
             if not self.main_menu:

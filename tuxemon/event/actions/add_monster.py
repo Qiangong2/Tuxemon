@@ -3,14 +3,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional, final
+from typing import final
 
 from tuxemon.database.runtime import db
-from tuxemon.db import SeenStatus
 from tuxemon.event.eventaction import EventAction
-from tuxemon.monster import Monster
+from tuxemon.monster.monster import Monster
 from tuxemon.session import Session
-from tuxemon.time_handler import today_ordinal
 
 
 @final
@@ -37,14 +35,14 @@ class AddMonsterAction(EventAction):
     name = "add_monster"
     monster_slug: str
     monster_level: int
-    npc_slug: Optional[str] = None
-    exp: Optional[float] = None
-    money: Optional[float] = None
+    npc_slug: str | None = None
+    exp: float | None = None
+    money: float | None = None
 
     def start(self, session: Session) -> None:
         player = session.player
         self.npc_slug = self.npc_slug or "player"
-        trainer = session.get_npc(self.npc_slug)
+        trainer = session.client.get_npc(self.npc_slug)
         if not trainer:
             raise ValueError(f"NPC '{self.npc_slug}' not found")
 
@@ -59,7 +57,6 @@ class AddMonsterAction(EventAction):
             monster_slug = self.monster_slug
 
         monster = Monster.spawn_base(monster_slug, self.monster_level)
-        monster.set_capture(today_ordinal())
 
         if self.exp is not None:
             monster.set_experience_modifier(self.exp)
@@ -67,5 +64,5 @@ class AddMonsterAction(EventAction):
             monster.money_modifier = self.money
 
         trainer.party.add_monster(monster, len(trainer.monsters))
-        trainer.tuxepedia.add_entry(monster.slug, SeenStatus.caught)
+        trainer.tuxepedia.register_caught(monster.slug)
         player.game_variables.set(self.name, monster.instance_id.hex)

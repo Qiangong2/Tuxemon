@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import logging
 from enum import Enum, auto
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from tuxemon.db import EventObject, ParameterizableRule, SpatialCondition
-    from tuxemon.event.eventaction import EventAction
+    from tuxemon.event.eventaction import ActionManager, EventAction
     from tuxemon.event.eventcondition import ConditionManager
     from tuxemon.session import Session
 
@@ -46,6 +46,7 @@ class RunningEvent:
 
     __slots__ = (
         "map_event",
+        "actions",
         "context",
         "action_index",
         "current_action",
@@ -54,11 +55,16 @@ class RunningEvent:
         "elapsed_time",
     )
 
-    def __init__(self, map_event: EventObject) -> None:
+    def __init__(
+        self,
+        map_event: EventObject,
+        expanded_actions: list[ParameterizableRule],
+    ) -> None:
         self.map_event = map_event
-        self.context: dict[str, Any] = dict()
+        self.actions = expanded_actions
+        self.context: dict[str, Any] = {}
         self.action_index: int = 0
-        self.current_action: Optional[EventAction] = None
+        self.current_action: EventAction | None = None
         self.state = EventState.WAITING
         self.priority = map_event.priority
         self.elapsed_time: float = 0.0
@@ -66,47 +72,140 @@ class RunningEvent:
     def tick(self, dt: float) -> bool:
         self.elapsed_time += dt
 
+        # Check for delay
         if (
             self.map_event.delay is not None
             and self.elapsed_time < self.map_event.delay
         ):
             return False
 
+        # Watchdog: Timeout prevents infinite event hangs (opt-in)
         if (
             self.map_event.timeout is not None
             and self.elapsed_time > self.map_event.timeout
         ):
-            logger.info(f"Event {self.map_event.id} timed out")
+            logger.warning(
+                f"Event {self.map_event.id} reached timeout of {self.map_event.timeout}s"
+            )
             self.cancel()
             return False
 
         return True
 
-    def get_next_action(self) -> Optional[ParameterizableRule]:
+    def step(
+        self,
+        session: Session,
+        action_manager: ActionManager,
+        dt: float,
+    ) -> bool:
         """
-        Get the next action to execute, if any.
+        Advance this event by one frame.
+        Returns True if the event is still active, False if finished or cancelled.
+        """
+        if self.state in (EventState.COMPLETED, EventState.CANCELLED):
+            return False
 
-        Returns MapActions, which are just data from the map, not live objects.
+        return self.process(session, action_manager, dt)
 
-        ``None`` will be returned if the MapEvent is finished.
+    def process(
+        self, session: Session, action_manager: ActionManager, dt: float
+    ) -> bool:
+        """
+        Processes the event's actions.
 
         Returns:
-            Next action to execute. ``None`` if there isn't one.
+            True - event is still alive (delay, long-running action)
+            False - event is finished or cancelled
         """
-        # if None, then make a new one
-        try:
-            action = self.map_event.acts[self.action_index]
+        # Delay / timeout
+        if not self.tick(dt):
+            return self.is_alive()
 
-        except IndexError:
-            # reached end of list, remove event and move on
-            logger.debug("map event actions finished")
+        max_actions_per_frame = len(self.actions) + 1
+        actions_this_frame = 0
+
+        while True:
+            if self.is_cancelled():
+                logger.debug("Running event was cancelled.")
+                return False
+
+            # If no action is active, try to load the next one
+            if self.current_action is None:
+                if actions_this_frame >= max_actions_per_frame:
+                    logger.warning(
+                        f"Event {self.map_event.id} exhausted action budget "
+                        f"in a single frame — yielding."
+                    )
+                    return True
+
+                next_data = self.get_next_action()
+                if next_data is None:
+                    self.complete()
+                    return False
+
+                action = action_manager.get_action(
+                    next_data.type, next_data.parameters
+                )
+                if action is None:
+                    logger.error(
+                        f"Invalid action returned for '{next_data.type}'"
+                    )
+                    self.cancel()
+                    return False
+
+                action.on_start(session)
+                self.current_action = action
+                actions_this_frame += 1
+
+                # Edge case: action cancelled itself during on_start()
+                if self.current_action.cancelled:
+                    self.advance()
+                    self.current_action = None
+                    continue
+
+            # Advance if action was cancelled between frames
+            if self.current_action.cancelled:
+                self.advance()
+                self.current_action = None
+                continue
+
+            # Update the current action
+            self.current_action.update(session, dt)
+
+            # Safety: action should not clear itself during update
+            if self.current_action is None:
+                logger.error(
+                    "Action cleared itself unexpectedly during update"
+                )
+                self.cancel()
+                return False
+
+            # If action finished, clean up and move to next one in the same frame
+            if self.current_action.done:
+                self.current_action.cleanup(session)
+                self.advance()
+                self.current_action = None
+                continue
+
+            # Action is still running (multi-frame)
+            return True
+
+    def get_next_action(self) -> ParameterizableRule | None:
+        """Return the next action, or None if the event is completed."""
+        if self.action_index >= len(self.actions):
             return None
 
-        return action
+        return self.actions[self.action_index]
+
+    def reset(self) -> None:
+        self.action_index = 0
+        self.current_action = None
+        self.elapsed_time = 0.0
+        self.state = EventState.WAITING
+        self.context.clear()
 
     def advance(self) -> None:
-        if self.action_index < len(self.map_event.acts):
-            self.action_index += 1
+        self.action_index += 1
 
     def cancel(self) -> None:
         self.state = EventState.CANCELLED
@@ -116,6 +215,9 @@ class RunningEvent:
 
     def running(self) -> None:
         self.state = EventState.RUNNING
+
+    def is_alive(self) -> bool:
+        return self.state not in (EventState.COMPLETED, EventState.CANCELLED)
 
     def is_cancelled(self) -> bool:
         return self.state == EventState.CANCELLED
@@ -134,8 +236,6 @@ class RunningEvent:
 
 
 class ConditionState(Enum):
-    WAITING = auto()
-    CHECKING = auto()
     MET = auto()
     FAILED = auto()
     CANCELLED = auto()
@@ -154,11 +254,8 @@ class RunningCondition:
     ) -> None:
         self.map_condition = map_condition
         self.evaluator = evaluator
-        self.state = ConditionState.WAITING
-        self.result: Optional[bool] = None
-
-    def start_check(self) -> None:
-        self.state = ConditionState.CHECKING
+        self.state = ConditionState.FAILED
+        self.result: bool | None = None
 
     def cancel(self) -> None:
         self.state = ConditionState.CANCELLED
@@ -177,7 +274,6 @@ class RunningCondition:
             self.result = False
             return False
 
-        self.start_check()
         try:
             passed = self.evaluator.evaluate(self.map_condition)
             self.result = passed
@@ -206,5 +302,10 @@ class ConditionEvaluator:
                 f"Condition type '{map_condition.type}' not found."
             )
 
-        result = condition.test(self.session, map_condition)
+        try:
+            self.session.current_condition_box = map_condition.box
+            result = condition.test(self.session)
+        finally:
+            self.session.current_condition_box = None
+
         return result == condition.is_expected

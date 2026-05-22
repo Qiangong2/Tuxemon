@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Optional, final
+from typing import TYPE_CHECKING, final
 
 from tuxemon.camera.camera import Camera
 from tuxemon.event.eventaction import EventAction
@@ -37,19 +37,22 @@ class CameraManageAction(EventAction):
     name = "camera_manage"
     action: str
     camera_name: str = "default"
-    npc_slug: Optional[str] = None
+    npc_slug: str | None = None
 
     def start(self, session: Session) -> None:
         manager = session.client.camera_manager
 
         if self.action == "add":
-            entity = session.get_npc(self.npc_slug or "player")
+            entity = session.client.get_npc(self.npc_slug or "player")
             if entity is None:
                 logger.error(
                     f"Cannot add camera '{self.camera_name}': NPC '{self.npc_slug}' not found."
                 )
+                self.stop()
                 return
-            camera = Camera(entity, session.client.boundary)
+            camera = Camera(
+                entity, session.client.boundary, session.client.context
+            )
             manager.add_camera(self.camera_name, camera)
             logger.info(
                 f"Camera '{self.camera_name}' added following entity '{entity.slug}'."
@@ -68,8 +71,9 @@ class CameraManageAction(EventAction):
             follow = manager.cameras.get(self.camera_name)
             if not follow:
                 logger.error(f"Camera '{self.camera_name}' not found.")
+                self.stop()
                 return
-            entity = session.get_npc(self.npc_slug or "player")
+            entity = session.client.get_npc(self.npc_slug or "player")
             if entity is None:
                 follow.switch_entity()
                 logger.info(

@@ -5,14 +5,15 @@ from __future__ import annotations
 import logging
 from collections.abc import Generator, Mapping
 from dataclasses import dataclass, field
-from typing import ClassVar, Optional
+from typing import ClassVar
 
 import pygame as pg
 from pygame.event import Event
+from pygame.joystick import JoystickType
 from pygame.rect import Rect
 from pygame.surface import Surface
 
-from tuxemon import graphics, prepare
+from tuxemon import graphics
 from tuxemon.platform.const import buttons, events
 from tuxemon.platform.events import (
     EventQueueHandler,
@@ -49,17 +50,15 @@ class PygameEventQueueHandler(EventQueueHandler):
 
 
 class InputMappingStrategy:
-    def map_button(self, raw_button_id: int) -> Optional[int]:
+    def map_button(self, raw_button_id: int) -> int | None:
         raise NotImplementedError
 
-    def map_axis(
-        self, axis_id: int, value: float
-    ) -> tuple[Optional[int], bool]:
+    def map_axis(self, axis_id: int, value: float) -> tuple[int | None, bool]:
         raise NotImplementedError
 
 
 class XboxMapping(InputMappingStrategy):
-    def map_button(self, raw_button_id: int) -> Optional[int]:
+    def map_button(self, raw_button_id: int) -> int | None:
         return {
             0: buttons.A,
             1: buttons.B,
@@ -71,9 +70,7 @@ class XboxMapping(InputMappingStrategy):
             14: buttons.DOWN,
         }.get(raw_button_id)
 
-    def map_axis(
-        self, axis_id: int, value: float
-    ) -> tuple[Optional[int], bool]:
+    def map_axis(self, axis_id: int, value: float) -> tuple[int | None, bool]:
         if axis_id == HORIZONTAL_AXIS:
             return (
                 buttons.RIGHT if value > 0 else buttons.LEFT,
@@ -88,7 +85,7 @@ class XboxMapping(InputMappingStrategy):
 
 
 class PlayStationMapping(InputMappingStrategy):
-    def map_button(self, raw_button_id: int) -> Optional[int]:
+    def map_button(self, raw_button_id: int) -> int | None:
         return {
             1: buttons.A,  # Cross
             2: buttons.B,  # Circle
@@ -100,9 +97,7 @@ class PlayStationMapping(InputMappingStrategy):
             13: buttons.DOWN,
         }.get(raw_button_id)
 
-    def map_axis(
-        self, axis_id: int, value: float
-    ) -> tuple[Optional[int], bool]:
+    def map_axis(self, axis_id: int, value: float) -> tuple[int | None, bool]:
         if axis_id == HORIZONTAL_AXIS:
             return (
                 buttons.RIGHT if value > 0 else buttons.LEFT,
@@ -114,6 +109,24 @@ class PlayStationMapping(InputMappingStrategy):
                 abs(value) > 0.2,
             )
         return (None, False)
+
+
+class KeyBindingRules:
+    RESERVED_KEYS = {
+        pg.K_ESCAPE,
+        pg.K_RETURN,
+        pg.K_BACKSPACE,
+        pg.K_LSHIFT,
+        pg.K_RSHIFT,
+        pg.K_UP,
+        pg.K_DOWN,
+        pg.K_LEFT,
+        pg.K_RIGHT,
+    }
+
+    @classmethod
+    def is_valid_binding(cls, key: int) -> bool:
+        return key not in cls.RESERVED_KEYS
 
 
 class PygameEventHandler(InputHandler[Event]):
@@ -136,11 +149,29 @@ class PygameGamepadInput(PygameEventHandler):
             into logical button identifiers used by the game.
     """
 
-    def __init__(self, mapping_strategy: InputMappingStrategy):
+    def __init__(
+        self,
+        mapping_strategy: InputMappingStrategy,
+        joysticks: list[JoystickType],
+    ):
         super().__init__({})
         self.mapping = mapping_strategy
+        self.joysticks = joysticks
         self.hat_state = (0, 0)
         self.axis_state = {HORIZONTAL_AXIS: 0, VERTICAL_AXIS: 0}
+
+        for js in self.joysticks:
+            try:
+                # No js.init() here
+                instance_id = js.get_instance_id()
+                logger.info(f"Using joystick with instance ID {instance_id}")
+            except Exception as e:
+                logger.warning(f"Failed to access joystick instance ID: {e}")
+
+    def _is_our_joystick(self, pg_event: Event) -> bool:
+        return any(
+            js.get_instance_id() == pg_event.joy for js in self.joysticks
+        )
 
     def handle_button(
         self, button: int, pressed: bool, value: float = 0.0
@@ -180,6 +211,9 @@ class PygameGamepadInput(PygameEventHandler):
             pg_event: The pygame event.
         """
         if pg_event.type in (pg.JOYBUTTONDOWN, pg.JOYBUTTONUP):
+            if not self._is_our_joystick(pg_event):
+                return
+
             button = self.mapping.map_button(pg_event.button)
             if button is not None:
                 self.handle_button(button, pg_event.type == pg.JOYBUTTONDOWN)
@@ -192,6 +226,9 @@ class PygameGamepadInput(PygameEventHandler):
             pg_event: The pygame event.
         """
         if pg_event.type == pg.JOYHATMOTION:
+            if not self._is_our_joystick(pg_event):
+                return
+
             x, y = pg_event.value
             prev_x, prev_y = self.hat_state
             self.hat_state = (x, y)
@@ -220,6 +257,9 @@ class PygameGamepadInput(PygameEventHandler):
             pg_event: The pygame event.
         """
         if pg_event.type == pg.JOYAXISMOTION:
+            if not self._is_our_joystick(pg_event):
+                return
+
             self._handle_axis(pg_event.axis, pg_event.value)
 
     def _handle_axis(self, axis: int, value: float) -> None:
@@ -278,10 +318,21 @@ class PygameKeyboardInput(PygameEventHandler):
     }
 
     def __init__(
-        self, event_map: Optional[Mapping[Optional[int], int]] = None
+        self, event_map: Mapping[int | None, int] | None = None
     ) -> None:
         super().__init__(event_map or self.default_input_map)
         self._initialize_buttons_from_map(self.event_map)
+        self._needs_rebuild: bool = False
+        self._pending_map: Mapping[int | None, int] | None = None
+
+    def update_state(self, dt: float) -> None:
+        if self._needs_rebuild:
+            assert self._pending_map is not None
+            self.event_map = self._pending_map
+            self._initialize_buttons_from_map(self._pending_map)
+            self._needs_rebuild = False
+
+        super().update_state(dt)
 
     def process_event(self, input_event: Event) -> None:
         """
@@ -296,13 +347,13 @@ class PygameKeyboardInput(PygameEventHandler):
         if pressed or released:
             self._handle_key_event(input_event, pressed)
 
-    def reload_mapping(self, new_map: Mapping[Optional[int], int]) -> None:
+    def reload_mapping(self, new_map: Mapping[int | None, int]) -> None:
         """Update the key→button mapping in place."""
-        self.event_map = new_map
-        self._initialize_buttons_from_map(new_map)
+        self._pending_map = new_map
+        self._needs_rebuild = True
 
     def _initialize_buttons_from_map(
-        self, mapping: Mapping[Optional[int], int]
+        self, mapping: Mapping[int | None, int]
     ) -> None:
         """Ensure self.buttons matches the given mapping."""
         for button in mapping.values():
@@ -380,8 +431,9 @@ class DPadButtonInfo:
 
 
 class TouchOverlayUI:
-    def __init__(self, transparency: int) -> None:
+    def __init__(self, transparency: int, resolution: tuple[int, int]) -> None:
         self.transparency = transparency
+        self.resolution = resolution
         self.dpad: DPadInfo
         self.a_button: DPadButtonInfo
         self.b_button: DPadButtonInfo
@@ -396,7 +448,7 @@ class TouchOverlayUI:
         dpad_surface = graphics.load_and_scale(DPAD_IMAGE)
         dpad_position = (
             0,
-            prepare.SCREEN_SIZE[1] - dpad_surface.get_height(),
+            self.resolution[1] - dpad_surface.get_height(),
         )
 
         width, height = dpad_surface.get_width(), dpad_surface.get_height()
@@ -451,7 +503,7 @@ class TouchOverlayUI:
         )
 
         button_position = (
-            prepare.SCREEN_SIZE[0] - int(button_surface.get_width() * scale),
+            self.resolution[0] - int(button_surface.get_width() * scale),
             pos_y,
         )
 
@@ -488,11 +540,12 @@ class TouchOverlayUI:
 
 
 class PygameTouchOverlayInput(PygameEventHandler):
-    default_input_map: ClassVar[Mapping[Optional[int], int]] = {}
+    default_input_map: ClassVar[Mapping[int | None, int]] = {}
 
-    def __init__(self, transparency: int) -> None:
+    def __init__(self, transparency: int, resolution: tuple[int, int]) -> None:
         super().__init__()
-        self.ui = TouchOverlayUI(transparency)
+        self.ui = TouchOverlayUI(transparency, resolution)
+        self.resolution = resolution
         self.buttons = {
             buttons.UP: PlayerInput(buttons.UP),
             buttons.DOWN: PlayerInput(buttons.DOWN),
@@ -513,8 +566,8 @@ class PygameTouchOverlayInput(PygameEventHandler):
 
         if input_event.type in (pg.FINGERDOWN, pg.FINGERUP, pg.FINGERMOTION):
             touch_pos = (
-                int(input_event.x * prepare.SCREEN_SIZE[0]),
-                int(input_event.y * prepare.SCREEN_SIZE[1]),
+                int(input_event.x * self.resolution[0]),
+                int(input_event.y * self.resolution[1]),
             )
             finger_id = input_event.fingerid
 
@@ -559,7 +612,7 @@ class PygameTouchOverlayInput(PygameEventHandler):
                 else:
                     del self._active_touches[finger_id]
 
-    def get_touched_button(self, pos: tuple[int, int]) -> Optional[int]:
+    def get_touched_button(self, pos: tuple[int, int]) -> int | None:
         """Determine which button was pressed based on position."""
         for name, rect in [
             (buttons.UP, self.ui.dpad.rect.up),

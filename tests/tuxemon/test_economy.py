@@ -7,7 +7,7 @@ import pytest
 from tuxemon.db import EconomyItemModel, EconomyModel, EconomyMonsterModel
 from tuxemon.economy.economy import Economy
 from tuxemon.item.item import Item
-from tuxemon.monster import Monster
+from tuxemon.monster.monster import Monster
 
 
 class DummyNPC:
@@ -40,31 +40,11 @@ def economy():
     return econ
 
 
-def test_update_item_field_with_valid_item(economy):
-    economy.update_entity_field("potion", "item", "price", 30)
-    assert economy.get_item("potion").price == 30
-
-
-def test_update_item_field_with_unknown_item(economy):
-    with pytest.raises(RuntimeError):
-        economy.update_entity_field("unknown_item", "item", "price", 30)
-
-
-def test_update_item_quantity_with_valid_item(economy):
-    economy.update_item_quantity("potion", 20)
-    assert economy.get_item("potion").inventory == 20
-
-
-def test_update_item_quantity_with_unknown_item(economy):
-    with pytest.raises(RuntimeError):
-        economy.update_item_quantity("unknown_item", 20)
-
-
 @pytest.mark.parametrize(
     "slug,expected_level,expected_inventory",
     [
-        ("rockitten", 5, 1),
-        ("pairagrin", 1, 50),
+        pytest.param("rockitten", 5, 1, id="rockitten"),
+        pytest.param("pairagrin", 1, 50, id="pairagrin"),
     ],
 )
 def test_get_monster_valid(economy, slug, expected_level, expected_inventory):
@@ -87,56 +67,53 @@ def test_refresh_maps_after_modification(economy):
 
 
 @pytest.mark.parametrize(
-    "npc_vars,conditions,expected",
-    [
-        (
-            {"quest_stage": "start", "alignment": "good"},
-            [{"quest_stage": "start"}, {"alignment": "good"}],
-            True,
-        ),
-        (
-            {"quest_stage": "start", "alignment": "evil"},
-            [{"quest_stage": "start"}, {"alignment": "good"}],
-            False,
-        ),
-        ({"quest_stage": "middle"}, [{"quest_stage": "start"}], False),
-        ({"quest_stage": "start"}, [], True),
-    ],
-)
-def test_variable_conditions(economy, npc_vars, conditions, expected):
-    npc = DummyNPC(npc_vars)
-    assert economy.variable(conditions, npc) is expected
-
-
-@pytest.mark.parametrize(
     "entity_cls,slug,kwargs,quantity,seller_mode,expected_price",
     [
-        (Item, "potion", {"cost": 5}, 2, False, 40),  # buy item
-        (Item, "potion", {"cost": 5}, 1, True, 5),  # sell item
-        (
+        pytest.param(
+            Item,
+            "potion",
+            {"cost": 5},
+            2,
+            False,
+            40,
+            id="buy_item",
+        ),
+        pytest.param(
+            Item,
+            "potion",
+            {"cost": 5},
+            1,
+            True,
+            5,
+            id="sell_item",
+        ),
+        pytest.param(
             Monster,
             "rockitten",
             {"name": "rockitten", "hp": 100},
             1,
             False,
             100,
-        ),  # buy monster
-        (
+            id="buy_monster",
+        ),
+        pytest.param(
             Monster,
             "rockitten",
             {"name": "rockitten", "hp": 100},
             1,
             True,
             50,
-        ),  # sell monster
-        (
+            id="sell_monster",
+        ),
+        pytest.param(
             Monster,
             "unknown_monster",
             {"name": "unknown_monster", "hp": 20},
             1,
             True,
             round(20 * 0.5),
-        ),  # monster w/o model
+            id="monster_without_model",
+        ),
     ],
 )
 def test_calculate_price(
@@ -147,8 +124,65 @@ def test_calculate_price(
     for k, v in kwargs.items():
         setattr(mock_entity, k, v)
 
-    price, discount = economy.calculate_price(
+    price = economy.calculate_price(
         mock_entity, quantity=quantity, seller_mode=seller_mode
     )
-    assert price == expected_price
-    assert discount == 0
+    assert price.final_price == expected_price
+    assert price.modifier_percent == 0
+
+
+def test_get_model_for_item(economy):
+    mock_item = MagicMock(spec=Item)
+    mock_item.slug = "potion"
+    model = economy.get_model_for(mock_item)
+    assert isinstance(model, EconomyItemModel)
+    assert model.slug == "potion"
+
+
+def test_get_model_for_monster(economy):
+    mock_monster = MagicMock(spec=Monster)
+    mock_monster.slug = "rockitten"
+    model = economy.get_model_for(mock_monster)
+    assert isinstance(model, EconomyMonsterModel)
+    assert model.slug == "rockitten"
+
+
+def test_get_model_for_unknown(economy):
+    mock_item = MagicMock(spec=Item)
+    mock_item.slug = "does_not_exist"
+    assert economy.get_model_for(mock_item) is None
+
+
+def test_calculate_price_missing_monster_price_raises(economy):
+    mock_monster = MagicMock(spec=Monster)
+    mock_monster.slug = "ghost"
+    mock_monster.hp = 10
+    with pytest.raises(ValueError):
+        economy.calculate_price(mock_monster, quantity=1, seller_mode=False)
+
+
+def test_calculate_price_missing_item_cost_resale(economy):
+    mock_item = MagicMock(spec=Item)
+    mock_item.slug = "revive"  # cost=0 in model
+    mock_item.cost = 0
+    price = economy.calculate_price(mock_item, quantity=1, seller_mode=True)
+    assert price.final_price == 0
+    assert price.modifier_percent == 0
+
+
+def test_calculate_price_item_without_model_resale(economy):
+    mock_item = MagicMock(spec=Item)
+    mock_item.slug = "unknown_item"
+    mock_item.cost = 12
+    price = economy.calculate_price(mock_item, quantity=1, seller_mode=True)
+    assert price.final_price == round(12 * economy.model.resale_multiplier)
+    assert price.modifier_percent == 0
+
+
+def test_calculate_price_item_without_model_purchase(economy):
+    mock_item = MagicMock(spec=Item)
+    mock_item.slug = "unknown_item"
+    mock_item.cost = 20
+    price = economy.calculate_price(mock_item, quantity=1, seller_mode=False)
+    assert price.final_price == round(20 * economy.model.resale_multiplier)
+    assert price.modifier_percent == 0

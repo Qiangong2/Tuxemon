@@ -4,44 +4,31 @@ from __future__ import annotations
 
 import logging
 from functools import partial
-from pathlib import Path
-from typing import TYPE_CHECKING, Any, ClassVar, Optional
+from typing import TYPE_CHECKING, Any, ClassVar
 
-import pygame_menu
-import yaml
-from pygame_menu import locals
+from pygame_menu.locals import ALIGN_CENTER, POSITION_EAST
+from pygame_menu.menu import Menu
 from pygame_menu.widgets.selection.highlight import HighlightSelection
 
 from tuxemon.constants import paths
-from tuxemon.locale import T
+from tuxemon.database.yaml_utils import load_yaml
+from tuxemon.locale.locale import T
 from tuxemon.menu.menu import PygameMenuState
 from tuxemon.platform.const.graphics import BG_PHONE_CONTACTS
 from tuxemon.platform.const.sizes import UNKNOWN_MAP_SLUG
-from tuxemon.prepare import SCREEN_SIZE
 from tuxemon.relationship import RelationshipConstants
 from tuxemon.tools import open_choice_dialog, open_dialog
 from tuxemon.ui.menu_options import MenuOptions, create_choice_options
 
 if TYPE_CHECKING:
-    from tuxemon.npc import NPC
+    from tuxemon.base_client import BaseClient
+    from tuxemon.entity.npc import NPC
 
 logger = logging.getLogger(__name__)
 
 
-def load_yaml(filepath: Path) -> Any:
-    try:
-        with filepath.open() as file:
-            return yaml.safe_load(file)
-    except FileNotFoundError:
-        logger.error(f"Config file not found: {filepath}")
-        raise
-    except yaml.YAMLError as exc:
-        logger.error(f"Error parsing YAML file: {exc}")
-        raise exc
-
-
 class Loader:
-    _phone_calls_data: Optional[dict[str, Any]] = None
+    _phone_calls_data: dict[str, Any] | None = None
 
     @classmethod
     def get_phone_calls_data(cls, filename: str) -> dict[str, Any]:
@@ -120,7 +107,7 @@ class NuPhoneContacts(PygameMenuState):
 
     def add_menu_items(
         self,
-        menu: pygame_menu.Menu,
+        menu: Menu,
     ) -> None:
 
         T_RELATIONSHIP = T.translate("relation_relationship")
@@ -129,7 +116,6 @@ class NuPhoneContacts(PygameMenuState):
 
         connections = self.char.relationships.get_all_connections()
         for slug, contact in connections.items():
-
             menu.add.button(
                 title=T.translate(slug),
                 action=partial(self.choice, slug),
@@ -159,14 +145,9 @@ class NuPhoneContacts(PygameMenuState):
         # menu
         menu.set_title(T.translate("app_contacts")).center_content()
 
-    def __init__(self, character: NPC) -> None:
-        width, height = SCREEN_SIZE
-
-        theme = self._setup_theme(BG_PHONE_CONTACTS)
-        theme.scrollarea_position = locals.POSITION_EAST
-        theme.widget_alignment = locals.ALIGN_CENTER
-        theme.title = True
-
+    def __init__(
+        self, client: BaseClient, character: NPC, **kwargs: Any
+    ) -> None:
         self.char = character
 
         if self.char.current_map:
@@ -177,7 +158,15 @@ class NuPhoneContacts(PygameMenuState):
         for relation in self.char.relationships.connections.values():
             relation.apply_decay(self.char.steps)
 
-        super().__init__(height=height, width=width)
+        width, height = client.context.resolution
+
+        super().__init__(client=client, height=height, width=width, **kwargs)
+
+        theme = self._setup_theme(BG_PHONE_CONTACTS)
+        theme.scrollarea_position = POSITION_EAST
+        theme.widget_alignment = ALIGN_CENTER
+        theme.title = True
+        self._menu_config["theme"] = theme
 
         self.add_menu_items(self.menu)
         self.reset_theme()

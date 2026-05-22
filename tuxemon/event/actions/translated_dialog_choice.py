@@ -7,9 +7,9 @@ from dataclasses import dataclass
 from functools import partial
 from typing import final
 
+from tuxemon.entity.npc import NPC
 from tuxemon.event.eventaction import EventAction
-from tuxemon.locale import T
-from tuxemon.npc import NPC
+from tuxemon.locale.locale import T
 from tuxemon.session import Session
 from tuxemon.tools import open_choice_dialog
 from tuxemon.ui.menu_options import MenuOptions, create_choice_options
@@ -46,7 +46,7 @@ class TranslatedDialogChoiceAction(EventAction):
 
         # perform text substitutions
         choices = TextFormatter.replace_text(session, self.choices, T)
-        player = session.get_npc("player")
+        player = session.client.get_npc("player")
         assert player
 
         # make menu options for each string between the colons
@@ -64,7 +64,5 @@ class TranslatedDialogChoiceAction(EventAction):
         )
 
     def update(self, session: Session, dt: float) -> None:
-        try:
-            session.client.get_state_by_name("ChoiceState")
-        except ValueError:
+        if "ChoiceState" not in session.client.active_state_names:
             self.stop()

@@ -1,5 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0
 # Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+from unittest.mock import MagicMock
+
 import pytest
 
 from tuxemon.db import (
@@ -13,8 +15,7 @@ from tuxemon.db import (
 from tuxemon.event.eventbehavior import (
     BehaviorManager,
     EventBehavior,
-    expand_behavior_actions,
-    expand_behavior_conditions,
+    expand_behavior,
 )
 
 
@@ -34,11 +35,21 @@ def dummy_event():
 
 
 @pytest.fixture
-def behavior_manager(monkeypatch):
-    monkeypatch.setattr(
-        "tuxemon.event.eventbehavior.load_plugins",
-        lambda **kwargs: {},
-    )
+def patch_behavior_plugins(monkeypatch):
+    def _patch(mapping):
+        fake_manager = MagicMock()
+        fake_manager.get_class_map.return_value = mapping
+        monkeypatch.setattr(
+            "tuxemon.event.eventbehavior.PluginManager.from_directory",
+            lambda *args, **kwargs: fake_manager,
+        )
+
+    return _patch
+
+
+@pytest.fixture
+def behavior_manager(patch_behavior_plugins):
+    patch_behavior_plugins({})
     return BehaviorManager(root_path=None)
 
 
@@ -61,125 +72,177 @@ class DummyBehavior(EventBehavior):
         return [cond], [act]
 
 
-def test_get_behavior_success(monkeypatch):
-    monkeypatch.setattr(
-        "tuxemon.event.eventbehavior.load_plugins",
-        lambda **kwargs: {"dummy": DummyBehavior},
-    )
+class EmptyBehavior(EventBehavior):
+    name = "empty"
 
-    mgr = BehaviorManager(root_path=None)
-    beh = mgr.get_behavior("dummy")
-
-    assert isinstance(beh, DummyBehavior)
+    def expand(self, event, behavior):
+        return [], []
 
 
-def test_get_behavior_missing(monkeypatch, caplog):
-    monkeypatch.setattr(
-        "tuxemon.event.eventbehavior.load_plugins",
-        lambda **kwargs: {},
-    )
+class ExplodingBehavior(EventBehavior):
+    name = "explode"
 
-    mgr = BehaviorManager(root_path=None)
-    beh = mgr.get_behavior("unknown")
-
-    assert beh is None
-    assert "not implemented" in caplog.text.lower()
+    def expand(self, event, behavior):
+        raise RuntimeError("boom")
 
 
-def test_get_behavior_instantiation_error(monkeypatch, caplog):
+class TestBehaviorManager:
+    def test_get_behavior_success(self, patch_behavior_plugins):
+        patch_behavior_plugins({"dummy": DummyBehavior})
+        mgr = BehaviorManager(root_path=None)
+        beh = mgr.get_behavior("dummy")
+        assert isinstance(beh, DummyBehavior)
 
-    class BadBehavior(EventBehavior):
-        name = "bad"
+    def test_get_behavior_returns_new_instance_each_call(
+        self, patch_behavior_plugins
+    ):
+        patch_behavior_plugins({"dummy": DummyBehavior})
+        mgr = BehaviorManager(root_path=None)
+        a = mgr.get_behavior("dummy")
+        b = mgr.get_behavior("dummy")
+        assert a is not b
 
-        def __init__(self):
-            raise RuntimeError("boom")
+    def test_get_behavior_missing(self, patch_behavior_plugins, caplog):
+        patch_behavior_plugins({})
+        mgr = BehaviorManager(root_path=None)
+        beh = mgr.get_behavior("unknown")
+        assert beh is None
+        assert "not implemented" in caplog.text.lower()
 
-        def expand(self, event, behavior):
-            return [], []
+    def test_get_behavior_instantiation_error(
+        self, patch_behavior_plugins, caplog
+    ):
+        class BadBehavior(EventBehavior):
+            name = "bad"
 
-    monkeypatch.setattr(
-        "tuxemon.event.eventbehavior.load_plugins",
-        lambda **kwargs: {"bad": BadBehavior},
-    )
+            def __init__(self):
+                raise RuntimeError("boom")
 
-    mgr = BehaviorManager(root_path=None)
-    beh = mgr.get_behavior("bad")
+            def expand(self, event, behavior):
+                return [], []
 
-    assert beh is None
-    assert "error instantiating behavior" in caplog.text.lower()
+        patch_behavior_plugins({"bad": BadBehavior})
+        mgr = BehaviorManager(root_path=None)
+        beh = mgr.get_behavior("bad")
+        assert beh is None
+        assert "error instantiating behavior" in caplog.text.lower()
 
-
-def test_expand_behavior_conditions(monkeypatch, dummy_event):
-    dummy_event.behavs = [Behavior(type="dummy", args=[], name="b1")]
-
-    monkeypatch.setattr(
-        "tuxemon.event.eventbehavior.load_plugins",
-        lambda **kwargs: {"dummy": DummyBehavior},
-    )
-
-    mgr = BehaviorManager(root_path=None)
-    conds = expand_behavior_conditions(dummy_event, mgr)
-
-    assert len(conds) == 1
-    assert isinstance(conds[0], SpatialCondition)
-    assert conds[0].type == "dummy_cond"
-
-
-def test_expand_behavior_actions(monkeypatch, dummy_event):
-    dummy_event.behavs = [Behavior(type="dummy", args=[], name="b1")]
-
-    monkeypatch.setattr(
-        "tuxemon.event.eventbehavior.load_plugins",
-        lambda **kwargs: {"dummy": DummyBehavior},
-    )
-
-    mgr = BehaviorManager(root_path=None)
-    acts = expand_behavior_actions(dummy_event, mgr)
-
-    assert len(acts) == 1
-    assert isinstance(acts[0], ParameterizableRule)
-    assert acts[0].type == "dummy_act"
+    def test_get_behaviors_returns_all(self, patch_behavior_plugins):
+        patch_behavior_plugins(
+            {"dummy": DummyBehavior, "empty": EmptyBehavior}
+        )
+        mgr = BehaviorManager(root_path=None)
+        result = mgr.get_behaviors()
+        assert set(result) == {DummyBehavior, EmptyBehavior}
 
 
-def test_expand_behavior_skips_missing_plugin(monkeypatch, dummy_event):
-    dummy_event.behavs = [Behavior(type="missing", args=[], name="b1")]
+class TestExpandBehavior:
+    def test_returns_both_conditions_and_actions(
+        self, patch_behavior_plugins, dummy_event
+    ):
+        dummy_event.behavs = [Behavior(type="dummy", args=[], name="b1")]
+        patch_behavior_plugins({"dummy": DummyBehavior})
+        mgr = BehaviorManager(root_path=None)
+        conds, acts = expand_behavior(dummy_event, mgr)
+        assert len(conds) == 1
+        assert len(acts) == 1
+        assert isinstance(conds[0], SpatialCondition)
+        assert isinstance(acts[0], ParameterizableRule)
+        assert conds[0].type == "dummy_cond"
+        assert acts[0].type == "dummy_act"
 
-    monkeypatch.setattr(
-        "tuxemon.event.eventbehavior.load_plugins",
-        lambda **kwargs: {},
-    )
+    def test_conditions_and_actions_come_from_same_expand_call(
+        self, patch_behavior_plugins, dummy_event
+    ):
+        call_count = {"n": 0}
 
-    mgr = BehaviorManager(root_path=None)
+        class CountingBehavior(EventBehavior):
+            name = "counting"
 
-    conds = expand_behavior_conditions(dummy_event, mgr)
-    acts = expand_behavior_actions(dummy_event, mgr)
+            def expand(self, event, behavior):
+                call_count["n"] += 1
+                cond = SpatialCondition(
+                    type="c",
+                    parameters=[],
+                    box=event.box,
+                    operator=Operator.IS,
+                    name="c",
+                )
+                act = ParameterizableRule(type="a", parameters=[], name="a")
+                return [cond], [act]
 
-    assert conds == []
-    assert acts == []
+        dummy_event.behavs = [Behavior(type="counting", args=[], name="b1")]
+        patch_behavior_plugins({"counting": CountingBehavior})
+        mgr = BehaviorManager(root_path=None)
+        expand_behavior(dummy_event, mgr)
+        assert call_count["n"] == 1, (
+            f"expand() was called {call_count['n']} times — expected exactly 1"
+        )
 
+    def test_no_behavs_returns_empty(
+        self, patch_behavior_plugins, dummy_event
+    ):
+        patch_behavior_plugins({})
+        mgr = BehaviorManager(root_path=None)
+        conds, acts = expand_behavior(dummy_event, mgr)
+        assert conds == []
+        assert acts == []
 
-def test_expand_behavior_logs_error_on_plugin_failure(
-    monkeypatch, dummy_event, caplog
-):
+    def test_skips_missing_plugin(self, patch_behavior_plugins, dummy_event):
+        dummy_event.behavs = [Behavior(type="missing", args=[], name="b1")]
+        patch_behavior_plugins({})
+        mgr = BehaviorManager(root_path=None)
+        conds, acts = expand_behavior(dummy_event, mgr)
+        assert conds == []
+        assert acts == []
 
-    class ExplodingBehavior(EventBehavior):
-        name = "explode"
+    def test_multiple_behaviors_accumulated(
+        self, patch_behavior_plugins, dummy_event
+    ):
+        dummy_event.behavs = [
+            Behavior(type="dummy", args=[], name="b1"),
+            Behavior(type="dummy", args=[], name="b2"),
+        ]
+        patch_behavior_plugins({"dummy": DummyBehavior})
+        mgr = BehaviorManager(root_path=None)
+        conds, acts = expand_behavior(dummy_event, mgr)
+        assert len(conds) == 2
+        assert len(acts) == 2
 
-        def expand(self, event, behavior):
-            raise RuntimeError("boom")
+    def test_empty_behavior_contributes_nothing(
+        self, patch_behavior_plugins, dummy_event
+    ):
+        dummy_event.behavs = [Behavior(type="empty", args=[], name="b1")]
+        patch_behavior_plugins({"empty": EmptyBehavior})
+        mgr = BehaviorManager(root_path=None)
+        conds, acts = expand_behavior(dummy_event, mgr)
+        assert conds == []
+        assert acts == []
 
-    dummy_event.behavs = [Behavior(type="explode", args=[], name="b1")]
+    def test_exploding_behavior_skipped_entirely(
+        self, patch_behavior_plugins, dummy_event, caplog
+    ):
+        dummy_event.behavs = [Behavior(type="explode", args=[], name="b1")]
+        patch_behavior_plugins({"explode": ExplodingBehavior})
+        mgr = BehaviorManager(root_path=None)
+        conds, acts = expand_behavior(dummy_event, mgr)
+        assert conds == []
+        assert acts == []
+        assert "failed to expand" in caplog.text.lower()
 
-    monkeypatch.setattr(
-        "tuxemon.event.eventbehavior.load_plugins",
-        lambda **kwargs: {"explode": ExplodingBehavior},
-    )
-
-    mgr = BehaviorManager(root_path=None)
-
-    conds = expand_behavior_conditions(dummy_event, mgr)
-    acts = expand_behavior_actions(dummy_event, mgr)
-
-    assert conds == []
-    assert acts == []
-    assert "error expanding behavior" in caplog.text.lower()
+    def test_exploding_behavior_does_not_affect_others(
+        self, patch_behavior_plugins, dummy_event, caplog
+    ):
+        dummy_event.behavs = [
+            Behavior(type="explode", args=[], name="b1"),
+            Behavior(type="dummy", args=[], name="b2"),
+        ]
+        patch_behavior_plugins(
+            {"explode": ExplodingBehavior, "dummy": DummyBehavior}
+        )
+        mgr = BehaviorManager(root_path=None)
+        conds, acts = expand_behavior(dummy_event, mgr)
+        assert len(conds) == 1
+        assert len(acts) == 1
+        assert conds[0].type == "dummy_cond"
+        assert acts[0].type == "dummy_act"

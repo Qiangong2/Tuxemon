@@ -4,22 +4,21 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from pathlib import Path
-from typing import TYPE_CHECKING, Any, ClassVar, Optional
+from typing import TYPE_CHECKING, Any, ClassVar
 
-import pygame_menu
-import yaml
-from pygame_menu import locals
+from pygame_menu.locals import ALIGN_CENTER, POSITION_EAST
+from pygame_menu.menu import Menu
 
 from tuxemon.constants import paths
-from tuxemon.locale import T
+from tuxemon.database.yaml_utils import load_yaml
+from tuxemon.locale.locale import T
 from tuxemon.menu.menu import PygameMenuState
 from tuxemon.platform.const.graphics import BG_PHONE_MAP
-from tuxemon.prepare import SCALE, SCREEN_SIZE
 from tuxemon.tools import fix_measure
 
 if TYPE_CHECKING:
-    from tuxemon.npc import NPC
+    from tuxemon.base_client import BaseClient
+    from tuxemon.entity.npc import NPC
 
 
 logger = logging.getLogger(__name__)
@@ -31,20 +30,8 @@ class NuPhoneMapConfig:
     map_data: list[tuple[float, float, str]]
 
 
-def load_yaml(filepath: Path) -> Any:
-    try:
-        with filepath.open() as file:
-            return yaml.safe_load(file)
-    except FileNotFoundError:
-        logger.error(f"Config file not found: {filepath}")
-        raise
-    except yaml.YAMLError as exc:
-        logger.error(f"Error parsing YAML file: {exc}")
-        raise exc
-
-
 class Loader:
-    _config_nuphone_map: Optional[NuPhoneMapConfig] = None
+    _config_nuphone_map: NuPhoneMapConfig | None = None
 
     @classmethod
     def get_config_nuphone_map(cls, filename: str) -> NuPhoneMapConfig:
@@ -88,10 +75,10 @@ class NuPhoneMap(PygameMenuState):
 
     def add_menu_items(
         self,
-        menu: pygame_menu.Menu,
+        menu: Menu,
     ) -> None:
         new_image = self._create_image(data.map_path)
-        new_image.scale(SCALE, SCALE)
+        new_image.scale(self.factor, self.factor)
         menu.add.image(image_path=new_image.copy())
         underline = False
         selectable = True
@@ -120,21 +107,19 @@ class NuPhoneMap(PygameMenuState):
 
         menu.set_title(title=T.translate("app_map")).center_content()
 
-    def __init__(self, character: NPC) -> None:
-        width, height = SCREEN_SIZE
+    def __init__(
+        self, client: BaseClient, character: NPC, **kwargs: Any
+    ) -> None:
+        self.char = character
+        width, height = client.context.resolution
+
+        super().__init__(client=client, height=height, width=width, **kwargs)
 
         theme = self._setup_theme(BG_PHONE_MAP)
-        theme.scrollarea_position = locals.POSITION_EAST
-        theme.widget_alignment = locals.ALIGN_CENTER
-
+        theme.scrollarea_position = POSITION_EAST
+        theme.widget_alignment = ALIGN_CENTER
         theme.title = True
-
-        self.char = character
-
-        super().__init__(
-            height=height,
-            width=width,
-        )
+        self._menu_config["theme"] = theme
 
         self.add_menu_items(self.menu)
         self.reset_theme()

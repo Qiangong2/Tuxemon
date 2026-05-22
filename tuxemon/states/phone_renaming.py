@@ -3,35 +3,33 @@
 from __future__ import annotations
 
 from functools import partial
-from typing import TYPE_CHECKING, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar
 
-import pygame_menu
-from pygame_menu import locals
+from pygame_menu.locals import ALIGN_CENTER, POSITION_EAST
+from pygame_menu.menu import Menu
 
-from tuxemon.locale import T
+from tuxemon.locale.locale import T
 from tuxemon.menu.menu import PygameMenuState
 from tuxemon.platform.const.graphics import BG_PHONE_RENAMING
 from tuxemon.platform.const.sizes import PLAYER_NAME_LIMIT
-from tuxemon.prepare import SCREEN_SIZE
 
 if TYPE_CHECKING:
-    from tuxemon.monster import Monster
-    from tuxemon.npc import NPC
+    from tuxemon.base_client import BaseClient
+    from tuxemon.entity.npc import NPC
+    from tuxemon.monster.monster import Monster
 
 
 class NuPhoneRenaming(PygameMenuState):
     name: ClassVar[str] = "NuPhoneRenaming"
 
-    def add_menu_items(
-        self,
-        menu: pygame_menu.Menu,
-    ) -> None:
+    def add_menu_items(self, menu: Menu) -> None:
         def rename_callback(new_name: str, monster: Monster) -> None:
             monster.name = new_name
             self.menu.clear()
             theme = self._setup_theme(BG_PHONE_RENAMING)
-            theme.scrollarea_position = locals.POSITION_EAST
-            theme.widget_alignment = locals.ALIGN_CENTER
+            theme.scrollarea_position = POSITION_EAST
+            theme.widget_alignment = ALIGN_CENTER
+            self._menu_config["theme"] = theme
             self.add_menu_items(self.menu)
 
         def rename(monster: Monster) -> None:
@@ -56,20 +54,19 @@ class NuPhoneRenaming(PygameMenuState):
 
         menu.set_title(T.translate("app_renaming")).center_content()
 
-    def __init__(self, character: NPC) -> None:
-        width, height = SCREEN_SIZE
+    def __init__(
+        self, client: BaseClient, character: NPC, **kwargs: Any
+    ) -> None:
+        self.char = character
+        width, height = client.context.resolution
+
+        super().__init__(client=client, height=height, width=width, **kwargs)
 
         theme = self._setup_theme(BG_PHONE_RENAMING)
-        theme.scrollarea_position = locals.POSITION_EAST
-        theme.widget_alignment = locals.ALIGN_CENTER
+        theme.scrollarea_position = POSITION_EAST
+        theme.widget_alignment = ALIGN_CENTER
         theme.title = True
-
-        self.char = character
-
-        super().__init__(
-            height=height,
-            width=width,
-        )
+        self._menu_config["theme"] = theme
 
         self.add_menu_items(self.menu)
         self.reset_theme()

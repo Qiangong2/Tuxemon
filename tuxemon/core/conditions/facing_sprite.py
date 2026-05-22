@@ -9,7 +9,7 @@ from tuxemon.core.core_condition import CoreCondition
 from tuxemon.map.map import get_coords, get_direction
 
 if TYPE_CHECKING:
-    from tuxemon.monster import Monster
+    from tuxemon.monster.monster import Monster
     from tuxemon.session import Session
 
 
@@ -45,8 +45,8 @@ class FacingSpriteCondition(CoreCondition):
         facing_directions = {
             get_direction(player.tile_pos, npc.tile_pos)
             for coords in tiles
-            if (npc := session.get_npc_pos(coords))
-            and npc.template.sprite_name == self.sprite
+            if (npc := session.client.get_npc_pos(coords))
+            and npc.appearance_manager.state.sprite_name == self.sprite
         }
 
         return player.facing in facing_directions

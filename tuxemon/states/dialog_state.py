@@ -4,18 +4,22 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable, Sequence
-from typing import TYPE_CHECKING, Any, ClassVar, Optional
+from typing import TYPE_CHECKING, Any, ClassVar
+
+from pygame import SRCALPHA
+from pygame.rect import Rect
+from pygame.surface import Surface
 
 from tuxemon.graphics import load_and_scale
 from tuxemon.menu.menu import PopUpMenu
 from tuxemon.platform.const import buttons
 from tuxemon.platform.events import PlayerInput
 from tuxemon.sprite import Sprite
-from tuxemon.tools import scale
 from tuxemon.ui.text import TextArea
 from tuxemon.ui.text_alignment import HorizontalAlignment, VerticalAlignment
 
 if TYPE_CHECKING:
+    from tuxemon.base_client import BaseClient
     from tuxemon.platform.events import PlayerInput
     from tuxemon.sprite import Sprite
 
@@ -39,18 +43,20 @@ class DialogState(PopUpMenu[None]):
 
     def __init__(
         self,
+        client: BaseClient,
+        rect: Rect,
         text: Sequence[str] = (),
-        avatar: Optional[Sprite] = None,
-        box_style: Optional[dict[str, Any]] = None,
-        on_complete: Optional[Callable[[], None]] = None,
+        avatar: Sprite | None = None,
+        box_style: dict[str, Any] | None = None,
+        on_complete: Callable[[], None] | None = None,
         auto_close: bool = True,
-        close_after: Optional[float] = None,
+        close_after: float | None = None,
         per_line_timeout: bool = False,
-        advance_buttons: Optional[list[int]] = None,
-        dialog_speed: Optional[str] = None,
+        advance_buttons: list[int] | None = None,
+        dialog_speed: str | None = None,
         **kwargs: Any,
     ) -> None:
-        super().__init__(**kwargs)
+        super().__init__(client=client, rect=rect.copy(), **kwargs)
         self.text_queue = list(text)
         self.avatar = avatar
         self.on_complete = on_complete
@@ -78,29 +84,42 @@ class DialogState(PopUpMenu[None]):
         final_box_style.update(box_style)
 
         _border = load_and_scale(final_box_style["border"])
-        self.window._set_border(_border)
-        self.window._color = final_box_style["bg_color"]
-        line_spacing = scale(final_box_style["line_spacing"])
+        self.window.set_border(_border)
+        self.window.set_color(final_box_style["bg_color"])
+        scaling = self.client.context.scaling
+        line_spacing = scaling.scale_int(final_box_style["line_spacing"])
+
+        internal_rect = self.calc_internal_rect().copy()
 
         self.dialog_box = TextArea(
             font=self.font,
             font_color=final_box_style["font_color"],
+            rect=internal_rect,
+            scaling=self.client.context.scaling,
             font_shadow=final_box_style["font_shadow"],
             h_alignment=final_box_style["h_alignment"],
             v_alignment=final_box_style["v_alignment"],
             line_spacing=line_spacing,
         )
-        self.dialog_box.rect = self.calc_internal_rect()
         self.sprites.add(self.dialog_box)
+
+    def on_open(self) -> None:
+        """Start the dialog when the state is opened."""
+        super().on_open()
+
+        internal_rect = self.calc_internal_rect()
+        logger.debug(f"DialogState.on_open: internal rect {internal_rect}")
+        self.dialog_box.rect = internal_rect
+
+        self.dialog_box.image = Surface(internal_rect.size, SRCALPHA)
+        self.dialog_box.image = self.dialog_box._render_background()
 
         if self.avatar:
             avatar_rect = self.calc_final_rect()
             self.avatar.rect.bottomleft = avatar_rect.left, avatar_rect.top
-            self.sprites.add(self.avatar)
 
-    def on_open(self) -> None:
-        """Start the dialog when the state is opened."""
         self.next_text()
+
         if not self.text_queue and not self.auto_close:
             self._timer_active = False
 
@@ -114,7 +133,7 @@ class DialogState(PopUpMenu[None]):
         if button in self.advance_buttons:
             self.advance_buttons.remove(button)
 
-    def process_event(self, event: PlayerInput) -> Optional[PlayerInput]:
+    def process_event(self, event: PlayerInput) -> PlayerInput | None:
         """Handle player input to fast-forward or advance dialog lines."""
         if event.pressed and event.button in self.advance_buttons:
             if not self.dialog.is_dialog_complete(self.dialog_box):
@@ -155,7 +174,7 @@ class DialogState(PopUpMenu[None]):
                     logger.debug("Dialog auto-closing after timeout")
                     self.close_dialog()
 
-    def next_text(self) -> Optional[str]:
+    def next_text(self) -> str | None:
         """Advance to the next line of dialog or close when finished."""
         if self.dialog_box.drawing_text:
             return None

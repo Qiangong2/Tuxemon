@@ -4,6 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "tuxemon"
+version = "0.4.35"
 description = "Open source monster-fighting RPG"
 readme = "README.md"
 license = {file = "LICENSE"}
@@ -21,11 +22,12 @@ classifiers = [
         "Programming Language :: Python :: 3.11",
         "Programming Language :: Python :: 3.12",
         "Programming Language :: Python :: 3.13",
+        "Programming Language :: Python :: 3.14",
         "Topic :: Games/Entertainment",
         "Topic :: Games/Entertainment :: Role-Playing"
 ]
 requires-python = ">=3.10"
-dynamic = ["version", "dependencies"]
+dynamic = ["dependencies"]
 
 [project.urls]
 homepage = "https://www.tuxemon.org"
@@ -43,15 +45,6 @@ include = ["tuxemon*"]
 
 [tool.setuptools.dynamic]
 dependencies = {file = "requirements.txt"}
-
-[tool.black]
-line-length = 79
-target-version = ["py310"]
-
-[tool.isort]
-line_length = 79
-profile = "black"
-skip_gitignore = true
 
 [tool.mypy]
 enable_error_code = "ignore-without-code"
@@ -104,8 +97,35 @@ ignored-argument-names = "_.*"
 [tool.pylint.deprecated_builtins]
 bad-functions = ["map", "filter", "apply", "input"]
 
-[tool.flake8]
-ignore = []
-max-line-length = 79
-exclude = [".env/*", ".git"]
-max-complexity = 10
+[tool.ruff]
+line-length = 79
+target-version = "py310"
+
+[tool.ruff.lint]
+select = [
+    "W",    # pycodestyle warnings
+    "UP",   # pyupgrade
+    "I",    # import sorting
+    "F",    # enables F401 and all Pyflakes rules
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["tuxemon"]
+
+[tool.ruff.lint.pyupgrade]
+keep-runtime-typing = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
+python_classes = "Test*"
+python_functions = "test_*"
+addopts = "-v --tb=short"
+
+markers = [
+    "unit: Unit tests (no external dependencies)",
+    "integration: Integration tests (use real objects)",
+    "slow: Slow tests (> 1 second)",
+    "pygame: Tests requiring pygame",
+    "asyncio: Async tests",
+]

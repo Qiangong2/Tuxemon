@@ -5,10 +5,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from tuxemon import formula
 from tuxemon.core.core_effect import CoreEffect, TechEffectResult
+from tuxemon.locale.locale import T
 
 if TYPE_CHECKING:
-    from tuxemon.monster import Monster
+    from tuxemon.monster.monster import Monster
     from tuxemon.session import Session
     from tuxemon.technique.technique import Technique
 
@@ -32,8 +34,7 @@ class MultiAttackEffect(CoreEffect):
     .. code-block:: json
 
         "effects": [
-            "multiattack 3",
-            "damage"
+            "multiattack 3"
         ]
     """
 
@@ -43,27 +44,37 @@ class MultiAttackEffect(CoreEffect):
     def apply_tech_target(
         self, session: Session, tech: Technique, user: Monster, target: Monster
     ) -> TechEffectResult:
-        combat_session = session.client.combat_session
-        combat_session.set_tech_hit(user)
-        # Track previous actions with the same technique, user, and target
-        turn = combat_session.turn
-        action_queue = combat_session.action_queue
-        log = action_queue.history.get_actions_by_turn(turn)
-        track = [
-            action
-            for action in log
-            if action.method == tech
-            and action.user == user
-            and action.target == target
-        ]
-        # Check if the technique has been used the maximum number of times
-        done = len(track) < self.times
-        # Check if the technique hits
-        hit = tech.accuracy >= combat_session.get_tech_hit(user)
-        # If the technique is done and hits, enqueue the action
-        if done and hit:
-            combat_session.enqueue_action(user, tech, target)
+        combat = session.client.combat_session
+
+        hit_count = 0
+        total_damage = 0
+        extras: list[str] = []
+
+        for _ in range(self.times):
+            combat.set_tech_hit(user)
+            hit_roll = combat.get_tech_hit(user)
+            hit = tech.accuracy >= hit_roll
+
+            if not hit:
+                break
+
+            hit_count += 1
+            dmg, _ = formula.simple_damage_calculate(tech, user, target)
+            total_damage += dmg
+
+        success = hit_count > 0
+
+        if success:
+            target.current_hp = max(0, target.current_hp - total_damage)
+            params = {"hit_count": hit_count}
+            extract_text = T.format("combat_multiattack", params)
+            extras = [extract_text]
 
         return TechEffectResult(
-            name=tech.name, should_tackle=done, success=done
+            name=tech.name,
+            success=success,
+            should_tackle=success,
+            damage=total_damage,
+            extras=extras,
+            hit_count=hit_count,
         )

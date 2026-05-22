@@ -6,8 +6,8 @@ import pytest
 
 from tuxemon.core.asset import init_assets
 from tuxemon.db import CategoryStatus, EffectPhase, ResponseStatus
-from tuxemon.monster import Monster
-from tuxemon.monster_dir.status import MonsterStatusHandler
+from tuxemon.monster.monster import Monster
+from tuxemon.monster.status import MonsterStatusHandler
 
 
 @pytest.fixture
@@ -232,28 +232,57 @@ def test_decode_status(mock_lookup, monster):
 @pytest.mark.parametrize(
     "slug, expected",
     [
-        ("test", True),
-        ("other", False),
+        pytest.param("test", True, id="status_present"),
+        pytest.param("other", False, id="status_absent"),
     ],
 )
 def test_has_status_param(monster, slug, expected):
     s = MagicMock(slug="test")
     s.host = monster
+
     handler = MonsterStatusHandler([s])
+
     assert handler.has_status(slug) == expected
 
 
 @pytest.mark.parametrize(
     "current_category, transition, expect_applied, expect_empty",
     [
-        # Positive category
-        (CategoryStatus.positive, ResponseStatus.replaced, True, False),
-        (CategoryStatus.positive, ResponseStatus.removed, False, True),
-        # Negative category
-        (CategoryStatus.negative, ResponseStatus.replaced, True, False),
-        (CategoryStatus.negative, ResponseStatus.removed, False, True),
-        # Neutral category defaults to replaced
-        (None, ResponseStatus.replaced, True, False),
+        pytest.param(
+            CategoryStatus.POSITIVE,
+            ResponseStatus.REPLACED,
+            True,
+            False,
+            id="positive_replaced",
+        ),
+        pytest.param(
+            CategoryStatus.POSITIVE,
+            ResponseStatus.REMOVED,
+            False,
+            True,
+            id="positive_removed",
+        ),
+        pytest.param(
+            CategoryStatus.NEGATIVE,
+            ResponseStatus.REPLACED,
+            True,
+            False,
+            id="negative_replaced",
+        ),
+        pytest.param(
+            CategoryStatus.NEGATIVE,
+            ResponseStatus.REMOVED,
+            False,
+            True,
+            id="negative_removed",
+        ),
+        pytest.param(
+            None,
+            ResponseStatus.REPLACED,
+            True,
+            False,
+            id="neutral_defaults_replaced",
+        ),
     ],
 )
 def test_apply_status_transitions(
@@ -270,9 +299,9 @@ def test_apply_status_transitions(
     status2 = MagicMock()
     status2.host = monster
 
-    if current_category == CategoryStatus.positive:
+    if current_category == CategoryStatus.POSITIVE:
         status2.on_positive_status = transition
-    elif current_category == CategoryStatus.negative:
+    elif current_category == CategoryStatus.NEGATIVE:
         status2.on_negative_status = transition
 
     monster.held_item = MagicMock()

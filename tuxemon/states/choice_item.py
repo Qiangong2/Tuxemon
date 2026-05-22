@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, ClassVar, Optional
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from pygame_menu.locals import POSITION_EAST
 from pygame_menu.widgets.selection.highlight import HighlightSelection
@@ -13,9 +13,11 @@ from tuxemon.database.runtime import db
 from tuxemon.db import ItemModel
 from tuxemon.menu.menu import PygameMenuState
 from tuxemon.menu.theme import get_theme
-from tuxemon.prepare import SCALE, SCREEN_SIZE
 from tuxemon.tools import fix_measure
 from tuxemon.ui.menu_options import MenuOptions
+
+if TYPE_CHECKING:
+    from tuxemon.base_client import BaseClient
 
 
 @dataclass
@@ -40,19 +42,23 @@ class ChoiceItem(PygameMenuState):
 
     def __init__(
         self,
+        client: BaseClient,
         menu: MenuOptions,
         escape_key_exits: bool = False,
-        config: Optional[MenuItemConfig] = None,
+        config: MenuItemConfig | None = None,
         **kwargs: Any,
     ) -> None:
         self.config = config or MenuItemConfig()
-        theme = get_theme().copy()
-        theme.scrollarea_position = POSITION_EAST
 
         self.width, self.height, self.translate_percentage = (
             self.calculate_window_size(menu)
         )
-        super().__init__(width=self.width, height=self.height, **kwargs)
+        super().__init__(
+            client=client, width=self.width, height=self.height, **kwargs
+        )
+        theme = get_theme(self.client.context.scaling).copy()
+        theme.scrollarea_position = POSITION_EAST
+        self._menu_config["theme"] = theme
 
         for option in menu.get_menu():
             self.add_item_menu_item(
@@ -64,7 +70,7 @@ class ChoiceItem(PygameMenuState):
     def calculate_window_size(
         self, menu: MenuOptions
     ) -> tuple[int, int, float]:
-        _width, _height = SCREEN_SIZE
+        _width, _height = self.client.context.resolution
 
         if len(menu.options) >= self.config.max_elements:
             height = _height * self.config.max_height_percentage
@@ -93,10 +99,8 @@ class ChoiceItem(PygameMenuState):
     ) -> None:
         item = ItemModel.lookup(slug, db)
         new_image = self._create_image(item.sprite)
-        new_image.scale(
-            SCALE * self.config.scale_sprite,
-            SCALE * self.config.scale_sprite,
-        )
+        scaled = self.factor * self.config.scale_sprite
+        new_image.scale(scaled, scaled)
         self.menu.add.image(new_image)
         self.menu.add.button(
             name,

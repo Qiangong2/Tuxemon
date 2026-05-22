@@ -5,18 +5,14 @@ from __future__ import annotations
 import logging
 import random
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Any, final
 
-import yaml
-
 from tuxemon.constants import paths
-from tuxemon.db import SeenStatus
+from tuxemon.database.yaml_utils import load_yaml
 from tuxemon.event.eventaction import EventAction
-from tuxemon.monster import Monster
+from tuxemon.monster.monster import Monster
 from tuxemon.platform.const.sizes import PARTY_LIMIT
 from tuxemon.session import Session
-from tuxemon.time_handler import today_ordinal
 
 logger = logging.getLogger(__name__)
 
@@ -25,18 +21,6 @@ logger = logging.getLogger(__name__)
 class Parties:
     name: str
     monsters: list[dict[str, Any]]
-
-
-def load_yaml(filepath: Path) -> Any:
-    try:
-        with filepath.open() as file:
-            return yaml.safe_load(file)
-    except FileNotFoundError:
-        logger.error(f"Config file not found: {filepath}")
-        raise
-    except yaml.YAMLError as exc:
-        logger.error(f"Error parsing YAML file: {exc}")
-        raise exc
 
 
 class Loader:
@@ -87,9 +71,10 @@ class ReplacePartyFromYamlAction(EventAction):
 
     def start(self, session: Session) -> None:
 
-        character = session.get_npc(self.character)
+        character = session.client.get_npc(self.character)
         if character is None:
             logger.error("'wild_encounter' not found")
+            self.stop()
             return
 
         parties = Loader.get_config_monsters(f"{self.yaml_file}.yaml")
@@ -99,6 +84,7 @@ class ReplacePartyFromYamlAction(EventAction):
             logger.error(
                 f"Party '{self.set_name}' not found in '{self.yaml_file}'"
             )
+            self.stop()
             return
 
         monster_defs = party.monsters
@@ -120,8 +106,7 @@ class ReplacePartyFromYamlAction(EventAction):
                 continue
 
             monster = Monster.spawn_base(slug, level)
-            monster.set_capture(today_ordinal())
-            character.tuxepedia.add_entry(monster.slug, SeenStatus.caught)
+            character.tuxepedia.register_caught(monster.slug)
 
             if "experience_modifier" in entry:
                 monster.set_experience_modifier(
@@ -131,6 +116,13 @@ class ReplacePartyFromYamlAction(EventAction):
                 monster.money_modifier = float(entry["money_modifier"])
 
             new_monsters.append(monster)
+
+        if not new_monsters:
+            logger.error(
+                f"No valid monsters built for set '{self.set_name}', party unchanged."
+            )
+            self.stop()
+            return
 
         character.party.replace_party(new_monsters, False)
         logger.info(

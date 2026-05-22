@@ -10,7 +10,7 @@ from tuxemon.core.core_effect import CoreEffect, TechEffectResult
 from tuxemon.db import CategoryStatus
 
 if TYPE_CHECKING:
-    from tuxemon.monster import Monster
+    from tuxemon.monster.monster import Monster
     from tuxemon.session import Session
     from tuxemon.technique.technique import Technique
 
@@ -76,12 +76,12 @@ class RemoveEffect(CoreEffect):
                 ):
                     if (
                         self.status == "positive"
-                        and current_status.category == CategoryStatus.positive
+                        and current_status.category == CategoryStatus.POSITIVE
                     ):
                         monster.status.clear_status(session)
                     elif (
                         self.status == "negative"
-                        and current_status.category == CategoryStatus.negative
+                        and current_status.category == CategoryStatus.NEGATIVE
                     ):
                         monster.status.clear_status(session)
                 elif current_status and self.status == current_status.slug:

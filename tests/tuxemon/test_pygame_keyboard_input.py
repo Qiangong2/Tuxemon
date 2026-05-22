@@ -57,7 +57,13 @@ def test_unmapped_key(keyboard_input: PygameKeyboardInput):
     assert not keyboard_input.buttons[events.UNICODE].pressed
 
 
-@pytest.mark.parametrize("shift_key", [pg.K_RSHIFT, pg.K_LSHIFT])
+@pytest.mark.parametrize(
+    "shift_key",
+    [
+        pytest.param(pg.K_RSHIFT, id="right_shift"),
+        pytest.param(pg.K_LSHIFT, id="left_shift"),
+    ],
+)
 def test_modifier_keys(keyboard_input: PygameKeyboardInput, shift_key: int):
     keyboard_input.process_event(Event(pg.KEYDOWN, key=shift_key))
     assert keyboard_input.buttons[buttons.B].pressed
@@ -67,33 +73,39 @@ def test_modifier_keys(keyboard_input: PygameKeyboardInput, shift_key: int):
 
 
 @pytest.mark.parametrize(
-    "new_map,event,expected_button,expected_value,expected_pressed",
+    "new_map, event, expected_button, expected_value, expected_pressed",
     [
-        # Add new button
-        (
+        pytest.param(
             {pg.K_LEFT: buttons.A},
             Event(pg.KEYDOWN, key=pg.K_LEFT),
             buttons.A,
             None,
             True,
+            id="add_new_button",
         ),
-        # Remove old button
-        ({pg.K_DOWN: buttons.A}, None, buttons.UP, None, False),
-        # Unicode preserved
-        (
+        pytest.param(
+            {pg.K_DOWN: buttons.A},
+            None,
+            buttons.UP,
+            None,
+            False,
+            id="remove_old_button",
+        ),
+        pytest.param(
             {None: events.UNICODE, pg.K_RETURN: buttons.A},
             Event(pg.KEYDOWN, unicode="x", key=pg.K_x),
             events.UNICODE,
             "x",
             True,
+            id="unicode_preserved",
         ),
-        # Press/release cycle
-        (
+        pytest.param(
             {pg.K_RETURN: buttons.UP},
             Event(pg.KEYDOWN, key=pg.K_RETURN),
             buttons.UP,
             None,
             True,
+            id="press_release_cycle_press",
         ),
     ],
 )
@@ -106,6 +118,7 @@ def test_reload_mapping_behaviors(
     expected_pressed,
 ):
     keyboard_input.reload_mapping(new_map)
+    keyboard_input.update_state(0)
 
     if event:
         keyboard_input.process_event(event)
@@ -125,3 +138,25 @@ def test_reload_mapping_behaviors(
     if new_map == {pg.K_RETURN: buttons.UP}:
         keyboard_input.process_event(Event(pg.KEYUP, key=pg.K_RETURN))
         assert not keyboard_input.buttons[buttons.UP].pressed
+
+
+def test_reload_mapping_is_deferred(keyboard_input: PygameKeyboardInput):
+    old_map = dict(keyboard_input.event_map)
+    new_map = {pg.K_LEFT: buttons.A}
+    keyboard_input.reload_mapping(new_map)
+    assert keyboard_input.event_map == old_map
+
+
+def test_update_state_applies_pending_map(keyboard_input: PygameKeyboardInput):
+    new_map = {pg.K_LEFT: buttons.A}
+    keyboard_input.reload_mapping(new_map)
+    keyboard_input.update_state(0)
+    assert keyboard_input.event_map == new_map
+
+
+def test_update_state_rebuilds_buttons(keyboard_input: PygameKeyboardInput):
+    new_map = {pg.K_LEFT: buttons.A}
+    keyboard_input.reload_mapping(new_map)
+    keyboard_input.update_state(0)
+    assert buttons.A in keyboard_input.buttons
+    assert buttons.UP not in keyboard_input.buttons

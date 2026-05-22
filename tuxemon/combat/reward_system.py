@@ -3,20 +3,19 @@
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
-from typing import TYPE_CHECKING, Optional
+from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
 from tuxemon.combat.combat_context import CombatType
 from tuxemon.combat.experience_strategies import calculate_experience
-from tuxemon.formula import config_monster
-from tuxemon.locale import T
-from tuxemon.monster_dir.stats import BasicStats
+from tuxemon.database.rules import config_monster
+from tuxemon.locale.locale import T
+from tuxemon.monster.stats import BasicStats
 
 if TYPE_CHECKING:
     from tuxemon.combat.damage_tracker import DamageTracker
-    from tuxemon.monster import Monster
+    from tuxemon.monster.monster import Monster
     from tuxemon.session import Session
-    from tuxemon.technique.technique import Technique
 
 logger = logging.getLogger(__name__)
 
@@ -27,13 +26,15 @@ class RewardDataEntry:
     money: int
     experience: int
     levels_gained: int = 0
+    bond_milestones_crossed: set[int] = field(default_factory=set)
+    total_experience: int = 0
 
 
 @dataclass
 class RewardData:
     winners: list[RewardDataEntry]
     messages: list[str]
-    moves: list[Technique]
+    moves: list[str]
     update: bool
     prize: int
 
@@ -57,7 +58,7 @@ class RewardSystem:
             monster.bond_handler.apply_bond_modifier("fainted")
 
     def award_rewards(
-        self, loser: Monster, winners: Optional[set[Monster]] = None
+        self, loser: Monster, winners: set[Monster] | None = None
     ) -> RewardData:
         """Calculate and distribute rewards to winners."""
         if winners is None:
@@ -112,8 +113,7 @@ class RewardCalculator:
             all_monsters = set(owner.party.alive)
             non_participants = all_monsters - winners
             for non_participant in non_participants:
-                levels = non_participant.give_experience(awarded_exp)
-                non_participant.moves.update_moves(non_participant, levels)
+                non_participant.give_experience(awarded_exp)
 
     def calculate_winner_entry(
         self, loser: Monster, winner: Monster
@@ -123,29 +123,32 @@ class RewardCalculator:
         """
         awarded_exp, _ = calculate_experience(loser, winner, self.damage_map)
         awarded_money = calculate_money(loser, winner)
-
         calculate_tps(winner, loser)
         levels = winner.give_experience(awarded_exp)
-
+        crossed = winner.bond_handler.apply_bond_modifier("win_battle")
         return RewardDataEntry(
             winner=winner,
             money=awarded_money,
             experience=awarded_exp,
             levels_gained=levels,
+            bond_milestones_crossed=crossed,
+            total_experience=winner.total_experience,
         )
 
     def update_moves_and_messages(
         self, winner: Monster, entry: RewardDataEntry, rewards_data: RewardData
     ) -> None:
         """Update moves and add messages for a winner."""
-        new_moves = winner.moves.update_moves(winner, entry.levels_gained)
+        new_moves = winner.moves.preview_moves_learned(
+            winner, entry.levels_gained
+        )
         if new_moves:
             rewards_data.moves.extend(new_moves)
 
         rewards_data.messages.append(
             T.format(
                 "combat_gain_exp",
-                {"name": winner.name.upper(), "xp": entry.experience},
+                {"name": winner.name, "xp": entry.experience},
             )
         )
 

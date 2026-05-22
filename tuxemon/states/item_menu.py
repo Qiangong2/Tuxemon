@@ -2,8 +2,9 @@
 # Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
-from collections.abc import Generator
-from typing import TYPE_CHECKING, ClassVar, Optional
+import math
+from collections.abc import Callable, Generator
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from pygame.rect import Rect
 
@@ -12,7 +13,7 @@ from tuxemon.item.controller import ItemController
 from tuxemon.item.filter import ItemFilter
 from tuxemon.item.item import Item
 from tuxemon.item.sorter import ItemSorter
-from tuxemon.locale import T
+from tuxemon.locale.locale import T
 from tuxemon.menu.interface import MenuItem
 from tuxemon.menu.menu import Menu
 from tuxemon.platform.const import buttons
@@ -24,19 +25,14 @@ from tuxemon.platform.const.graphics import (
 )
 from tuxemon.platform.const.sizes import MAX_MENU_ITEMS
 from tuxemon.platform.events import PlayerInput
-from tuxemon.prepare import SCREEN_RECT
 from tuxemon.session import local_session
 from tuxemon.sprite import Sprite
-from tuxemon.tools import (
-    open_choice_dialog,
-    open_dialog,
-    scale,
-)
-from tuxemon.ui.paginator import Paginator
+from tuxemon.tools import open_choice_dialog, open_dialog
 from tuxemon.ui.text import TextArea
 
 if TYPE_CHECKING:
-    from tuxemon.npc import NPC
+    from tuxemon.base_client import BaseClient
+    from tuxemon.entity.npc import NPC
 
 
 class ItemMenuState(Menu[Item]):
@@ -48,38 +44,54 @@ class ItemMenuState(Menu[Item]):
 
     def __init__(
         self,
+        client: BaseClient,
         character: NPC,
         source: str,
-        item_filter: Optional[ItemFilter] = None,
-        sorter: Optional[ItemSorter] = None,
+        item_filter: ItemFilter | None = None,
+        sorter: ItemSorter | None = None,
+        on_selection: Callable[[MenuItem[Item]], None] | None = None,
+        is_valid_entry: Callable[[Item | None], bool] | None = None,
+        **kwargs: Any,
     ) -> None:
         self.char = character
         self.source = source
-        super().__init__()
+        super().__init__(client=client, **kwargs)
 
         self.filter_controller = item_filter or ItemFilter(self.char.items)
         self.sorter = sorter or ItemSorter()
+        self._external_on_selection = on_selection
+        self._external_is_valid_entry = is_valid_entry
         # this sprite is used to display the item
         # it's also animated to pop out of the backpack
         self.item_center = self.rect.width * 0.164, self.rect.height * 0.13
         self.item_sprite = Sprite()
         self.sprites.add(self.item_sprite)
 
-        self.menu_items.line_spacing = scale(7)
+        self.menu_items.line_spacing = self.client.context.scaling.scale_int(7)
         self.current_page = 0
         self.total_pages = 0
         self.inventory = self.filter_controller.get_filtered_inventory()
 
         # this is the area where the item description is displayed
-        rect = SCREEN_RECT.copy()
-        rect.top = scale(106)
-        rect.left = scale(3)
-        rect.width = scale(250)
-        rect.height = scale(32)
-        self.text_area = TextArea(self.font, self.font_color, (96, 96, 128))
-        self.text_area.rect = rect
+        rect = self.client.context.rect.copy()
+        rect.top = self.client.context.scaling.scale_int(106)
+        rect.left = self.client.context.scaling.scale_int(3)
+        rect.width = self.client.context.scaling.scale_int(250)
+        rect.height = self.client.context.scaling.scale_int(32)
+        self.text_area = TextArea(
+            font=self.font,
+            font_color=self.font_color,
+            rect=rect,
+            scaling=self.client.context.scaling,
+            font_shadow=(96, 96, 128),
+        )
         self.sprites.add(self.text_area, layer=100)
-        self.page_number_display = TextArea(self.font, self.font_color)
+        self.page_number_display = TextArea(
+            font=self.font,
+            font_color=self.font_color,
+            rect=Rect(0, 0, 1, 1),
+            scaling=self.client.context.scaling,
+        )
         self.sprites.add(self.page_number_display, layer=100)
         self.page_size = MAX_MENU_ITEMS
 
@@ -90,7 +102,6 @@ class ItemMenuState(Menu[Item]):
             center=self.backpack_center,
             layer=100,
         )
-        self.paginator = Paginator(self.inventory, self.page_size)
 
     def calc_internal_rect(self) -> Rect:
         # area in the screen where the item list is
@@ -105,6 +116,9 @@ class ItemMenuState(Menu[Item]):
         """
         Called when player has selected something from the inventory.
         """
+        if self._external_on_selection:
+            return self._external_on_selection(menu_item)
+
         item = menu_item.game_object
 
         # Check if the item can be used on any monster
@@ -179,15 +193,23 @@ class ItemMenuState(Menu[Item]):
             self.current_page = 0
             return
 
-        self.total_pages = self.paginator.total_pages()
+        # Compute total pages using VisualSpriteList pagination
+        if self.page_size:
+            self.total_pages = max(
+                1, math.ceil(len(self.inventory) / self.page_size)
+            )
+        else:
+            self.total_pages = 1
 
+        # Clamp current page
         self.current_page = max(
             0, min(self.current_page, self.total_pages - 1)
         )
 
-        start_index = self.current_page * self.page_size
-        end_index = (self.current_page + 1) * self.page_size
-        page_items = self.inventory[start_index:end_index]
+        # Slice items for this page
+        start = self.current_page * self.page_size
+        end = start + self.page_size
+        page_items = self.inventory[start:end]
 
         for obj in self.sorter.sort(page_items):
             enable = self.is_valid_entry(obj)
@@ -201,7 +223,9 @@ class ItemMenuState(Menu[Item]):
             self.animate_item_selection(selected_item.game_object)
             self.show_item_description(selected_item.game_object)
 
-    def is_valid_entry(self, item: Optional[Item]) -> bool:
+    def is_valid_entry(self, item: Item | None) -> bool:
+        if self._external_is_valid_entry:
+            return self._external_is_valid_entry(item)
         return item is not None
 
     def animate_item_selection(self, item: Item) -> None:
@@ -229,9 +253,23 @@ class ItemMenuState(Menu[Item]):
         self.clear()
         self.inventory = self.filter_controller.get_filtered_inventory()
 
-        total_pages, page_items = self.paginator.calculate_page_data(
-            self.current_page
+        # Recompute total pages
+        if self.page_size:
+            self.total_pages = max(
+                1, math.ceil(len(self.inventory) / self.page_size)
+            )
+        else:
+            self.total_pages = 1
+
+        # Clamp current page
+        self.current_page = max(
+            0, min(self.current_page, self.total_pages - 1)
         )
+
+        # Slice items for this page
+        start = self.current_page * self.page_size
+        end = start + self.page_size
+        page_items = self.inventory[start:end]
 
         if not page_items:
             self.selected_index = -1
@@ -255,7 +293,7 @@ class ItemMenuState(Menu[Item]):
         self.update_page_number_display(len(self.inventory))
         self.on_menu_selection_change()
 
-    def process_event(self, event: PlayerInput) -> Optional[PlayerInput]:
+    def process_event(self, event: PlayerInput) -> PlayerInput | None:
         """
         Processes a player input event.
 
@@ -265,7 +303,7 @@ class ItemMenuState(Menu[Item]):
         Returns:
             Optional[PlayerInput]: The processed event or None if it's not handled.
         """
-        total_pages = self.paginator.total_pages()
+        total_pages = self.total_pages
         if event.button == buttons.RIGHT and event.pressed:
             # Move to the next page if possible
             if self.current_page < total_pages - 1:
@@ -282,8 +320,7 @@ class ItemMenuState(Menu[Item]):
 
     def update_page_number_display(self, total_items: int) -> None:
         internal_rect = self.calc_internal_rect()
-        total_pages, _ = self.paginator.calculate_page_data(self.current_page)
-        page_text = f"{self.current_page + 1}/{total_pages}"
+        page_text = f"{self.current_page + 1}/{self.total_pages}"
         image = self.shadow_text(page_text)
         self.page_number_display.image = image
         self.page_number_display.rect.bottomright = internal_rect.bottomright

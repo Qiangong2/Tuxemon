@@ -6,14 +6,12 @@ import logging
 import random
 from dataclasses import dataclass, field
 from enum import Enum
-from pathlib import Path
-from typing import TYPE_CHECKING, Any
-
-import yaml
+from typing import TYPE_CHECKING
 
 from tuxemon.constants import paths
 from tuxemon.core.core_effect import CoreEffect, ItemEffectResult
 from tuxemon.database.runtime import db
+from tuxemon.database.yaml_utils import load_yaml
 from tuxemon.db import MonsterModel
 
 if TYPE_CHECKING:
@@ -21,8 +19,6 @@ if TYPE_CHECKING:
     from tuxemon.session import Session
 
 logger = logging.getLogger(__name__)
-
-lookup_cache: dict[str, MonsterModel] = {}
 
 
 @dataclass
@@ -62,27 +58,6 @@ class TrapConfig:
                 raise ValueError(
                     "Lower weight bound cannot exceed upper bound."
                 )
-
-
-def _lookup_monsters() -> None:
-    global lookup_cache
-    lookup_cache = {
-        mon_name: result
-        for mon_name in db.database["monster"]
-        if (result := MonsterModel.lookup(mon_name, db)).txmn_id > 0
-    }
-
-
-def load_yaml(filepath: Path) -> Any:
-    try:
-        with filepath.open() as file:
-            return yaml.safe_load(file)
-    except FileNotFoundError:
-        logger.error(f"Config file not found: {filepath}")
-        raise
-    except yaml.YAMLError as exc:
-        logger.error(f"Error parsing YAML file: {exc}")
-        raise exc
 
 
 class Loader:
@@ -155,8 +130,8 @@ class TrapEffect(CoreEffect):
     _pending_encounter: tuple[str, int] | None = None
 
     def apply_item(self, session: Session, item: Item) -> ItemEffectResult:
-        if not lookup_cache:
-            _lookup_monsters()
+        MonsterModel.load_cache(db)
+        self.cache = MonsterModel.get_cache()
         trap_configs = Loader.get_config_trap("trap.yaml")
         self._trap: TrapConfig = trap_configs[item.slug]
         self._trap.validate_parameters()
@@ -203,7 +178,7 @@ class TrapEffect(CoreEffect):
                 mon_slug, level = self._pending_encounter
                 session.client.event_engine.execute_action(
                     "wild_encounter",
-                    [mon_slug, level, None, None, None, None, None],
+                    [mon_slug, level, None, None, None, None],
                     True,
                 )
                 session.client.event_engine.execute_action(
@@ -268,7 +243,7 @@ class TrapEffect(CoreEffect):
                 )
             )
 
-        filtered = [mon for mon in lookup_cache.values() if matches(mon)]
+        filtered = [mon for mon in self.cache.values() if matches(mon)]
         if not filtered:
             logger.error("No monsters matched trap filters")
             return []

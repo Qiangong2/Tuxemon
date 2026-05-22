@@ -5,19 +5,19 @@ from __future__ import annotations
 import logging
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import asdict, dataclass
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
 from tuxemon.item.item import decode_items, encode_items
-from tuxemon.monster import decode_monsters, encode_monsters
+from tuxemon.monster.monster import decode_monsters, encode_monsters
 from tuxemon.platform.const.sizes import MAX_KENNEL, MAX_LOCKER
 
 if TYPE_CHECKING:
-    from tuxemon.entity_dir.routing import RoutingPolicy
+    from tuxemon.entity.npc import NPC
+    from tuxemon.entity.routing import RoutingPolicy
     from tuxemon.item.item import Item
-    from tuxemon.monster import Monster
-    from tuxemon.npc import NPC
-    from tuxemon.save_state import NPCState
+    from tuxemon.monster.monster import Monster
+    from tuxemon.save_system.save_state import NPCState
 
 logger = logging.getLogger(__name__)
 
@@ -50,8 +50,11 @@ class BoxMetadataManager:
             )
         metadata_dict[box_id] = metadata
 
-    def get(self, box_id: str, box_type: str) -> Optional[BoxMetadata]:
+    def get(self, box_id: str, box_type: str) -> BoxMetadata | None:
         return self._get_dict(box_type).get(box_id)
+
+    def get_all(self, box_type: str) -> dict[str, BoxMetadata]:
+        return dict(self._get_dict(box_type))
 
     def delete(self, box_id: str, box_type: str) -> None:
         metadata_dict = self._get_dict(box_type)
@@ -91,6 +94,66 @@ class BoxCollection:
         self.item_boxes: dict[str, list[Item]] = {}
         self.monster_boxes: dict[str, list[Monster]] = {}
         self.metadata_manager = BoxMetadataManager()
+
+    def _get_boxes(self, box_type: str) -> dict[str, list[Any]]:
+        if box_type == "item":
+            return self.item_boxes
+        elif box_type == "monster":
+            return self.monster_boxes
+        raise ValueError(f"Invalid box_type: {box_type}")
+
+    def _create_box(
+        self,
+        box_id: str,
+        box_type: str,
+        default_capacity: int,
+        box_metadata: BoxMetadata | None = None,
+    ) -> None:
+        boxes = self._get_boxes(box_type)
+        if box_id in boxes:
+            raise ValueError(
+                f"{box_type.capitalize()} box '{box_id}' already exists."
+            )
+        boxes[box_id] = []
+        metadata = box_metadata or BoxMetadata(
+            max_capacity=default_capacity, is_hidden=False
+        )
+        self.metadata_manager.create(box_id, box_type, metadata)
+
+    def _remove_box(
+        self, box_id: str, box_type: str, force: bool = False
+    ) -> None:
+        boxes = self._get_boxes(box_type)
+        if box_id not in boxes:
+            raise ValueError(
+                f"{box_type.capitalize()} box '{box_id}' doesn't exist."
+            )
+        if not force and boxes[box_id]:
+            raise ValueError(f"Cannot remove a non-empty {box_type} box.")
+        del boxes[box_id]
+        self.metadata_manager.delete(box_id, box_type)
+
+    def _merge_and_remove_boxes(
+        self,
+        source_box_id: str,
+        target_box_id: str,
+        box_type: str,
+        default_capacity: int,
+    ) -> None:
+        boxes = self._get_boxes(box_type)
+        if target_box_id not in boxes:
+            self._create_box(target_box_id, box_type, default_capacity)
+        if source_box_id in boxes:
+            boxes[target_box_id].extend(boxes[source_box_id])
+            del boxes[source_box_id]
+            source_meta = self.metadata_manager.get(source_box_id, box_type)
+            target_meta = self.metadata_manager.get(target_box_id, box_type)
+            if source_meta and target_meta:
+                target_meta.max_capacity = max(
+                    source_meta.max_capacity, target_meta.max_capacity
+                )
+            if self.metadata_manager.get(source_box_id, box_type) is not None:
+                self.metadata_manager.delete(source_box_id, box_type)
 
     def add_item(self, box_id: str, item: Item) -> None:
         """
@@ -146,6 +209,11 @@ class BoxCollection:
         """
         if box_id not in self.monster_boxes:
             self.monster_boxes[box_id] = []
+            self.metadata_manager.create(
+                box_id,
+                "monster",
+                BoxMetadata(max_capacity=max_size, is_hidden=False),
+            )
 
         current_size = len(self.monster_boxes[box_id])
         required_space = len(party)
@@ -160,11 +228,10 @@ class BoxCollection:
 
         self.monster_boxes[box_id].extend(party)
         logger.info(f"Stored {required_space} monsters in box '{box_id}'.")
-        party.clear()
         return True
 
     def remove_from_box(
-        self, box_type: str, box_id: Optional[str], obj: Any
+        self, box_type: str, box_id: str | None, obj: Any
     ) -> None:
         boxes = self.item_boxes if box_type == "item" else self.monster_boxes
         if box_id:
@@ -176,7 +243,7 @@ class BoxCollection:
                     box.remove(obj)
                     return
 
-    def get_items_by_iid(self, instance_id: UUID) -> Optional[Item]:
+    def get_items_by_iid(self, instance_id: UUID) -> Item | None:
         """
         Retrieves an item by its instance ID.
 
@@ -196,7 +263,7 @@ class BoxCollection:
             None,
         )
 
-    def get_monsters_by_iid(self, instance_id: UUID) -> Optional[Monster]:
+    def get_monsters_by_iid(self, instance_id: UUID) -> Monster | None:
         """
         Retrieves a monster by its instance ID.
 
@@ -376,11 +443,12 @@ class BoxCollection:
             item: The item to move.
         """
         if (
-            source_box_id in self.item_boxes
-            and item in self.item_boxes[source_box_id]
+            source_box_id not in self.item_boxes
+            or item not in self.item_boxes[source_box_id]
         ):
-            self.remove_from_box("item", source_box_id, item)
-            self.add_item(target_box_id, item)
+            raise ValueError(f"Item not found in box '{source_box_id}'.")
+        self.remove_from_box("item", source_box_id, item)
+        self.add_item(target_box_id, item)
 
     def move_monster(
         self, source_box_id: str, target_box_id: str, monster: Monster
@@ -428,7 +496,7 @@ class BoxCollection:
         metadata_label: str,
         decoder: Callable[[Sequence[Mapping[str, Any]]], list[Any]],
         default_capacity: int,
-        owner: Optional[NPC] = None,
+        owner: NPC | None = None,
     ) -> tuple[dict[str, list[Any]], dict[str, BoxMetadata]]:
         boxes: dict[str, list[Any]] = {}
         metadata: dict[str, BoxMetadata] = {}
@@ -457,55 +525,28 @@ class ItemBoxes(BoxCollection):
         super().__init__()
 
     def create_box(
-        self, box_id: str, box_metadata: Optional[BoxMetadata] = None
+        self, box_id: str, box_metadata: BoxMetadata | None = None
     ) -> None:
         """Create a new item box with optional metadata."""
-        if box_id in self.item_boxes:
-            raise ValueError(f"Item box '{box_id}' already exists.")
-        self.item_boxes[box_id] = []
-        metadata = box_metadata or BoxMetadata(
-            max_capacity=MAX_LOCKER, is_hidden=False
-        )
-        self.metadata_manager.create(box_id, "item", metadata)
+        super()._create_box(box_id, "item", MAX_LOCKER, box_metadata)
 
     def remove_box(self, box_id: str, force: bool = False) -> None:
         """Remove an item box, optionally forcing removal if non-empty."""
-        if box_id not in self.item_boxes:
-            raise ValueError(f"Item box '{box_id}' doesn't exist.")
-        if not force and self.item_boxes[box_id]:
-            logger.error(
-                f"Cannot remove non-empty item box '{box_id}'. Use force=True to override."
-            )
-            raise ValueError("Cannot remove a non-empty item box.")
-        del self.item_boxes[box_id]
-        self.metadata_manager.delete(box_id, "item")
+        super()._remove_box(box_id, "item", force)
 
-    def merge_boxes(self, source_box_id: str, target_box_id: str) -> None:
+    def merge_and_remove_boxes(
+        self, source_box_id: str, target_box_id: str
+    ) -> None:
         """Merge contents and metadata from one item box into another."""
-        if target_box_id not in self.item_boxes:
-            self.create_box(target_box_id)
-        if source_box_id in self.item_boxes:
-            self.item_boxes[target_box_id].extend(
-                self.item_boxes[source_box_id]
-            )
-            del self.item_boxes[source_box_id]
-
-            source_metadata = self.metadata_manager.get(source_box_id, "item")
-            if source_metadata:
-                target_metadata = self.metadata_manager.get(
-                    target_box_id, "item"
-                )
-                if target_metadata is None:
-                    self.metadata_manager.create(
-                        target_box_id, "item", source_metadata
-                    )
-                self.metadata_manager.delete(source_box_id, "item")
+        super()._merge_and_remove_boxes(
+            source_box_id, target_box_id, "item", MAX_LOCKER
+        )
 
     def attempt_add_item(
         self,
         item: Item,
         policy: RoutingPolicy,
-        preferred_locker: Optional[str] = None,
+        preferred_locker: str | None = None,
     ) -> bool:
         """Attempt to add an item to a box following routing policy and overflow rules."""
         locker = preferred_locker if preferred_locker else policy.get_locker()
@@ -569,14 +610,14 @@ class ItemBoxes(BoxCollection):
                 break
             i += 1
         self.create_box(new_box_id)
-        self.merge_boxes(box_id, new_box_id)
+        self.merge_and_remove_boxes(box_id, new_box_id)
         return new_box_id
 
     def get_state(self) -> dict[str, Any]:
         """Return a serializable state of all item boxes and metadata."""
         return self.get_state_generic(
             self.item_boxes,
-            self.metadata_manager._get_dict("item"),
+            self.metadata_manager.get_all("item"),
             encode_items,
             "item_boxes",
             "item_box_metadata",
@@ -599,16 +640,10 @@ class MonsterBoxes(BoxCollection):
         super().__init__()
 
     def create_box(
-        self, box_id: str, box_metadata: Optional[BoxMetadata] = None
+        self, box_id: str, box_metadata: BoxMetadata | None = None
     ) -> None:
         """Create a new monster box with optional metadata."""
-        if box_id in self.monster_boxes:
-            raise ValueError(f"Monster box '{box_id}' already exists.")
-        self.monster_boxes[box_id] = []
-        metadata = box_metadata or BoxMetadata(
-            max_capacity=MAX_KENNEL, is_hidden=False
-        )
-        self.metadata_manager.create(box_id, "monster", metadata)
+        super()._create_box(box_id, "monster", MAX_KENNEL, box_metadata)
 
     def get_total_monster_count(self) -> int:
         """Return the total number of monsters across all boxes."""
@@ -616,7 +651,7 @@ class MonsterBoxes(BoxCollection):
 
     def find_monster_by_slug_in_boxes(
         self, monster_slug: str
-    ) -> Optional[tuple[str, Monster]]:
+    ) -> tuple[str, Monster] | None:
         """Find a monster by slug and return its box ID and instance."""
         for box_id, monsters in self.monster_boxes.items():
             for monster in monsters:
@@ -631,17 +666,9 @@ class MonsterBoxes(BoxCollection):
 
     def remove_box(self, box_id: str, force: bool = False) -> None:
         """Remove a monster box, optionally forcing removal if non-empty."""
-        if box_id not in self.monster_boxes:
-            raise ValueError(f"Monster box '{box_id}' doesn't exist.")
-        if not force and self.monster_boxes[box_id]:
-            logger.error(
-                f"Cannot remove non-empty monster box '{box_id}'. Use force=True to override."
-            )
-            raise ValueError("Cannot remove a non-empty monster box.")
-        del self.monster_boxes[box_id]
-        self.metadata_manager.delete(box_id, "monster")
+        super()._remove_box(box_id, "monster", force)
 
-    def get_box_name(self, instance_id: UUID) -> Optional[str]:
+    def get_box_name(self, instance_id: UUID) -> str | None:
         """Return the box ID containing the monster with the given instance ID."""
         return next(
             (
@@ -653,28 +680,13 @@ class MonsterBoxes(BoxCollection):
             None,
         )
 
-    def merge_boxes(self, source_box_id: str, target_box_id: str) -> None:
+    def merge_and_remove_boxes(
+        self, source_box_id: str, target_box_id: str
+    ) -> None:
         """Merge contents and metadata from one box into another."""
-        if target_box_id not in self.monster_boxes:
-            self.create_box(target_box_id)
-        if source_box_id in self.monster_boxes:
-            self.monster_boxes[target_box_id].extend(
-                self.monster_boxes[source_box_id]
-            )
-            del self.monster_boxes[source_box_id]
-
-            source_metadata = self.metadata_manager.get(
-                source_box_id, "monster"
-            )
-            if source_metadata:
-                target_metadata = self.metadata_manager.get(
-                    target_box_id, "monster"
-                )
-                if target_metadata is None:
-                    self.metadata_manager.create(
-                        target_box_id, "monster", source_metadata
-                    )
-                self.metadata_manager.delete(source_box_id, "monster")
+        super()._merge_and_remove_boxes(
+            source_box_id, target_box_id, "monster", MAX_KENNEL
+        )
 
     def create_and_merge_box(
         self, box_id: str, kennel_name_rules: dict[str, Any]
@@ -690,14 +702,14 @@ class MonsterBoxes(BoxCollection):
                 break
             i += 1
         self.create_box(new_box_id)
-        self.merge_boxes(box_id, new_box_id)
+        self.merge_and_remove_boxes(box_id, new_box_id)
         return new_box_id
 
     def attempt_add_monster(
         self,
         monster: Monster,
         policy: RoutingPolicy,
-        preferred_kennel: Optional[str] = None,
+        preferred_kennel: str | None = None,
     ) -> bool:
         """Attempt to add a monster to a box following routing policy and overflow rules."""
         kennel = preferred_kennel if preferred_kennel else policy.get_kennel()
@@ -764,20 +776,19 @@ class MonsterBoxes(BoxCollection):
         self, instance_id: UUID, external_monster: Monster
     ) -> Monster:
         """Swap a monster by instance ID with an external monster."""
-        monster = self.get_monsters_by_iid(instance_id)
-        box_id = self.get_box_name(instance_id)
-        if monster is not None and box_id is not None:
-            return self.swap_with_external_monster(
-                box_id, monster, external_monster
-            )
-        else:
-            raise ValueError("Monster not found in box.")
+        for box_id, monsters in self.monster_boxes.items():
+            for monster in monsters:
+                if monster.instance_id == instance_id:
+                    return self.swap_with_external_monster(
+                        box_id, monster, external_monster
+                    )
+        raise ValueError("Monster not found in box.")
 
     def get_state(self) -> dict[str, Any]:
         """Return a serializable state of all monster boxes and metadata."""
         return self.get_state_generic(
             self.monster_boxes,
-            self.metadata_manager._get_dict("monster"),
+            self.metadata_manager.get_all("monster"),
             encode_monsters,
             "monster_boxes",
             "monster_box_metadata",

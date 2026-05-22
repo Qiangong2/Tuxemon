@@ -2,10 +2,13 @@
 # Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
-from typing import ClassVar, Optional
+from typing import TYPE_CHECKING, Any, ClassVar
 
-from tuxemon.platform.events import PlayerInput
 from tuxemon.state.state import State
+
+if TYPE_CHECKING:
+    from tuxemon.base_client import BaseClient
+    from tuxemon.platform.events import PlayerInput
 
 
 class TeleporterState(State):
@@ -14,5 +17,8 @@ class TeleporterState(State):
     name: ClassVar[str] = "TeleporterState"
     transparent = True
 
-    def process_event(self, event: PlayerInput) -> Optional[PlayerInput]:
+    def __init__(self, client: BaseClient, *args: Any, **kwargs: Any):
+        super().__init__(client, *args, **kwargs)
+
+    def process_event(self, event: PlayerInput) -> PlayerInput | None:
         return None

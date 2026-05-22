@@ -2,13 +2,12 @@
 # Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
-from typing import Any, Generic, Optional, TypeVar
+from typing import TYPE_CHECKING, Any, Generic, TypeVar
 
 from pygame import draw as pg_draw
 from pygame.rect import Rect
 from pygame.surface import Surface
 
-from tuxemon import tools
 from tuxemon.graphics import ColorLike, load_and_scale
 from tuxemon.platform.const.graphics import (
     BLACK_COLOR,
@@ -23,22 +22,27 @@ from tuxemon.platform.const.graphics import (
 from tuxemon.sprite import Sprite
 from tuxemon.ui.graphic_box import GraphicBox
 
+if TYPE_CHECKING:
+    from tuxemon.prepare import DisplayContext
+
 
 class Bar:
     """Common bar class for UI elements."""
 
     _graphics_cache: dict[str, Surface] = {}
-    INNER_TOP_PADDING = tools.scale(2)
-    INNER_BOTTOM_PADDING = tools.scale(2)
-    INNER_LEFT_PADDING = tools.scale(9)
-    INNER_RIGHT_PADDING = tools.scale(2)
+
+    BASE_INNER_TOP_PADDING = 2
+    BASE_INNER_BOTTOM_PADDING = 2
+    BASE_INNER_LEFT_PADDING = 9
+    BASE_INNER_RIGHT_PADDING = 2
 
     def __init__(
         self,
+        context: DisplayContext,
         value: float,
         border_filename: str,
         fg_color: ColorLike = WHITE_COLOR,
-        bg_color: Optional[ColorLike] = BLACK_COLOR,
+        bg_color: ColorLike | None = BLACK_COLOR,
     ) -> None:
         """
         Initializes the bar with a given value, border filename, foreground color, and background color.
@@ -49,11 +53,18 @@ class Bar:
             fg_color: The foreground color of the bar.
             bg_color: The background color of the bar.
         """
+        self.context = context
         self._value = max(0.0, min(1.0, value))
         self.border_filename = border_filename
         self.fg_color = fg_color
         self.bg_color = bg_color
-        self.border: Optional[GraphicBox] = None
+        self.border: GraphicBox | None = None
+
+        s = context.scaling.scale_int
+        self.INNER_TOP_PADDING = s(self.BASE_INNER_TOP_PADDING)
+        self.INNER_BOTTOM_PADDING = s(self.BASE_INNER_BOTTOM_PADDING)
+        self.INNER_LEFT_PADDING = s(self.BASE_INNER_LEFT_PADDING)
+        self.INNER_RIGHT_PADDING = s(self.BASE_INNER_RIGHT_PADDING)
 
     @property
     def value(self) -> float:
@@ -68,13 +79,12 @@ class Bar:
     def load_graphics(self) -> None:
         """Loads the border image."""
         if self.border_filename in self._graphics_cache:
-            self.border = GraphicBox(
-                self._graphics_cache[self.border_filename]
-            )
+            image = self._graphics_cache[self.border_filename]
         else:
             image = load_and_scale(self.border_filename)
-            self.border = GraphicBox(image)
             self._graphics_cache[self.border_filename] = image
+
+        self.border = GraphicBox(Rect(0, 0, 1, 1), image)
 
     def calc_inner_rect(self, rect: Rect) -> Rect:
         """
@@ -117,7 +127,7 @@ class Bar:
     def set_color(
         self,
         fg_color: ColorLike,
-        bg_color: Optional[ColorLike] = None,
+        bg_color: ColorLike | None = None,
     ) -> None:
         """
         Sets the foreground and background colors of the bar.
@@ -135,7 +145,7 @@ class Bar:
 class HpBar(Bar):
     """HP bar for UI elements."""
 
-    def __init__(self, value: float = 1.0) -> None:
+    def __init__(self, context: DisplayContext, value: float = 1.0) -> None:
         """
         Initializes the HP bar with a given value.
 
@@ -143,6 +153,7 @@ class HpBar(Bar):
             value: The initial value of the HP bar.
         """
         super().__init__(
+            context,
             max(0.0, min(1.0, value)),
             GFX_HP_BAR,
             HP_COLOR_FG,
@@ -153,7 +164,7 @@ class HpBar(Bar):
 class ExpBar(Bar):
     """EXP bar for UI elements."""
 
-    def __init__(self, value: float = 1.0) -> None:
+    def __init__(self, context: DisplayContext, value: float = 1.0) -> None:
         """
         Initializes the EXP bar with a given value.
 
@@ -161,6 +172,7 @@ class ExpBar(Bar):
             value: The initial value of the EXP bar.
         """
         super().__init__(
+            context,
             max(0.0, min(1.0, value)),
             GFX_XP_BAR,
             XP_COLOR_FG,
@@ -178,38 +190,26 @@ class MenuItem(Generic[T], Sprite):
     A MenuItem is a visual component used to represent an option in a menu.
     It can display an image, label, and description, and is associated with
     a callable game object or behavior that is triggered when selected.
-
-    Inherits from:
-        Sprite: Provides rendering, animation, and position management.
-
-    Type Parameters:
-        T: The type of the game object or callable associated with this item.
-
-    Parameters:
-        image: The visual surface to represent the item.
-        label: A short label or name for the menu item.
-        description: A longer description or tooltip text.
-        game_object: A callable or linked object triggered on selection.
-        enabled: Whether the menu item is interactable. Defaults to True.
-        position: Initial (x, y) position of the item.
-            If None, position must be set later. Defaults to None.
     """
 
     def __init__(
         self,
-        image: Optional[Surface],
-        label: Optional[str],
-        description: Optional[str],
+        image: Surface | None,
+        label: str | None,
+        description: str | None,
         game_object: T,
         enabled: bool = True,
-        position: Optional[tuple[int, int]] = None,
+        position: tuple[int, int] | None = None,
     ):
         super().__init__(image=image)
+
         self.label = label
         self.description = description
         self.game_object = game_object
+
         self._enabled = enabled
         self._in_focus = False
+
         self.metadata: dict[str, Any] = {}
 
         if position is not None:
@@ -217,22 +217,31 @@ class MenuItem(Generic[T], Sprite):
 
         self.update_image()
 
-    def update_image(self) -> None:
+    def trigger(self) -> None:
+        """Triggers the associated action for this menu item."""
+        if not self._enabled:
+            return
+
+        action = self.game_object
+
+        # Legacy callable
+        if callable(action):
+            action()
+
+    def update_image(self, source: Surface | None = None) -> None:
         """
         Update the image of the sprite, applying focus/enabled visual changes.
         """
-        super().update_image()
+        super().update_image(source=source)
 
         if self._image is None:
             return
 
         if self._in_focus:
-            # Add visual effect for focus here
-            pass
+            pass  # Add highlight, tint, outline, etc.
 
         if not self._enabled:
-            # Add visual effect for not enabled here
-            pass
+            pass  # Add dimming, greyscale, alpha reduction, etc.
 
     @property
     def enabled(self) -> bool:
@@ -242,6 +251,7 @@ class MenuItem(Generic[T], Sprite):
     def enabled(self, value: bool) -> None:
         if self._enabled != value:
             self._enabled = value
+            self.update_image()
 
     @property
     def in_focus(self) -> bool:
@@ -249,7 +259,9 @@ class MenuItem(Generic[T], Sprite):
 
     @in_focus.setter
     def in_focus(self, value: bool) -> None:
-        self._in_focus = bool(value)
+        if self._in_focus != value:
+            self._in_focus = value
+            self.update_image()
 
     def __repr__(self) -> str:
         return (

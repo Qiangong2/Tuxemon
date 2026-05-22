@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from typing import ClassVar
 
-from tuxemon.db import SpatialCondition
 from tuxemon.event.eventcondition import EventCondition
 from tuxemon.session import Session
 
@@ -25,19 +25,15 @@ class CharSpriteCondition(EventCondition):
     Script parameters:
         character: Either "player" or character slug name (e.g. "npc_maple")
         sprite: NPC's sprite (eg maniac, florist, etc.)
-
     """
 
-    name = "char_sprite"
+    name: ClassVar[str] = "char_sprite"
+    character: str
+    sprite: str
 
-    def test(self, session: Session, condition: SpatialCondition) -> bool:
-        character = session.get_npc(condition.parameters[0])
-        if character is None:
-            logger.error(f"{condition.parameters[0]} not found")
+    def test(self, session: Session) -> bool:
+        target = session.client.get_npc(self.character)
+        if not target:
             return False
 
-        sprite = condition.parameters[1]
-
-        if character.template.sprite_name == sprite:
-            return True
-        return False
+        return target.appearance_manager.state.sprite_name == self.sprite

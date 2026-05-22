@@ -1,28 +1,32 @@
 # SPDX-License-Identifier: GPL-3.0
 # Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 """This module contains the Start state."""
+
 from __future__ import annotations
 
 import logging
 from collections.abc import Callable
 from functools import partial
-from typing import Any, ClassVar, Optional, Union
+from typing import TYPE_CHECKING, Any, ClassVar
 
-import pygame_menu
 from pygame.surface import Surface
-from pygame_menu import locals
+from pygame_menu.locals import ALIGN_CENTER, POSITION_EAST
+from pygame_menu.menu import Menu
 
 from tuxemon.database.runtime import db
+from tuxemon.entity.npc import NPC
 from tuxemon.launcher import GameLauncher
-from tuxemon.locale import T
+from tuxemon.locale.locale import T
 from tuxemon.menu.menu import PygameMenuState
-from tuxemon.platform.const import buttons
 from tuxemon.platform.const.graphics import BG_START_SCREEN, BLACK_COLOR
-from tuxemon.platform.events import PlayerInput
-from tuxemon.prepare import SCREEN_SIZE
-from tuxemon.save import get_index_of_latest_save
+from tuxemon.platform.const.sizes import PLAYER_NPC
+from tuxemon.save_system.save import get_index_of_latest_save
+from tuxemon.save_system.save_manager import SaveManager
 from tuxemon.session import local_session
 from tuxemon.state.state import State
+
+if TYPE_CHECKING:
+    from tuxemon.base_client import BaseClient
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +45,9 @@ class BackgroundState(State):
 
     name: ClassVar[str] = "BackgroundState"
 
+    def __init__(self, client: BaseClient, *args: Any, **kwargs: Any):
+        super().__init__(client, *args, **kwargs)
+
     def draw(self, surface: Surface) -> None:
         surface.fill(BLACK_COLOR)
 
@@ -52,7 +59,7 @@ class StartState(PygameMenuState):
 
     def add_menu_items(
         self,
-        menu: pygame_menu.Menu,
+        menu: Menu,
     ) -> None:
         # If there is a save, then move the cursor to "Load game" first
         index = get_index_of_latest_save()
@@ -68,7 +75,7 @@ class StartState(PygameMenuState):
             )
 
         def change_state(
-            state: Union[State, str], **kwargs: Any
+            state: State | str, **kwargs: Any
         ) -> Callable[[], None]:
             def _change() -> None:
                 self.unsubscribe(
@@ -88,6 +95,19 @@ class StartState(PygameMenuState):
                 font_size=self.font_type.big,
                 button_id="menu_load",
             )
+
+            if SaveManager.has_autosave():
+                menu.add.button(
+                    title=T.translate("menu_autosave"),
+                    action=lambda: self.client.event_engine.execute_action(
+                        "load_game",
+                        [0, True],
+                        True,
+                    ),
+                    font_size=self.font_type.big,
+                    button_id="menu_autosave",
+                )
+
         if len(self.client.config.mods) == 1:
             menu.add.button(
                 title=T.translate("menu_new_game"),
@@ -106,13 +126,19 @@ class StartState(PygameMenuState):
             )
         menu.add.button(
             title=T.translate("menu_battle"),
-            action=change_state("DifficultyBattleState"),
+            action=change_state(
+                "DifficultyPickState", on_pick=self.start_battle
+            ),
             font_size=self.font_type.big,
             button_id="menu_battle",
         )
         menu.add.button(
             title=T.translate("menu_minigame"),
-            action=change_state("DifficultySelectState"),
+            action=change_state(
+                "DifficultyPickState",
+                on_pick=self.start_minigame,
+                difficulties=["easy", "normal", "hard"],
+            ),
             font_size=self.font_type.big,
             button_id="menu_minigame",
         )
@@ -129,18 +155,22 @@ class StartState(PygameMenuState):
             button_id="exit",
         )
 
-    def __init__(self) -> None:
-        width, height = SCREEN_SIZE
+    def __init__(self, client: BaseClient, **kwargs: Any) -> None:
+        width, height = client.context.resolution
+
+        super().__init__(client=client, height=height, width=width, **kwargs)
 
         theme = self._setup_theme(BG_START_SCREEN)
-        theme.scrollarea_position = locals.POSITION_EAST
-        theme.widget_alignment = locals.ALIGN_CENTER
+        theme.scrollarea_position = POSITION_EAST
+        theme.widget_alignment = ALIGN_CENTER
+        self._menu_config["theme"] = theme
 
-        super().__init__(height=height, width=width)
+        self.escape_key_exits = False
         self.client.afk_manager.add_threshold("IntroState", 15.0)
         self.event_bus.subscribe(
             "afk.threshold_reached", self._on_afk_threshold, priority=10
         )
+
         self.add_menu_items(self.menu)
         self.reset_theme()
 
@@ -152,14 +182,23 @@ class StartState(PygameMenuState):
         self.unsubscribe("afk.threshold_reached", self._on_afk_threshold)
         super().shutdown()
 
-    def process_event(self, event: PlayerInput) -> Optional[PlayerInput]:
-        if (
-            event.button in (buttons.HOME, buttons.BACK, buttons.B)
-            and event.pressed
-        ):
-            return None
-        else:
-            return super().process_event(event)
+    def start_battle(self, difficulty: str) -> None:
+        NPC.create_player(local_session, slug=PLAYER_NPC)
+        self.client.push_state(
+            "WorldState", session=local_session, map_name=None
+        )
+        self.client.event_engine.execute_action(
+            "set_variable", [f"difficulty:{difficulty}"]
+        )
+        self.client.event_engine.execute_action("load_yaml", ["battle_menu"])
+
+    def start_minigame(self, difficulty: str) -> None:
+        self.client.push_state(
+            "MinigameState",
+            difficulty=difficulty,
+            streak=0,
+            score=0,
+        )
 
 
 class ModsChoice(PygameMenuState):
@@ -169,7 +208,7 @@ class ModsChoice(PygameMenuState):
 
     def add_menu_items(
         self,
-        menu: pygame_menu.Menu,
+        menu: Menu,
     ) -> None:
 
         def new_game(mod_name: str) -> None:
@@ -188,15 +227,18 @@ class ModsChoice(PygameMenuState):
                 button_id=mod_name,
             )
 
-    def __init__(self, mods: list[str]) -> None:
+    def __init__(
+        self, client: BaseClient, mods: list[str], **kwargs: Any
+    ) -> None:
         self.mods = mods
-        width, height = SCREEN_SIZE
+        width, height = client.context.resolution
+
+        super().__init__(client=client, height=height, width=width, **kwargs)
 
         theme = self._setup_theme(BG_START_SCREEN)
-        theme.scrollarea_position = locals.POSITION_EAST
-        theme.widget_alignment = locals.ALIGN_CENTER
-
-        super().__init__(height=height, width=width)
+        theme.scrollarea_position = POSITION_EAST
+        theme.widget_alignment = ALIGN_CENTER
+        self._menu_config["theme"] = theme
 
         self.add_menu_items(self.menu)
         self.reset_theme()

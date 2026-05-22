@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Optional, final
+from typing import TYPE_CHECKING, final
 
 from tuxemon.event.eventaction import EventAction
-from tuxemon.locale import T
+from tuxemon.locale.locale import T
 from tuxemon.tools import parse_flag
 from tuxemon.tracker import TrackingPoint
 
@@ -39,16 +39,18 @@ class AddTrackerAction(EventAction):
     name = "add_tracker"
     character: str
     location: str
-    visited: Optional[str] = None
+    visited: str | None = None
 
     def start(self, session: Session) -> None:
-        character = session.get_npc(self.character)
+        character = session.client.get_npc(self.character)
         if character is None:
             logger.error(f"{self.character} not found")
+            self.stop()
             return
 
         if not T.has_translation("en_US", f"{self.location.lower()}"):
             logger.error(f"Add msgid '{self.location}' in the 'en_US' base.po")
+            self.stop()
             return
 
         visited = True if self.visited is None else parse_flag(self.visited)

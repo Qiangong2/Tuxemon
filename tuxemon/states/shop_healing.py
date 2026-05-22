@@ -3,68 +3,62 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from functools import partial
-from pathlib import Path
-from typing import Any, ClassVar, Literal, Optional
+from typing import TYPE_CHECKING, Any, ClassVar, Literal
 
-import yaml
 from pydantic import BaseModel, Field
 from pygame.surface import Surface
 
 from tuxemon.constants import paths
-from tuxemon.locale import T
+from tuxemon.database.yaml_utils import load_yaml
+from tuxemon.locale.locale import T
 from tuxemon.menu.interface import MenuItem
-from tuxemon.menu.quantity import QuantityAndCostMenu
-from tuxemon.monster import Monster
+from tuxemon.monster.monster import Monster
+from tuxemon.monster.renderer import MonsterRenderer
 from tuxemon.session import local_session
+from tuxemon.states.quantity import QuantityPickerState
 from tuxemon.states.shop_base import ShopMenuState
+
+if TYPE_CHECKING:
+    from tuxemon.base_client import BaseClient
 
 logger = logging.getLogger(__name__)
 
 
-def load_yaml(filepath: Path) -> Any:
-    try:
-        with filepath.open() as file:
-            return yaml.safe_load(file)
-    except FileNotFoundError:
-        logger.error(f"Config file not found: {filepath}")
-        raise
-    except yaml.YAMLError as exc:
-        logger.error(f"Error parsing YAML file: {exc}")
-        raise exc
-
-
 class HealingShopConfig(BaseModel):
+    background: str
     base_healing_cost: int
     cost_scaling_type: Literal["linear", "polynomial", "exponential"] = (
         "linear"
     )
-    polynomial_exponent: Optional[float] = Field(default=1.5)
+    polynomial_exponent: float | None = Field(default=1.5)
     exclude_if_hp_ratio_above: float = Field(default=1.0)
     revive_cost_multiplier: float = Field(default=1.0)
     revive_cost: int = Field(default=0)
     allow_fainted_monsters: bool = Field(default=True)
 
 
-class HealingCostMenu(QuantityAndCostMenu):
-    name: ClassVar[str] = "HealingCostMenu"
+class HealingCostPicker(QuantityPickerState):
+    name: ClassVar[str] = "HealingCostPicker"
 
     def __init__(
         self,
+        client: BaseClient,
         healer_state: ShopHealingMenuState,
         monster: Monster,
-        *args: Any,
+        callback: Callable[[int], None],
         **kwargs: Any,
     ):
-        super().__init__(*args, **kwargs)
         self._healer_state = healer_state
         self._monster = monster
+        super().__init__(client=client, callback=callback, **kwargs)
 
-    def calculate_total(self, _: int) -> int:
+    def _compute_total(self) -> int:
         cost_per_hp = self._healer_state._get_healing_cost_per_hp(
             self._monster
         )
-        total = cost_per_hp * self.quantity
+        total = cost_per_hp * self.current_value
         if self._monster.current_hp == 0:
             total += self._healer_state.config.revive_cost
         return total
@@ -75,19 +69,22 @@ class ShopHealingMenuState(ShopMenuState[Monster]):
 
     def __init__(
         self,
+        client: BaseClient,
         *args: Any,
-        model: Optional[str] = None,
+        model: str | None = None,
         **kwargs: Any,
     ) -> None:
-        super().__init__(*args, **kwargs)
+        super().__init__(client, *args, **kwargs)
         yaml_path = paths.mods_folder / "healing_shop_config.yaml"
         raw_data = load_yaml(yaml_path)
         _model = model if model is not None else "cathedral"
         self.config = HealingShopConfig(**raw_data[_model])
         self.base_healing_cost = self.config.base_healing_cost
+        self.update_background(self.config.background)
 
-    def _get_asset_image(self, asset: MenuItem[Monster]) -> Optional[Surface]:
-        image = asset.game_object.get_sprite("front")
+    def _get_asset_image(self, asset: MenuItem[Monster]) -> Surface | None:
+        renderer = MonsterRenderer(asset.game_object, scale=self.factor)
+        image = renderer.get_sprite("front")
         return image.image if image else None
 
     def _display_asset_description(self, asset: MenuItem[Monster]) -> None:
@@ -190,7 +187,8 @@ class ShopHealingMenuState(ShopMenuState[Monster]):
         monster = menu_monster.game_object
         params = self._get_selection_menu_params(menu_monster)
 
-        menu = HealingCostMenu(
+        menu = HealingCostPicker(
+            client=self.client,
             healer_state=self,
             monster=monster,
             callback=params["callback"],

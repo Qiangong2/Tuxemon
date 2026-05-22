@@ -5,7 +5,7 @@
 # Depends on coreutils, curl and tar
 PYPY_VERSION="pypy3.10"
 PYPY_BUILD="pypy3.10-v7.3.14-linux64"
-PYGAME_VERSION="2.5.6"
+PYGAME_VERSION="2.5.7"
 ROOT_FOLDER="$(dirname "$(readlink -f "$0")")/../"
 BUILD_DIR="build/pypy-linux-64bit"
 PYPY_ARCHIVE="$PYPY_BUILD.tar.bz2"
@@ -72,7 +72,6 @@ cp "$ROOT_FOLDER/CONTRIBUTING.md" .
 cp "$ROOT_FOLDER/CONTRIBUTORS.md" .
 cp "$ROOT_FOLDER/ATTRIBUTIONS.md" .
 cp "$ROOT_FOLDER/README.md" .
-cp "$ROOT_FOLDER/SPYDER_README.md" .
 
 # Clean up .pyc files
 find . -name "*.pyc" -delete

@@ -6,22 +6,20 @@ import logging
 import math
 from collections.abc import Callable, Sequence
 from functools import partial
-from typing import TYPE_CHECKING, Any, ClassVar, Optional
+from typing import TYPE_CHECKING, Any, ClassVar
 from uuid import UUID
 
-import pygame_menu
-from pygame_menu import locals
+from pygame_menu.locals import ALIGN_CENTER, POSITION_EAST
+from pygame_menu.menu import Menu
 from pygame_menu.widgets.selection.highlight import HighlightSelection
 
-from tuxemon.animation import ScheduleType
 from tuxemon.item.filter import ItemFilter
 from tuxemon.item.item import Item
-from tuxemon.locale import T
+from tuxemon.locale.locale import T
 from tuxemon.menu.interface import MenuItem
 from tuxemon.menu.menu import PygameMenuState
-from tuxemon.menu.quantity import QuantityMenu
+from tuxemon.menu.transitions import SlideRight
 from tuxemon.platform.const.graphics import BG_PC_LOCKER
-from tuxemon.prepare import SCALE, SCREEN_SIZE
 from tuxemon.state.state import State
 from tuxemon.states.item_menu import ItemMenuState
 from tuxemon.tools import fix_measure, open_choice_dialog, open_dialog
@@ -30,10 +28,9 @@ from tuxemon.ui.menu_options import MenuOptions, create_choice_options
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
-    from tuxemon.animation import Animation
     from tuxemon.base_client import BaseClient
+    from tuxemon.entity.npc import NPC
     from tuxemon.item.item import Item
-    from tuxemon.npc import NPC
 
 
 MenuGameObj = Callable[[], object]
@@ -122,29 +119,32 @@ class ItemTakeState(PygameMenuState):
 
     name: ClassVar[str] = "ItemTakeState"
 
-    def __init__(self, box_name: str, character: NPC) -> None:
-        width, height = SCREEN_SIZE
-
-        theme = self._setup_theme(BG_PC_LOCKER)
-        theme.scrollarea_position = locals.POSITION_EAST
-        theme.widget_alignment = locals.ALIGN_CENTER
-
-        # menu
-        theme.title = True
-
-        columns = 3
-
+    def __init__(
+        self, client: BaseClient, box_name: str, character: NPC, **kwargs: Any
+    ) -> None:
         self.box_name = box_name
         self.char = character
-        self.box = self.char.item_boxes.get_items(self.box_name)
+        self.item_boxes = self.char.item_boxes
+        self.box = self.item_boxes.get_items(self.box_name)
+        width, height = client.context.resolution
 
-        # Widgets are like a pygame_menu label, image, etc.
+        columns = 3
         num_widgets = 2
         rows = math.ceil(len(self.box) / columns) * num_widgets
 
         super().__init__(
-            height=height, width=width, columns=columns, rows=rows
+            client=client,
+            height=height,
+            width=width,
+            columns=columns,
+            rows=rows,
         )
+
+        theme = self._setup_theme(BG_PC_LOCKER)
+        theme.scrollarea_position = POSITION_EAST
+        theme.widget_alignment = ALIGN_CENTER
+        theme.title = True
+        self._menu_config["theme"] = theme
 
         column_width = fix_measure(self.menu._width, 0.33)
         self.menu._column_max_width = [
@@ -198,13 +198,11 @@ class ItemTakeState(PygameMenuState):
             callback: Callable[[int], None], max_quantity: int
         ) -> Callable[[], None]:
             def inner() -> None:
-                self.client.state_manager.push_state(
-                    QuantityMenu(
-                        callback=callback,
-                        max_quantity=max_quantity,
-                        quantity=1,
-                        shrink_to_items=True,
-                    )
+                self.client.push_state(
+                    "NumberPickerState",
+                    min_value=1,
+                    max_value=max_quantity,
+                    callback=callback,
                 )
 
             return inner
@@ -228,11 +226,7 @@ class ItemTakeState(PygameMenuState):
             escape_key_exits=True,
         )
 
-    def add_menu_items(
-        self, menu: pygame_menu.Menu, items: Sequence[Item]
-    ) -> None:
-        self.item_boxes = self.char.item_boxes
-        self.box = self.item_boxes.get_items(self.box_name)
+    def add_menu_items(self, menu: Menu, items: Sequence[Item]) -> None:
         handler = ItemActionHandler(
             self.client, self.char, self.box_name, self.name
         )
@@ -244,7 +238,7 @@ class ItemTakeState(PygameMenuState):
             label = T.translate(itm.name).upper() + " x" + str(itm.quantity)
             iid = itm.instance_id.hex
             new_image = self._create_image(itm.sprite)
-            new_image.scale(SCALE, SCALE)
+            new_image.scale(self.factor, self.factor)
             menu.add.banner(
                 new_image,
                 partial(self.locker_options, iid, handler),
@@ -254,7 +248,7 @@ class ItemTakeState(PygameMenuState):
                 label,
                 selectable=True,
                 font_size=self.font_type.small,
-                align=locals.ALIGN_CENTER,
+                align=ALIGN_CENTER,
                 selection_effect=HighlightSelection(),
             )
 
@@ -268,12 +262,15 @@ class ItemBoxState(PygameMenuState):
 
     name: ClassVar[str] = "ItemBoxState"
 
-    def __init__(self, character: NPC) -> None:
-        _, height = SCREEN_SIZE
+    def __init__(
+        self, client: BaseClient, character: NPC, **kwargs: Any
+    ) -> None:
+        width, height = client.context.resolution
 
-        super().__init__(height=height)
+        super().__init__(
+            client=client, height=height, transition=SlideRight(), **kwargs
+        )
 
-        self.animation_offset = 0
         self.char = character
 
         menu_items_map = self.get_menu_items_map()
@@ -281,7 +278,7 @@ class ItemBoxState(PygameMenuState):
 
     def add_menu_items(
         self,
-        menu: pygame_menu.Menu,
+        menu: Menu,
         items: Sequence[tuple[str, MenuGameObj]],
     ) -> None:
         menu.add.vertical_fill()
@@ -295,7 +292,7 @@ class ItemBoxState(PygameMenuState):
             menu.add.button(label, callback)
             menu.add.vertical_fill()
 
-        width, height = SCREEN_SIZE
+        width, height = self.client.context.resolution
         widgets_size = menu.get_size(widget=True)
         b_width, b_height = menu.get_scrollarea().get_border_size()
         menu.resize(
@@ -314,39 +311,20 @@ class ItemBoxState(PygameMenuState):
     def change_state(self, state: str, **kwargs: Any) -> partial[State]:
         return partial(self.client.replace_state, state, **kwargs)
 
-    def update_animation_position(self) -> None:
-        self.menu.translate(-self.animation_offset, 0)
-
-    def animate_open(self) -> Animation:
-        """Animate the menu sliding in."""
-
-        width = self.menu.get_width(border=True)
-        self.animation_offset = 0
-
-        ani = self.animate(self, animation_offset=width, duration=0.50)
-        ani.schedule(self.update_animation_position, ScheduleType.ON_UPDATE)
-
-        return ani
-
-    def animate_close(self) -> Animation:
-        """Animate the menu sliding out."""
-        ani = self.animate(self, animation_offset=0, duration=0.50)
-        ani.schedule(self.update_animation_position, ScheduleType.ON_UPDATE)
-
-        return ani
-
 
 class ItemStorageState(ItemBoxState):
     """Menu to choose a box, which you can then take an item from."""
 
     name: ClassVar[str] = "ItemStorageState"
 
+    def __init__(self, client: BaseClient, *args: Any, **kwargs: Any):
+        super().__init__(client, *args, **kwargs)
+
     def get_menu_items_map(self) -> Sequence[tuple[str, MenuGameObj]]:
         item_boxes = self.char.item_boxes
         menu_items_map = []
         for box_name, items in item_boxes.item_boxes.items():
-            metadata = item_boxes.metadata_manager.get(box_name, "item")
-            if metadata is None or not metadata.is_hidden:
+            if not item_boxes.is_box_hidden(box_name, "item"):
                 if not items:
                     menu_callback = partial(
                         open_dialog,
@@ -368,12 +346,14 @@ class ItemDropOffState(ItemBoxState):
 
     name: ClassVar[str] = "ItemDropOffState"
 
+    def __init__(self, client: BaseClient, *args: Any, **kwargs: Any):
+        super().__init__(client, *args, **kwargs)
+
     def get_menu_items_map(self) -> Sequence[tuple[str, MenuGameObj]]:
         item_boxes = self.char.item_boxes
         menu_items_map = []
-        for box_name, items in item_boxes.item_boxes.items():
-            metadata = item_boxes.metadata_manager.get(box_name, "item")
-            if metadata is None or not metadata.is_hidden:
+        for box_name in item_boxes.item_boxes:
+            if not item_boxes.is_box_hidden(box_name, "item"):
                 menu_callback = self.change_state(
                     "ItemDropOff", box_name=box_name, character=self.char
                 )
@@ -386,11 +366,21 @@ class ItemDropOff(ItemMenuState):
 
     name: ClassVar[str] = "ItemDropOff"
 
-    def __init__(self, box_name: str, character: NPC) -> None:
+    def __init__(
+        self,
+        client: BaseClient,
+        box_name: str,
+        character: NPC,
+        **kwargs: Any,
+    ) -> None:
         items_filtered = ItemFilter(character.items)
         items_filtered.set_filter_all_visible()
         super().__init__(
-            character=character, source=self.name, item_filter=items_filtered
+            client=client,
+            character=character,
+            source=self.name,
+            item_filter=items_filtered,
+            **kwargs,
         )
 
         self.box_name = box_name
@@ -398,7 +388,7 @@ class ItemDropOff(ItemMenuState):
 
     def on_menu_selection(
         self,
-        menu_item: MenuItem[Optional[Item]],
+        menu_item: MenuItem[Item | None],
     ) -> None:
         game_object = menu_item.game_object
         assert game_object
@@ -411,15 +401,7 @@ class ItemDropOff(ItemMenuState):
             item_boxes = self.char.item_boxes
             box = item_boxes.get_items(self.box_name)
 
-            new_item = Item.create(itm.slug)
-            new_item.set_quantity(quantity)
-
-            def find_item_in_box(
-                slug: str, items: list[Item]
-            ) -> Optional[Item]:
-                return next((i for i in items if i.slug == slug), None)
-
-            retrieve = find_item_in_box(itm.slug, box) if box else None
+            retrieve = next((i for i in box if i.slug == itm.slug), None)
             stored = (
                 item_boxes.get_items_by_iid(retrieve.instance_id)
                 if retrieve
@@ -429,15 +411,15 @@ class ItemDropOff(ItemMenuState):
             if stored:
                 stored.increase_quantity(quantity)
             else:
+                new_item = Item.create(itm.slug)
+                new_item.set_quantity(quantity)
                 item_boxes.add_item(self.box_name, new_item)
 
             self.char.bag.remove_item(itm, quantity)
 
         self.client.push_state(
-            QuantityMenu(
-                callback=partial(deposit, game_object),
-                max_quantity=game_object.quantity,
-                quantity=1,
-                shrink_to_items=True,
-            )
+            "NumberPickerState",
+            min_value=1,
+            max_value=game_object.quantity,
+            callback=partial(deposit, game_object),
         )

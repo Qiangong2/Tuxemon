@@ -3,62 +3,56 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from functools import partial
-from pathlib import Path
-from typing import Any, ClassVar, Literal, Optional
+from typing import TYPE_CHECKING, Any, ClassVar, Literal
 
-import yaml
 from pydantic import BaseModel, Field
 from pygame.surface import Surface
 
 from tuxemon.constants import paths
-from tuxemon.formula import config_monster
-from tuxemon.locale import T
+from tuxemon.database.rules import config_monster
+from tuxemon.database.yaml_utils import load_yaml
+from tuxemon.locale.locale import T
 from tuxemon.menu.interface import MenuItem
-from tuxemon.menu.quantity import QuantityAndCostMenu
-from tuxemon.monster import Monster
+from tuxemon.monster.monster import Monster
+from tuxemon.monster.renderer import MonsterRenderer
+from tuxemon.states.quantity import QuantityPickerState
 from tuxemon.states.shop_base import ShopMenuState
+
+if TYPE_CHECKING:
+    from tuxemon.base_client import BaseClient
 
 logger = logging.getLogger(__name__)
 
 
-def load_yaml(filepath: Path) -> Any:
-    try:
-        with filepath.open() as file:
-            return yaml.safe_load(file)
-    except FileNotFoundError:
-        logger.error(f"Config file not found: {filepath}")
-        raise
-    except yaml.YAMLError as exc:
-        logger.error(f"Error parsing YAML file: {exc}")
-        raise exc
-
-
 class TrainingShopConfig(BaseModel):
+    background: str
     base_cost_per_level: int
     cost_scaling_type: Literal["linear", "polynomial", "exponential"] = (
         "linear"
     )
-    polynomial_exponent: Optional[float] = Field(default=1.5)
+    polynomial_exponent: float | None = Field(default=1.5)
 
 
-class TrainingCostMenu(QuantityAndCostMenu):
-    name: ClassVar[str] = "TrainingCostMenu"
+class TrainingCostPicker(QuantityPickerState):
+    name: ClassVar[str] = "TrainingCostPicker"
 
     def __init__(
         self,
+        client: BaseClient,
         trainer_state: ShopTrainingMenuState,
         monster: Monster,
-        *args: Any,
+        callback: Callable[[int], None],
         **kwargs: Any,
     ):
-        super().__init__(*args, **kwargs)
         self._trainer_state = trainer_state
         self._monster = monster
+        super().__init__(client=client, callback=callback, **kwargs)
 
-    def calculate_total(self, _: int) -> int:
+    def _compute_total(self) -> int:
         return self._trainer_state._calculate_total_training_cost(
-            self._monster, self.quantity
+            self._monster, self.current_value
         )
 
 
@@ -72,20 +66,23 @@ class ShopTrainingMenuState(ShopMenuState[Monster]):
 
     def __init__(
         self,
+        client: BaseClient,
         *args: Any,
-        model: Optional[str] = None,
+        model: str | None = None,
         **kwargs: Any,
     ) -> None:
-        super().__init__(*args, **kwargs)
+        super().__init__(client, *args, **kwargs)
         yaml_path = paths.mods_folder / "training_shop_config.yaml"
         raw_data = load_yaml(yaml_path)
         _model = model if model is not None else "cathedral"
         self.config = TrainingShopConfig(**raw_data[_model])
         self.base_cost_per_level = self.config.base_cost_per_level
+        self.update_background(self.config.background)
 
-    def _get_asset_image(self, asset: MenuItem[Monster]) -> Optional[Surface]:
+    def _get_asset_image(self, asset: MenuItem[Monster]) -> Surface | None:
         """Returns the front sprite image for a monster."""
-        image = asset.game_object.get_sprite("front")
+        renderer = MonsterRenderer(asset.game_object, scale=self.factor)
+        image = renderer.get_sprite("front")
         return image.image if image else None
 
     def _display_asset_description(self, asset: MenuItem[Monster]) -> None:
@@ -148,8 +145,7 @@ class ShopTrainingMenuState(ShopMenuState[Monster]):
             cost = self._calculate_total_training_cost(monster, quantity)
             if quantity > 0 and cost <= available_money:
                 self.seller_manager.remove_money(cost)
-                monster.set_level(monster.level + quantity)
-                monster.moves.update_moves(monster, quantity)
+                monster.set_level(monster.level + quantity, monster.level)
                 self.reload_shop()
 
         base_cost = self._calculate_training_cost(monster)
@@ -195,7 +191,8 @@ class ShopTrainingMenuState(ShopMenuState[Monster]):
         monster = menu_monster.game_object
         params = self._get_selection_menu_params(menu_monster)
 
-        menu = TrainingCostMenu(
+        menu = TrainingCostPicker(
+            client=self.client,
             trainer_state=self,
             monster=monster,
             callback=params["callback"],

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Optional, final
+from typing import TYPE_CHECKING, final
 from uuid import UUID
 
 from tuxemon.db import EffectPhase
@@ -40,8 +40,8 @@ class TriggerStatusAction(EventAction):
     """
 
     name = "trigger_status"
-    variable: Optional[str] = None
-    status_name: Optional[str] = None
+    variable: str | None = None
+    status_name: str | None = None
 
     def start(self, session: Session) -> None:
         player = session.player
@@ -49,6 +49,7 @@ class TriggerStatusAction(EventAction):
         if self.variable is not None:
             variable = self.variable
             if not player.game_variables.has(variable):
+                self.stop()
                 return
 
             monster_id = UUID(player.game_variables.get(variable))
@@ -57,18 +58,21 @@ class TriggerStatusAction(EventAction):
             ) or player.monster_boxes.get_monsters_by_iid(monster_id)
             if monster is None:
                 logger.error("Monster not found")
+                self.stop()
                 return
             monsters = [monster]
         else:
             monsters = player.monsters
 
         if not monsters:
+            self.stop()
             return
 
         monsters_with_status = [
             m for m in monsters if m.status.current_status is not None
         ]
         if not monsters_with_status:
+            self.stop()
             return
 
         for monster in monsters_with_status:

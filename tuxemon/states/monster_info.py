@@ -2,50 +2,27 @@
 # Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
-from collections.abc import Callable
-from typing import TYPE_CHECKING, Any, ClassVar, Optional
+from typing import TYPE_CHECKING, Any, ClassVar
 
-import pygame_menu
-from pygame_menu import locals
+from pygame_menu.locals import ALIGN_CENTER, ALIGN_LEFT, POSITION_EAST
+from pygame_menu.menu import Menu
 
 from tuxemon import formula
 from tuxemon.database.runtime import db
 from tuxemon.db import MonsterModel, TasteModel
-from tuxemon.locale import T
+from tuxemon.locale.locale import T
 from tuxemon.menu.menu import PygameMenuState
 from tuxemon.menu.theme import get_theme
-from tuxemon.monster import Monster
+from tuxemon.monster.monster import Monster
+from tuxemon.monster.renderer import MonsterRenderer
 from tuxemon.platform.const import buttons
 from tuxemon.platform.const.graphics import INDIV_INFO
 from tuxemon.platform.const.sizes import U_CM, U_FT, U_KG, U_LB, U_M, U_T
-from tuxemon.platform.events import PlayerInput
-from tuxemon.prepare import SCALE, SCREEN_SIZE
-from tuxemon.time_handler import today_ordinal
 from tuxemon.tools import fix_measure, transform_resource_filename
 
 if TYPE_CHECKING:
     from tuxemon.base_client import BaseClient
-
-lookup_cache: dict[str, MonsterModel] = {}
-lookup_tastes: dict[str, TasteModel] = {}
-
-
-def _lookup_tastes() -> None:
-    global lookup_tastes
-    lookup_tastes = {
-        taste_name: result
-        for taste_name in db.database["taste"]
-        if (result := TasteModel.lookup(taste_name, db)).slug
-    }
-
-
-def _lookup_monsters() -> None:
-    global lookup_cache
-    lookup_cache = {
-        mon_name: result
-        for mon_name in db.database["monster"]
-        if (result := MonsterModel.lookup(mon_name, db)).txmn_id > 0
-    }
+    from tuxemon.platform.events import PlayerInput
 
 
 class MonsterInfoState(PygameMenuState):
@@ -58,22 +35,26 @@ class MonsterInfoState(PygameMenuState):
 
     def add_menu_items(
         self,
-        menu: pygame_menu.Menu,
+        menu: Menu,
         monster: Monster,
     ) -> None:
 
-        fxw: Callable[[float], int] = lambda r: fix_measure(menu._width, r)
-        fxh: Callable[[float], int] = lambda r: fix_measure(menu._height, r)
+        def fxw(r: float) -> int:
+            return fix_measure(menu._width, r)
+
+        def fxh(r: float) -> int:
+            return fix_measure(menu._height, r)
+
         menu._width = fxw(1)
 
         background = self._create_image(INDIV_INFO)
-        background.scale(SCALE, SCALE)
+        background.scale(self.factor, self.factor)
         background_widget = menu.add.image(image_path=background)
         background_widget.set_float(origin_position=True)
         background_widget.translate(fxw(0 / 256), fxh(0 / 144))
 
         # weight and height
-        models = list(lookup_cache.values())
+        models = list(self.monster_cache.values())
         results = next(
             (model for model in models if model.slug == monster.slug), None
         )
@@ -104,7 +85,7 @@ class MonsterInfoState(PygameMenuState):
             title=f"{monster.name.upper()}",
             label_id="name",
             font_size=self.font_type.biggest,
-            align=locals.ALIGN_LEFT,
+            align=ALIGN_LEFT,
             float=True,
             font_color=dark_color,
         )
@@ -114,7 +95,7 @@ class MonsterInfoState(PygameMenuState):
             title=f"Lv. {monster.level}",
             label_id="level",
             font_size=self.font_type.biggest,
-            align=locals.ALIGN_LEFT,
+            align=ALIGN_LEFT,
             float=True,
             font_color=dark_color,
         )
@@ -130,7 +111,7 @@ class MonsterInfoState(PygameMenuState):
             title=f"{x:,}/",  # add commas for readability
             label_id="exp",
             font_size=self.font_type.biggest,
-            align=locals.ALIGN_LEFT,
+            align=ALIGN_LEFT,
             float=True,
             font_color=dark_color,
         )
@@ -140,7 +121,7 @@ class MonsterInfoState(PygameMenuState):
             title=f"{y:,}",  # add commas for readability
             label_id="exp2",
             font_size=self.font_type.biggest,
-            align=locals.ALIGN_LEFT,
+            align=ALIGN_LEFT,
             float=True,
             font_color=dark_color,
         )
@@ -151,7 +132,7 @@ class MonsterInfoState(PygameMenuState):
             title=T.translate("height"),
             label_id="label-height",
             font_size=self.font_type.biggest,
-            align=locals.ALIGN_LEFT,
+            align=ALIGN_LEFT,
             float=True,
             font_name=thin_font_path,
             font_color=light_color,
@@ -162,7 +143,7 @@ class MonsterInfoState(PygameMenuState):
             title=T.translate("weight"),
             label_id="label-weight",
             font_size=self.font_type.biggest,
-            align=locals.ALIGN_LEFT,
+            align=ALIGN_LEFT,
             float=True,
             font_name=thin_font_path,
             font_color=light_color,
@@ -173,7 +154,7 @@ class MonsterInfoState(PygameMenuState):
             title=T.translate("tastes"),
             label_id="label-tastes",
             font_size=self.font_type.biggest,
-            align=locals.ALIGN_LEFT,
+            align=ALIGN_LEFT,
             float=True,
             font_name=thin_font_path,
             font_color=light_color,
@@ -184,26 +165,19 @@ class MonsterInfoState(PygameMenuState):
             title=T.translate("exp_to_next_level"),
             label_id="label-exp-next",
             font_size=self.font_type.biggest,
-            align=locals.ALIGN_LEFT,
+            align=ALIGN_LEFT,
             float=True,
             font_name=thin_font_path,
             font_color=light_color,
         )
         exp_label.translate(fxw(79 / 256), fxh(78.8 / 144))
 
-        # gender
-        gender_symbol = ""
-        if monster.gender == "male":
-            gender_symbol = "\u2642"  # ♂
-        elif monster.gender == "female":
-            gender_symbol = "\u2640"  # ♀
-
-        if gender_symbol:
+        if monster.gender_symbol:
             lab_gender: Any = menu.add.label(
-                title=gender_symbol,
+                title=monster.gender_symbol,
                 label_id="gender",
                 font_size=self.font_type.biggest,
-                align=locals.ALIGN_LEFT,
+                align=ALIGN_LEFT,
                 font_color=dark_color,
                 float=True,
             )
@@ -214,7 +188,7 @@ class MonsterInfoState(PygameMenuState):
             title=mon_weight,
             label_id="weight",
             font_size=self.font_type.biggest,
-            align=locals.ALIGN_LEFT,
+            align=ALIGN_LEFT,
             float=True,
             font_color=dark_color,
         )
@@ -224,7 +198,7 @@ class MonsterInfoState(PygameMenuState):
             title=mon_height,
             label_id="height",
             font_size=self.font_type.biggest,
-            align=locals.ALIGN_LEFT,
+            align=ALIGN_LEFT,
             float=True,
             font_color=dark_color,
         )
@@ -237,7 +211,7 @@ class MonsterInfoState(PygameMenuState):
             title=f"{warm}",
             label_id="taste-warm",
             font_size=self.font_type.biggest,
-            align=locals.ALIGN_LEFT,
+            align=ALIGN_LEFT,
             float=True,
             font_color=dark_color,
         )
@@ -247,20 +221,18 @@ class MonsterInfoState(PygameMenuState):
             title=f"{cold}",
             label_id="taste-cold",
             font_size=self.font_type.biggest,
-            align=locals.ALIGN_LEFT,
+            align=ALIGN_LEFT,
             float=True,
             font_color=dark_color,
         )
         lab9.translate(fxw(84 / 256), fxh(66 / 144))
 
         # capture
-        reference = get_acquisition_reference(monster)
-
         lab10: Any = menu.add.label(
-            title=reference,
+            title=monster.acquisition_string,
             label_id="capture",
             font_size=self.font_type.biggest,
-            align=locals.ALIGN_LEFT,
+            align=ALIGN_LEFT,
             float=True,
             font_name=thin_font_path,
             font_color=dark_color,
@@ -274,7 +246,7 @@ class MonsterInfoState(PygameMenuState):
             type1_icon = self._create_image(
                 f"gfx/ui/icons/element/{types[0].slug}_type_watermark.png"
             )
-            type1_icon.scale(SCALE, SCALE)
+            type1_icon.scale(self.factor, self.factor)
             icon1_widget = menu.add.image(image_path=type1_icon)
             icon1_widget.set_float(origin_position=True)
             # Position of type 1 (set wherever you want)
@@ -284,7 +256,7 @@ class MonsterInfoState(PygameMenuState):
             type2_icon = self._create_image(
                 f"gfx/ui/icons/element/{types[1].slug}_type_watermark.png"
             )
-            type2_icon.scale(SCALE, SCALE)
+            type2_icon.scale(self.factor, self.factor)
             icon2_widget = menu.add.image(image_path=type2_icon)
             icon2_widget.set_float(origin_position=True)
             # Position of type 2 (independent from type 1)
@@ -295,7 +267,7 @@ class MonsterInfoState(PygameMenuState):
             title=f"{monster.hp}",
             label_id="hp",
             font_size=self.font_type.biggest,
-            align=locals.ALIGN_LEFT,
+            align=ALIGN_LEFT,
             float=True,
             font_color=dark_color,
         )
@@ -305,7 +277,7 @@ class MonsterInfoState(PygameMenuState):
             title=f"{monster.armour}",
             label_id="armour",
             font_size=self.font_type.biggest,
-            align=locals.ALIGN_LEFT,
+            align=ALIGN_LEFT,
             float=True,
             font_color=dark_color,
         )
@@ -315,7 +287,7 @@ class MonsterInfoState(PygameMenuState):
             title=f"{monster.dodge}",
             label_id="dodge",
             font_size=self.font_type.biggest,
-            align=locals.ALIGN_LEFT,
+            align=ALIGN_LEFT,
             float=True,
             font_color=dark_color,
         )
@@ -325,7 +297,7 @@ class MonsterInfoState(PygameMenuState):
             title=f"{monster.melee}",
             label_id="melee",
             font_size=self.font_type.biggest,
-            align=locals.ALIGN_LEFT,
+            align=ALIGN_LEFT,
             float=True,
             font_color=dark_color,
         )
@@ -335,7 +307,7 @@ class MonsterInfoState(PygameMenuState):
             title=f"{monster.ranged}",
             label_id="ranged",
             font_size=self.font_type.biggest,
-            align=locals.ALIGN_LEFT,
+            align=ALIGN_LEFT,
             float=True,
             font_color=dark_color,
         )
@@ -345,7 +317,7 @@ class MonsterInfoState(PygameMenuState):
             title=f"{monster.speed}",
             label_id="speed",
             font_size=self.font_type.biggest,
-            align=locals.ALIGN_LEFT,
+            align=ALIGN_LEFT,
             float=True,
             font_color=dark_color,
         )
@@ -374,7 +346,7 @@ class MonsterInfoState(PygameMenuState):
                 title=title,
                 label_id=f"label-{stat}",
                 font_size=self.font_type.biggest,
-                align=locals.ALIGN_LEFT,
+                align=ALIGN_LEFT,
                 float=True,
                 font_name=thin_font_path,
                 font_color=light_color,
@@ -384,12 +356,12 @@ class MonsterInfoState(PygameMenuState):
 
         plus_icon = self._create_image("gfx/ui/icons/plusminus/plus.png")
         minus_icon = self._create_image("gfx/ui/icons/plusminus/minus.png")
-        plus_icon.scale(SCALE, SCALE)
-        minus_icon.scale(SCALE, SCALE)
+        plus_icon.scale(self.factor, self.factor)
+        minus_icon.scale(self.factor, self.factor)
 
         # Helper: find which stat a taste affects
         def get_stat_for_taste(slug: str) -> str | None:
-            taste = lookup_tastes.get(slug.lower())
+            taste = self.taste_cache.get(slug.lower())
             if not taste or not taste.modifiers:
                 return None
 
@@ -421,14 +393,15 @@ class MonsterInfoState(PygameMenuState):
             bond_file = monster.bond_handler.get_bond_icon_path()
             if bond_file:
                 bond_icon = self._create_image(bond_file)
-                bond_icon.scale(SCALE, SCALE)
+                bond_icon.scale(self.factor, self.factor)
                 bond_widget = menu.add.image(image_path=bond_icon)
                 bond_widget.set_float(origin_position=True)
                 bond_widget.translate(fxw(20 / 256), fxh(29 / 144))
 
         # image
-        new_image = self._create_image(monster.sprite_handler.front_path)
-        new_image.scale(SCALE, SCALE)
+        renderer = MonsterRenderer(monster, scale=self.factor)
+        surface = renderer.get_sprite("front").image
+        new_image = self._create_image_from_surface(surface)
         image_widget = menu.add.image(image_path=new_image.copy())
         image_widget.set_float(origin_position=True)
         image_widget.translate(fxw(16 / 256), fxh(27 / 144))
@@ -436,38 +409,43 @@ class MonsterInfoState(PygameMenuState):
         tuxeball = self._create_image(
             f"gfx/items/{monster.capture_device}.png"
         )
-        tuxeball.scale(SCALE, SCALE)
+        tuxeball.scale(self.factor, self.factor)
         capture_device = menu.add.image(image_path=tuxeball)
         capture_device.set_float(origin_position=True)
         capture_device.translate(fxw(17 / 256), fxh(110 / 144))
 
-    def __init__(self, **kwargs: Any) -> None:
-        if not lookup_cache:
-            _lookup_monsters()
-        if not lookup_tastes:
-            _lookup_tastes()
-        monster: Optional[Monster] = None
-        source = ""
-        for element in kwargs.values():
-            monster = element["monster"]
-            source = element["source"]
-        if monster is None:
-            raise ValueError("No monster")
-        width, height = SCREEN_SIZE
+    def __init__(
+        self,
+        client: BaseClient,
+        monster: Monster,
+        source: str,
+        monsters: list[Monster] | None,
+        **kwargs: Any,
+    ) -> None:
+        MonsterModel.load_cache(db)
+        self.monster_cache = MonsterModel.get_cache()
+        TasteModel.load_cache(db)
+        self.taste_cache = TasteModel.get_cache()
 
-        theme = get_theme().copy()
-        theme.scrollarea_position = locals.POSITION_EAST
-        theme.widget_alignment = locals.ALIGN_CENTER
+        width, height = client.context.resolution
+
+        self._monster = monster
+        self._source = source
+        self._monsters = monsters
+
+        super().__init__(client=client, height=height, width=width, **kwargs)
+
+        theme = get_theme(self.client.context.scaling).copy()
+        theme.scrollarea_position = POSITION_EAST
+        theme.widget_alignment = ALIGN_CENTER
         theme.widget_font_shadow = False
         theme.widget_padding = (0, 0)
+        self._menu_config["theme"] = theme
 
-        super().__init__(height=height, width=width, theme=theme)
-        self._source = source
-        self._monster = monster
         self.add_menu_items(self.menu, monster)
         self.reset_theme()
 
-    def process_event(self, event: PlayerInput) -> Optional[PlayerInput]:
+    def process_event(self, event: PlayerInput) -> PlayerInput | None:
         param: dict[str, Any] = {"source": self._source}
         client = self.client
 
@@ -476,17 +454,22 @@ class MonsterInfoState(PygameMenuState):
             "MonsterMenuState",
             "MonsterTakeState",
         ]:
-            monsters = _get_monsters(client, self._monster, self._source)
+            monsters = self._monsters
+            if not monsters:
+                return None
+
+            param["monsters"] = monsters
+
             slot = monsters.index(self._monster)
 
-            if event.button == buttons.RIGHT and event.pressed:
+            if event.button == buttons.RIGHT and self.valid_press(event):
                 slot = (slot + 1) % len(monsters)
                 param["monster"] = monsters[slot]
-                client.replace_state("MonsterInfoState", kwargs=param)
-            elif event.button == buttons.LEFT and event.pressed:
+                client.replace_state("MonsterInfoState", **param)
+            elif event.button == buttons.LEFT and self.valid_press(event):
                 slot = (slot - 1) % len(monsters)
                 param["monster"] = monsters[slot]
-                client.replace_state("MonsterInfoState", kwargs=param)
+                client.replace_state("MonsterInfoState", **param)
 
         if (
             event.button in (buttons.BACK, buttons.B, buttons.A)
@@ -495,26 +478,3 @@ class MonsterInfoState(PygameMenuState):
             client.remove_state_by_name("MonsterInfoState")
 
         return None
-
-
-def get_acquisition_reference(monster: Monster) -> str:
-    acq_type = monster.acquisition
-    doc = today_ordinal() - monster.capture
-    time_key = "today" if doc < 1 else "days_ago"
-    msgid = f"tuxepedia_acquisition_{acq_type.value}_{time_key}"
-    return T.translate(msgid) if doc < 1 else T.format(msgid, {"doc": doc})
-
-
-def _get_monsters(
-    client: BaseClient, monster: Monster, source: str
-) -> list[Monster]:
-    owner = client.get_monster_owner(monster)
-    if owner is None:
-        return []
-    if source == "MonsterTakeState":
-        box = owner.monster_boxes.get_box_name(monster.instance_id)
-        if box is None:
-            raise ValueError("Box doesn't exist")
-        return owner.monster_boxes.get_monsters(box)
-    else:
-        return owner.monsters

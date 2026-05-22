@@ -3,20 +3,21 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, ClassVar, Optional
+from typing import TYPE_CHECKING, Any, ClassVar
 
-import pygame
 from pygame.surface import Surface
 
 from tuxemon import tools
-from tuxemon.graphics import load_sprite
-from tuxemon.locale import T
+from tuxemon.database.runtime import db
+from tuxemon.db import MonsterModel
+from tuxemon.locale.locale import T
+from tuxemon.monster.sprite import MonsterSpriteHandler, SpriteLoader
 from tuxemon.platform.const import buttons
 from tuxemon.platform.const.graphics import BLACK_COLOR, WHITE_COLOR
-from tuxemon.prepare import SCREEN_SIZE
 from tuxemon.state.state import State
 
 if TYPE_CHECKING:
+    from tuxemon.base_client import BaseClient
     from tuxemon.platform.events import PlayerInput
     from tuxemon.sprite import Sprite
 
@@ -37,8 +38,14 @@ class TradingTransition(State):
     name: ClassVar[str] = "TradingTransition"
     force_draw = True
 
-    def __init__(self, sent_monster: str, received_monster: str) -> None:
-        super().__init__()
+    def __init__(
+        self,
+        client: BaseClient,
+        sent_monster: str,
+        received_monster: str,
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(client=client, **kwargs)
 
         self.sent_monster = sent_monster
         self.received_monster = received_monster
@@ -50,9 +57,8 @@ class TradingTransition(State):
         self.sent_sprite = self._load_sprite(self.sent_monster)
         self.received_sprite = self._load_sprite(self.received_monster)
 
-        self.transition_start_time = pygame.time.get_ticks()
-        self.dialog_opened = False
         self.elapsed_time = 0.0
+        self.dialog_opened = False
         self.percentage = 0.0
         self.total_seconds = TOTAL_SECONDS
 
@@ -72,15 +78,14 @@ class TradingTransition(State):
             4: self.received_sprite,
         }
 
-        screen_width, screen_height = SCREEN_SIZE
+        screen_width, screen_height = self.client.context.resolution
         sprite_width, sprite_height = self.sent_sprite.image.get_size()
         self.sent_x = (screen_width // 4) - (sprite_width // 2)
         self.received_x = (3 * screen_width // 4) - (sprite_width // 2)
         self.sprite_y = (screen_height - sprite_height) // 2
 
-    def update(self, time_delta: float) -> None:
-        current_time = pygame.time.get_ticks()
-        self.elapsed_time = (current_time - self.transition_start_time) / 1000
+    def update(self, dt: float) -> None:
+        self.elapsed_time += dt
         self.percentage = (self.elapsed_time / self.total_seconds) * 100
 
         self.phase = 0
@@ -135,7 +140,7 @@ class TradingTransition(State):
         self.received_sprite.image.blit(self.received_sprite_white, (0, 0))
 
         if self.elapsed_time > self.total_seconds and not self.dialog_opened:
-            self.client.sound_manager.play_sound("sound_confirm")
+            self.client.sound_manager.play("sound_confirm")
             self.on_animation_complete()
 
     def draw(self, surface: Surface) -> None:
@@ -144,7 +149,8 @@ class TradingTransition(State):
         # In phases 1 and 2, only the sent monster is displayed, centered
         if self.phase in (1, 2):
             sprite_image = self.sent_sprite.image
-            center_x = (SCREEN_SIZE[0] - sprite_image.get_width()) // 2
+            width, _ = self.client.context.resolution
+            center_x = (width - sprite_image.get_width()) // 2
             surface.blit(sprite_image, (center_x, self.sprite_y))
         # In phases 3 and 4, both sprites are displayed at their respective positions
         elif self.phase in (3, 4):
@@ -154,10 +160,20 @@ class TradingTransition(State):
             )
 
     def _load_sprite(self, slug: str) -> Sprite:
-        path = tools.transform_resource_filename(
-            f"gfx/sprites/battle/{slug}-front.png"
+        monster = MonsterModel.lookup(slug, db)
+        loader = SpriteLoader()
+        sprites = monster.sprites
+        assert sprites
+        handler = MonsterSpriteHandler(
+            slug=slug,
+            sheet_path=loader.resolve_path(sprites.sheet),
+            front_rect=sprites.front_rect,
+            back_rect=sprites.back_rect,
+            menu1_rect=sprites.menu1_rect,
+            menu2_rect=sprites.menu2_rect,
         )
-        return load_sprite(path)
+        assert handler
+        return handler.get_sprite("front", self.factor)
 
     def _white_image(self, sprite: Surface) -> Surface:
         for x in range(sprite.get_width()):
@@ -182,15 +198,13 @@ class TradingTransition(State):
         tools.open_dialog(self.client, [msg], dialog_speed="max")
         self.dialog_opened = True
 
-    def process_event(self, event: PlayerInput) -> Optional[PlayerInput]:
+    def process_event(self, event: PlayerInput) -> PlayerInput | None:
         if (
             event.button in (buttons.BACK, buttons.B, buttons.A)
             and event.pressed
         ):
             if self.percentage < 100:
-                self.transition_start_time = pygame.time.get_ticks() - (
-                    self.total_seconds * 1000
-                )
+                self.elapsed_time = self.total_seconds
             else:
                 self.client.current_music.unpause()
                 self.client.pop_state()

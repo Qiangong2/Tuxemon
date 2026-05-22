@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from functools import partial
-from typing import Any, ClassVar, Optional
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from pygame.surface import Surface
 
@@ -12,8 +12,12 @@ from tuxemon.item.shop_utils import (
     generate_label,
 )
 from tuxemon.menu.interface import MenuItem
-from tuxemon.menu.quantity import QuantityAndCostMenu, QuantityAndPriceMenu
 from tuxemon.states.shop_base import ShopMenuState
+
+if TYPE_CHECKING:
+    from tuxemon.base_client import BaseClient
+    from tuxemon.economy.economy import Economy
+    from tuxemon.entity.npc import NPC
 
 
 class ShopItemMenuState(ShopMenuState[Item]):
@@ -21,7 +25,18 @@ class ShopItemMenuState(ShopMenuState[Item]):
 
     name: ClassVar[str] = "ShopItemMenuState"
 
-    def _get_asset_image(self, asset: MenuItem[Item]) -> Optional[Surface]:
+    def __init__(
+        self,
+        client: BaseClient,
+        buyer: NPC,
+        seller: NPC,
+        economy: Economy,
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(client, buyer, seller, economy, **kwargs)
+        self.update_background(self.economy.model.background)
+
+    def _get_asset_image(self, asset: MenuItem[Item]) -> Surface | None:
         image = asset.game_object.surface
         return image if image else None
 
@@ -47,8 +62,7 @@ class ShopItemMenuState(ShopMenuState[Item]):
                 )
                 qty = self.client.shop_manager.get_quantity(key)
                 label, _, price = generate_label(item, self.economy, qty)
-                unavailable = price > self.buyer_manager.get_money()
-                self._add_menu_item(item, label, {"price": price}, unavailable)
+                self._add_menu_item(item, label, {"price": price})
             elif self.seller.is_player:
                 label, _, cost = generate_label(
                     item, self.economy, qty=None, seller_mode=True
@@ -66,9 +80,9 @@ class ShopItemMenuState(ShopMenuState[Item]):
             )
 
             def buy_item(quantity: int) -> None:
-                total_price, _ = self.economy.calculate_price(item, quantity)
+                price = self.economy.calculate_price(item, quantity)
                 self.transaction_manager.buy_item(
-                    self.buyer, item, quantity, label, total_price
+                    self.buyer, item, quantity, label, price.final_price
                 )
                 self.reload_shop()
 
@@ -97,11 +111,11 @@ class ShopItemMenuState(ShopMenuState[Item]):
                 label = self.client.shop_manager.get_full_label(
                     self.economy.model.slug, item.slug
                 )
-                total_price, _ = self.economy.calculate_price(
+                price = self.economy.calculate_price(
                     item, quantity, seller_mode=True
                 )
                 self.transaction_manager.sell_item(
-                    self.seller, item, quantity, total_price, label
+                    self.seller, item, quantity, price.final_price, label
                 )
                 self.reload_shop()
 
@@ -118,6 +132,9 @@ class ShopItemBuyMenuState(ShopItemMenuState):
 
     name: ClassVar[str] = "ShopItemBuyMenuState"
 
+    def __init__(self, client: BaseClient, *args: Any, **kwargs: Any):
+        super().__init__(client, *args, **kwargs)
+
     def on_menu_selection(self, menu_item: MenuItem[Item]) -> None:
         item = menu_item.game_object
         price: int = menu_item.metadata.get("price", 1)
@@ -126,9 +143,12 @@ class ShopItemBuyMenuState(ShopItemMenuState):
         )
 
         def buy_item(quantity: int) -> None:
-            total_price, _ = self.economy.calculate_price(item, quantity)
+            price = self.economy.calculate_price(item, quantity)
+            if price.final_price > self.buyer_manager.get_money():
+                return
+
             self.transaction_manager.buy_item(
-                self.buyer, item, quantity, label, total_price
+                self.buyer, item, quantity, label, price.final_price
             )
             self.reload_items()
             if (
@@ -142,13 +162,15 @@ class ShopItemBuyMenuState(ShopItemMenuState):
         )
 
         self.client.state_manager.push_state(
-            QuantityAndPriceMenu(
-                callback=partial(buy_item),
-                max_quantity=max_quantity,
-                quantity=1,
-                shrink_to_items=True,
-                price=price,
-            )
+            "QuantityPickerState",
+            client=self.client,
+            min_value=1,
+            max_value=max_quantity,
+            start_value=1,
+            step=1,
+            callback=partial(buy_item),
+            price=price,
+            wallet_money=self.buyer_manager.get_money(),
         )
 
 
@@ -156,6 +178,9 @@ class ShopItemSellMenuState(ShopItemMenuState):
     """State for selling items."""
 
     name: ClassVar[str] = "ShopItemSellMenuState"
+
+    def __init__(self, client: BaseClient, *args: Any, **kwargs: Any):
+        super().__init__(client, *args, **kwargs)
 
     def on_menu_selection(self, menu_item: MenuItem[Item]) -> None:
         item = menu_item.game_object
@@ -174,22 +199,24 @@ class ShopItemSellMenuState(ShopItemMenuState):
             label = self.client.shop_manager.get_full_label(
                 self.economy.model.slug, item.slug
             )
-            total_price, _ = self.economy.calculate_price(
+            price = self.economy.calculate_price(
                 item, quantity, seller_mode=True
             )
             self.transaction_manager.sell_item(
-                self.seller, item, quantity, total_price, label
+                self.seller, item, quantity, price.final_price, label
             )
             self.reload_items()
             if not self.seller.bag.has_item(item.slug):
                 self.on_menu_selection_change()
 
         self.client.state_manager.push_state(
-            QuantityAndCostMenu(
-                callback=partial(sell_item),
-                max_quantity=item.quantity,
-                quantity=1,
-                shrink_to_items=True,
-                cost=cost,
-            )
+            "QuantityPickerState",
+            client=self.client,
+            min_value=1,
+            max_value=item.quantity,
+            start_value=1,
+            step=1,
+            callback=partial(sell_item),
+            cost=cost,
+            wallet_money=self.seller_manager.get_money(),
         )

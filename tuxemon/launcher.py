@@ -4,10 +4,11 @@ from __future__ import annotations
 
 import logging
 import random
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 from tuxemon.constants.asset_loader import fetch_asset
-from tuxemon.player import Player
+from tuxemon.entity.npc import NPC
+from tuxemon.locale.locale import T
 
 if TYPE_CHECKING:
     from tuxemon.base_client import BaseClient
@@ -34,7 +35,7 @@ class GameLauncher:
         self,
         session: Session,
         meta: ModMetadata,
-        remove_states: Optional[list[str]] = None,
+        remove_states: list[str] | None = None,
     ) -> None:
         """
         Starts the game session from a mod's metadata.
@@ -50,7 +51,7 @@ class GameLauncher:
         map_path = fetch_asset("maps", meta.starting_map)
         player_slug = random.choice(meta.starting_players)
 
-        Player.create(session, slug=player_slug)
+        NPC.create_player(session, slug=player_slug)
 
         self.client.push_state(
             "WorldState", session=session, map_name=map_path
@@ -72,10 +73,10 @@ class GameLauncher:
             if len(meta.starting_names) == 1
             else random.choice(meta.starting_names)
         )
-        execute.execute_action("set_player_name", [name])
+        session.player.name = T.translate(name)
 
         # Set template
-        template = ["player", meta.sprite, meta.combat_front]
+        template = ["player", meta.sprite, meta.combat_sheet]
         execute.execute_action("set_template", template)
 
         # Optionally clean up states

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Optional, final
+from typing import final
 
 from tuxemon.camera.camera import Camera
 from tuxemon.event.eventaction import EventAction
@@ -31,13 +31,14 @@ class CameraMoveAction(EventAction):
 
     name = "camera_move"
     time: float
-    x: Optional[int] = None
-    y: Optional[int] = None
+    x: int | None = None
+    y: int | None = None
 
     def start(self, session: Session) -> None:
         self.camera = session.client.camera_manager.get_active_camera()
         if self.camera is None:
             logger.error("No active camera found.")
+            self.stop()
             return
         if self.x is not None and self.y is not None:
             if not session.client.boundary.is_within_boundaries(
@@ -47,6 +48,7 @@ class CameraMoveAction(EventAction):
                 logger.error(
                     f"({self.x, self.y}) is outside the map bounds {map_size}"
                 )
+                self.stop()
                 return
             self._move_camera(self.camera, self.x, self.y)
         else:

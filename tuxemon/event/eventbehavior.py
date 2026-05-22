@@ -16,7 +16,7 @@ from tuxemon.db import (
     ParameterizableRule,
     SpatialCondition,
 )
-from tuxemon.plugin import load_plugins
+from tuxemon.plugin import PluginManager
 
 logger = logging.getLogger(__name__)
 
@@ -48,11 +48,13 @@ class BehaviorManager:
             BEHAVS_PATH, "behaviors", subfolder="event"
         )
 
-        self.behaviors: Mapping[str, type[EventBehavior]] = load_plugins(
-            paths=plugin_folders,
+        manager = PluginManager.from_directory(
+            plugin_folders=plugin_folders,
             root_path=root_path,
-            category="behaviors",
-            interface=EventBehavior,  # type: ignore[type-abstract]
+        )
+
+        self.behaviors: Mapping[str, type[EventBehavior]] = (
+            manager.get_class_map(interface=EventBehavior)
         )
 
     def get_behavior(self, name: str) -> EventBehavior | None:
@@ -71,33 +73,28 @@ class BehaviorManager:
         return list(self.behaviors.values())
 
 
-def expand_behavior_conditions(
+def expand_behavior(
     event: EventObject, behavior_manager: BehaviorManager
-) -> list[SpatialCondition]:
-    conds = []
+) -> tuple[list[SpatialCondition], list[ParameterizableRule]]:
+    """
+    Expand all behaviors for an event in a single pass.
+    Returns (all_conditions, all_actions) from a single expand() call per behavior.
+    """
+    all_conds: list[SpatialCondition] = []
+    all_acts: list[ParameterizableRule] = []
+
     for beh in event.behavs:
         plugin = behavior_manager.get_behavior(beh.type)
         if not plugin:
             continue
         try:
-            c, _ = plugin.expand(event, beh)
-            conds.extend(c)
+            conds, acts = plugin.expand(event, beh)
+            all_conds.extend(conds)
+            all_acts.extend(acts)
         except Exception as e:
-            logger.error(f"Error expanding behavior {beh.type}: {e}")
-    return conds
+            logger.error(
+                f"Behavior '{beh.type}' on event {event.id} failed to expand: {e}. "
+                f"Skipping entire behavior."
+            )
 
-
-def expand_behavior_actions(
-    event: EventObject, behavior_manager: BehaviorManager
-) -> list[ParameterizableRule]:
-    acts = []
-    for beh in event.behavs:
-        plugin = behavior_manager.get_behavior(beh.type)
-        if not plugin:
-            continue
-        try:
-            _, a = plugin.expand(event, beh)
-            acts.extend(a)
-        except Exception as e:
-            logger.error(f"Error expanding behavior {beh.type}: {e}")
-    return acts
+    return all_conds, all_acts

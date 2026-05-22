@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Optional, final
+from typing import final
 
-from tuxemon.entity_dir.dialogue_profile import DialogueProfileManager
+from tuxemon.entity.dialogue_profile import DialogueProfileManager
 from tuxemon.event.eventaction import EventAction
-from tuxemon.locale import T
+from tuxemon.locale.locale import T
 from tuxemon.session import Session
 from tuxemon.tools import open_dialog
 from tuxemon.ui.text_formatter import TextFormatter
@@ -56,12 +56,13 @@ class CharTalkAction(EventAction):
     name = "char_talk"
     character: str
     field: str
-    location: Optional[str] = None
+    location: str | None = None
 
     def start(self, session: Session) -> None:
-        character = session.get_npc(self.character)
+        character = session.client.get_npc(self.character)
         if character is None:
             logger.error(f"{self.character} not found")
+            self.stop()
             return
 
         dialogue = DialogueProfileManager()
@@ -72,13 +73,12 @@ class CharTalkAction(EventAction):
 
         if line is None:
             logger.error(f"{self.character} line {self.field} doesn't exist.")
+            self.stop()
             return
 
         text = TextFormatter.replace_text(session, line, T)
         open_dialog(client=session.client, text=[T.translate(text)])
 
     def update(self, session: Session, dt: float) -> None:
-        try:
-            session.client.get_state_by_name("DialogState")
-        except ValueError:
+        if "DialogState" not in session.client.active_state_names:
             self.stop()

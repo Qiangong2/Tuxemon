@@ -4,8 +4,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from tuxemon.formula import config_monster
-from tuxemon.monster_dir.stats import (
+from tuxemon.database.rules import config_monster
+from tuxemon.monster.stats import (
     BasicStats,
     CustomStatBoosts,
     IndividualValues,
@@ -29,17 +29,40 @@ def mock_shape():
 @pytest.fixture
 def mock_tastes():
     cold = MagicMock(spec=Taste)
-    cold.slug = "cold"
+    warm = MagicMock(spec=Taste)
+
     cold.modifiers = [
         MagicMock(values=["speed"], multiplier=1.2),
         MagicMock(values=["hp"], multiplier=0.9),
     ]
-    warm = MagicMock(spec=Taste)
-    warm.slug = "warm"
-    warm.modifiers = [MagicMock(values=["melee"], multiplier=1.1)]
-    Taste.get_taste = MagicMock(
+    warm.modifiers = [
+        MagicMock(values=["melee"], multiplier=1.1),
+    ]
+
+    def get_multiplier(taste, stat_name: str) -> float:
+        m = 1.0
+        for mod in taste.modifiers:
+            if stat_name in mod.values:
+                m *= mod.multiplier
+        return m
+
+    def apply_to_stat(taste, stat_name: str, value: int) -> int:
+        return round(value * get_multiplier(taste, stat_name))
+
+    cold.get_multiplier.side_effect = lambda stat: get_multiplier(cold, stat)
+    warm.get_multiplier.side_effect = lambda stat: get_multiplier(warm, stat)
+
+    cold.apply_to_stat.side_effect = lambda stat, val: apply_to_stat(
+        cold, stat, val
+    )
+    warm.apply_to_stat.side_effect = lambda stat, val: apply_to_stat(
+        warm, stat, val
+    )
+
+    Taste.get = MagicMock(
         side_effect=lambda name: {"cold": cold, "warm": warm}[name]
     )
+
     return cold, warm
 
 
@@ -85,20 +108,12 @@ def test_apply_base_stat_calculation(calculator):
 @pytest.mark.parametrize(
     "stat, value, expected",
     [
-        ("hp", 100, int(100 * 0.9)),
-        ("speed", 30, int(30 * 1.2)),
-        ("melee", 20, int(20 * 1.1)),
-        ("armour", 10, 10),
-        ("dodge", 10, 10),
-        ("ranged", 5, 5),
-    ],
-    ids=[
-        "hp_mod",
-        "speed_mod",
-        "melee_mod",
-        "armour_no_mod",
-        "dodge_no_mod",
-        "ranged_no_mod",
+        pytest.param("hp", 100, int(100 * 0.9), id="hp_mod"),
+        pytest.param("speed", 30, int(30 * 1.2), id="speed_mod"),
+        pytest.param("melee", 20, int(20 * 1.1), id="melee_mod"),
+        pytest.param("armour", 10, 10, id="armour_no_mod"),
+        pytest.param("dodge", 10, 10, id="dodge_no_mod"),
+        pytest.param("ranged", 5, 5, id="ranged_no_mod"),
     ],
 )
 def test_apply_stat_updates(calculator, mock_tastes, stat, value, expected):
@@ -113,11 +128,10 @@ def test_apply_stat_updates(calculator, mock_tastes, stat, value, expected):
 @pytest.mark.parametrize(
     "stat, value, expected_multiplier",
     [
-        ("speed", 50, 1.2),
-        ("melee", 40, 1.1),
-        ("armour", 20, 1.0),
+        pytest.param("speed", 50, 1.2, id="speed_update"),
+        pytest.param("melee", 40, 1.1, id="melee_update"),
+        pytest.param("armour", 20, 1.0, id="armour_no_update"),
     ],
-    ids=["speed_update", "melee_update", "armour_no_update"],
 )
 def test_update_stat(
     calculator, mock_tastes, stat, value, expected_multiplier
@@ -225,3 +239,60 @@ def test_taste_multiplier_stacking(analyzer, mock_tastes):
         pytest.approx(breakdown["hp"]["taste_multiplier"], rel=1e-2)
         == 1.5 * 2.0
     )
+
+
+# TrainingPoints invariant tests
+
+
+def test_tp_validate_individual_clamp():
+    tp = TrainingPoints(armour=config_monster.max_tps + 50)
+    tp.validate()
+    assert tp.armour == config_monster.max_tps
+
+
+def test_tp_validate_total_clamp_proportional():
+    tp = TrainingPoints(
+        armour=200, dodge=200, hp=200, melee=200, ranged=200, speed=200
+    )
+    tp.validate()
+    total_after = tp.sum()
+    assert total_after <= config_monster.max_total_tps
+    assert pytest.approx(tp.armour, rel=0.1) == tp.dodge
+    assert pytest.approx(tp.armour, rel=0.1) == tp.hp
+
+
+def test_tp_validate_no_change_when_valid():
+    tp = TrainingPoints(armour=10, dodge=5, hp=3, melee=2, ranged=1, speed=4)
+    before = tp.to_dict().copy()
+    tp.validate()
+    assert tp.to_dict() == before
+
+
+def test_tp_validate_individual_then_total():
+    tp = TrainingPoints(
+        armour=config_monster.max_tps + 20,
+        dodge=config_monster.max_tps + 10,
+        hp=50,
+        melee=50,
+        ranged=50,
+        speed=50,
+    )
+    tp.validate()
+    assert tp.armour <= config_monster.max_tps
+    assert tp.dodge <= config_monster.max_tps
+    assert tp.sum() <= config_monster.max_total_tps
+
+
+def test_tp_validate_scaling_preserves_zero_stats():
+    tp = TrainingPoints(
+        armour=100,
+        dodge=0,
+        hp=100,
+        melee=0,
+        ranged=100,
+        speed=0,
+    )
+    tp.validate()
+    assert tp.dodge == 0
+    assert tp.melee == 0
+    assert tp.speed == 0

@@ -1,98 +1,127 @@
 # SPDX-License-Identifier: GPL-3.0
 # Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 """This module initializes the display, pygame, translations, and databases."""
+
 from __future__ import annotations
 
 import logging
-import re
+import os
+from dataclasses import dataclass
 
 import pygame as pg
 
 from tuxemon.platform.const.sizes import NATIVE_RESOLUTION
 from tuxemon.platform.const.sizes import TILE_SIZE as NATIVE_TILE_SIZE
+from tuxemon.scaling import (
+    DefaultScaling,
+    ScalingStrategy,
+    make_default_scaling,
+)
 from tuxemon.user_config import CONFIG
 
 logger = logging.getLogger(__name__)
 
-# Config-driven defaults
-SCREEN_SIZE = CONFIG.resolution
-TILE_SIZE = NATIVE_TILE_SIZE
-SCALE = 1
+
+@dataclass
+class DisplayContext:
+    screen: pg.Surface
+    rect: pg.Rect
+    resolution: tuple[int, int]
+    tile_size: tuple[int, int]
+    scale: int
+    scaling: ScalingStrategy
+
+
+_default_surface = pg.Surface((1, 1))
+_default_rect = _default_surface.get_rect()
+
+DISPLAY_CONTEXT: DisplayContext = DisplayContext(
+    screen=_default_surface,
+    rect=_default_rect,
+    resolution=(1, 1),
+    tile_size=(1, 1),
+    scale=1,
+    scaling=DefaultScaling(1),
+)
+
+
 DEV_TOOLS = CONFIG.dev_tools
 
-SCREEN: pg.surface.Surface = pg.Surface(CONFIG.resolution)  # dummy surface
-SCREEN_RECT: pg.rect.Rect = pg.Rect(0, 0, *CONFIG.resolution)  # dummy rect
-JOYSTICKS: list[pg.joystick.JoystickType] = []
 
-
-def _compile_joystick_blacklist() -> list[re.Pattern[str]]:
-    """Compiles a list of regex patterns for blacklisting joysticks."""
-    logger.debug("Compiling joystick blacklist patterns.")
-    return [
-        re.compile(r"Microsoft.*Transceiver.*"),
-        re.compile(r".*Synaptics.*", re.I),
-        re.compile(r"Wacom*.", re.I),
-    ]
-
-
-joystick_blacklist = _compile_joystick_blacklist()
-
-
-def pygame_init() -> None:
+def pygame_init() -> DisplayContext:
     """Initializes Pygame, display, translations, and databases."""
-    from tuxemon import platform
+    global DISPLAY_CONTEXT
 
-    platform.init()
-
-    global JOYSTICKS, SCREEN, SCREEN_RECT, SCALE, TILE_SIZE
-
-    import pygame as pg
-
-    from tuxemon.locale import T
-
-    T.initialize_translations(recompile=CONFIG.recompile_translations)
-    from tuxemon.database.runtime import db
-
-    db.load()
+    core_init()
 
     logger.debug("pygame init")
     pg.init()
     pg.display.set_caption(CONFIG.window_caption)
 
-    # Calculate scale and adjusted TILE_SIZE
-    if CONFIG.large_gui:
-        SCALE = 2
-    elif CONFIG.scaling:
-        SCALE = int(SCREEN_SIZE[0] / NATIVE_RESOLUTION[0])
+    scaling = make_default_scaling(CONFIG, NATIVE_RESOLUTION)
 
-    TILE_SIZE = (NATIVE_TILE_SIZE[0] * SCALE, NATIVE_TILE_SIZE[1] * SCALE)
-
-    from tuxemon.platform import is_android
-
+    # Fullscreen flags
     fullscreen = pg.FULLSCREEN if CONFIG.fullscreen else 0
-    if is_android():
+
+    from tuxemon.platform import platform
+
+    if platform.is_android():
         fullscreen = pg.FULLSCREEN
+
     flags = pg.HWSURFACE | pg.DOUBLEBUF | fullscreen
 
     if CONFIG.vsync:
         pg.display.set_allow_screensaver()
 
-    SCREEN = pg.display.set_mode(SCREEN_SIZE, flags, vsync=CONFIG.vsync)
-    SCREEN_RECT = SCREEN.get_rect()
+    screen = pg.display.set_mode(CONFIG.resolution, flags, vsync=CONFIG.vsync)
+    rect = screen.get_rect()
 
     pg.mouse.set_visible(not CONFIG.controller.hide_mouse)
 
-    # Joystick setup
-    JOYSTICKS = []
-    for i in range(pg.joystick.get_count()):
-        try:
-            joystick = pg.joystick.Joystick(i)
-            name = joystick.get_name()
-            print(f'Found joystick: "{name}"')
-            if any(pattern.match(name) for pattern in joystick_blacklist):
-                print(f'Ignoring joystick: "{name}"')
-            else:
-                print(f'Configuring joystick: "{name}"')
-                JOYSTICKS.append(joystick)
-        except Exception as e:
-            logger.warning(f"Failed to initialize joystick {i}: {e}")
+    DISPLAY_CONTEXT = DisplayContext(
+        screen=screen,
+        rect=rect,
+        resolution=CONFIG.resolution,
+        tile_size=scaling.scale_point(NATIVE_TILE_SIZE),
+        scale=scaling._scale,
+        scaling=scaling,
+    )
+
+    return DISPLAY_CONTEXT
+
+
+def headless_init() -> DisplayContext:
+    """Initializes game components for a headless environment."""
+    global DISPLAY_CONTEXT
+
+    logger.debug("headless init")
+
+    os.environ["SDL_VIDEODRIVER"] = "dummy"
+
+    core_init()
+
+    pg.display.init()
+    pg.font.init()
+
+    screen = pg.Surface(CONFIG.resolution)
+    rect = screen.get_rect()
+
+    DISPLAY_CONTEXT = DisplayContext(
+        screen=screen,
+        rect=rect,
+        resolution=CONFIG.resolution,
+        tile_size=NATIVE_TILE_SIZE,
+        scale=1,
+        scaling=DefaultScaling(1),
+    )
+
+    return DISPLAY_CONTEXT
+
+
+def core_init() -> None:
+    from tuxemon.database.runtime import db
+    from tuxemon.locale.locale import T
+
+    T.initialize_translations(recompile=CONFIG.recompile_translations)
+    db.load()
+    logger.debug("Initializing core systems")

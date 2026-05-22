@@ -5,12 +5,10 @@ from __future__ import annotations
 import logging
 from collections.abc import Callable
 from dataclasses import dataclass
-from pathlib import Path
-from typing import Any, Optional, final
-
-import yaml
+from typing import Any, final
 
 from tuxemon.constants.paths import mods_folder
+from tuxemon.database.yaml_utils import load_yaml
 from tuxemon.event.eventaction import EventAction
 from tuxemon.platform.combo_detector import ComboProfile
 from tuxemon.session import Session
@@ -40,18 +38,6 @@ BUTTON_NAME_TO_ID = {k.upper(): v for k, v in BUTTON_NAME_TO_ID.items()}
 BUTTON_ID_TO_NAME = {v: k for k, v in BUTTON_NAME_TO_ID.items()}
 
 
-def load_yaml(filepath: Path) -> Any:
-    try:
-        with filepath.open() as file:
-            return yaml.safe_load(file)
-    except FileNotFoundError:
-        logger.error(f"Config file not found: {filepath}")
-        raise
-    except yaml.YAMLError as exc:
-        logger.error(f"Error parsing YAML file: {exc}")
-        raise exc
-
-
 @final
 @dataclass
 class AddComboAction(EventAction):
@@ -68,7 +54,7 @@ class AddComboAction(EventAction):
     """
 
     name = "add_combo"
-    yaml_data: Optional[str] = None
+    yaml_data: str | None = None
 
     def start(self, session: Session) -> None:
         yaml_file = self.yaml_data or "combos"
@@ -96,10 +82,11 @@ class AddComboAction(EventAction):
                 delays_s = [max_delay_s] * len(button_sequence)
 
                 def make_callback(
-                    event_name: Optional[str],
+                    event_name: str | None,
+                    combo_name: str,
                 ) -> Callable[[], None]:
                     def callback() -> None:
-                        logger.info(f"Combo '{combo['name']}' triggered!")
+                        logger.info(f"Combo '{combo_name}' triggered!")
                         if event_name:
                             session.client.event_engine.execute_action(
                                 "call_event", [event_name]
@@ -110,7 +97,9 @@ class AddComboAction(EventAction):
                 profile = ComboProfile(
                     name=combo["name"],
                     buttons=button_sequence,
-                    callback=make_callback(combo.get("event_name")),
+                    callback=make_callback(
+                        combo.get("event_name"), combo["name"]
+                    ),
                     delays_s=delays_s,
                     description=combo.get(
                         "description",

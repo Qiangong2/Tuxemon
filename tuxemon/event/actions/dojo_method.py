@@ -9,9 +9,9 @@ from typing import TYPE_CHECKING, final
 
 from tuxemon.db import EvolutionStage
 from tuxemon.event.eventaction import EventAction
-from tuxemon.locale import T
+from tuxemon.locale.locale import T
 from tuxemon.menu.interface import MenuItem
-from tuxemon.monster import Monster
+from tuxemon.monster.monster import Monster
 from tuxemon.states.technique_menu import TechniqueMenuState
 from tuxemon.technique.technique import Technique
 from tuxemon.tools import get_valid_uuid, open_choice_dialog
@@ -46,7 +46,6 @@ class DojoMethodAction(EventAction):
             - "technique": Learn any move the monster hasn't acquired from its base
               moveset, without restrictions based on level or evolution stage.
             - "monster": Devolve the monster.
-
     """
 
     name = "dojo_method"
@@ -64,21 +63,23 @@ class DojoMethodAction(EventAction):
             logger.info(
                 f"No valid monster selected for variable '{self.variable_name}'"
             )
+            self.stop()
             return  # Exit early if no valid UUID
 
         monster = session.client.get_monster_by_iid(monster_id)
         if monster is None:
             logger.debug(f"Monster {monster_id} not found.")
+            self.stop()
             return
 
         self.monster = monster
 
         if self.option not in ["monster", "technique"]:
             logger.error(f"{self.option} must be 'monster' or 'technique'")
+            self.stop()
             return
 
         if self.option == "technique":
-
             learnable_moves = [
                 Technique.create(tech.technique)
                 for tech in self.monster.moves.moveset
@@ -88,15 +89,17 @@ class DojoMethodAction(EventAction):
 
             if not learnable_moves:
                 session.player.game_variables.set("dojo_notech", "on")
+                self.stop()
                 return
 
-            forget = session.client.push_state(
+            session.client.push_state(
                 TechniqueMenuState(
+                    client=session.client,
                     character=session.player,
                     techniques=self.monster.moves.current_moves,
+                    on_selection=self.get_tech,
                 )
             )
-            forget.on_menu_selection = self.get_tech  # type: ignore[method-assign]
         else:
             actions = {
                 mon.slug: partial(self.devolve, mon.slug)
@@ -104,13 +107,13 @@ class DojoMethodAction(EventAction):
                 if self.monster.slug in mon.evolves_into
                 and (
                     (
-                        self.monster.stage == EvolutionStage.stage1
-                        and mon.stage == EvolutionStage.basic
+                        self.monster.stage == EvolutionStage.STAGE1
+                        and mon.stage == EvolutionStage.BASIC
                     )
                     or (
-                        self.monster.stage == EvolutionStage.stage2
+                        self.monster.stage == EvolutionStage.STAGE2
                         and mon.stage
-                        in [EvolutionStage.stage1, EvolutionStage.basic]
+                        in [EvolutionStage.STAGE1, EvolutionStage.BASIC]
                     )
                 )
             }
@@ -122,30 +125,29 @@ class DojoMethodAction(EventAction):
             open_choice_dialog(session.client, MenuOptions(menu_options))
 
     def update(self, session: Session, dt: float) -> None:
-        try:
-            session.client.get_state_by_name("DialogState")
-        except ValueError:
+        if "DialogState" not in session.client.active_state_names:
             self.stop()
 
     def devolve(self, slug: str) -> None:
-        devolution = Monster.create(slug)
+        devolution = Monster.spawn_base(slug, self.monster.level)
+        devolution.transfer_properties_from(self.monster)
         self.monster.evolution_handler.evolve_monster(devolution)
         logger.info(f"{self.monster.name}'s devolved!")
-        self.client.sound_manager.play_sound("sound_confirm")
+        self.client.sound_manager.play("sound_confirm")
         self.client.pop_state()
 
     def set_var(self, menu_technique: MenuItem[Technique]) -> None:
         tech = menu_technique.game_object
         self.monster.moves.learn(self.monster, tech, ignore_eligibility=True)
         logger.info(f"{tech.name} learned!")
-        self.client.sound_manager.play_sound("sound_confirm")
+        self.client.sound_manager.play("sound_confirm")
         self.client.pop_state()
 
     def get_tech(self, menu_technique: MenuItem[Technique]) -> None:
         tech = menu_technique.game_object
         self.monster.moves.remove_forced(tech)
         logger.info(f"{tech.name} forgot!")
-        self.client.sound_manager.play_sound("sound_confirm")
+        self.client.sound_manager.play("sound_confirm")
         self.client.pop_state()
 
         # Now push the learn menu
@@ -157,6 +159,7 @@ class DojoMethodAction(EventAction):
         ]
         if not learnable_moves:
             self.player.game_variables.set("dojo_notech", "on")
+            self.stop()
             return
 
         if len(learnable_moves) == 1:
@@ -165,13 +168,15 @@ class DojoMethodAction(EventAction):
                 self.monster, tech, ignore_eligibility=True
             )
             logger.info(f"{tech.name} learned!")
-            self.client.sound_manager.play_sound("sound_confirm")
+            self.client.sound_manager.play("sound_confirm")
+            self.stop()
             return
 
-        relearn = self.client.push_state(
+        self.client.push_state(
             TechniqueMenuState(
+                client=self.client,
                 character=self.player,
                 techniques=learnable_moves,
+                on_selection=self.set_var,
             )
         )
-        relearn.on_menu_selection = self.set_var  # type: ignore[method-assign]

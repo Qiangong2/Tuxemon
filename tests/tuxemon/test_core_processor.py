@@ -12,8 +12,9 @@ from tuxemon.core.core_effect import (
     TechEffectResult,
 )
 from tuxemon.core.core_processor import ConditionProcessor, EffectProcessor
-from tuxemon.monster import Monster
+from tuxemon.monster.monster import Monster
 from tuxemon.session import Session
+from tuxemon.technique.technique import Technique
 
 
 @pytest.fixture
@@ -156,27 +157,21 @@ def target_monster():
 
 def test_no_conditions(session, target_monster):
     processor = ConditionProcessor([])
-    assert processor.validate(session, target_monster)
+    assert processor.validate_monster(session, target_monster).passed
 
 
 def test_no_target(session, core_condition):
     processor = ConditionProcessor([core_condition])
-    assert not processor.validate(session, None)
+    assert not processor.validate_monster(session, None).passed
 
 
 @pytest.mark.parametrize(
     "is_expected, test_result, expected",
     [
-        (True, True, True),  # passes with op
-        (True, False, False),  # fails with op
-        (False, False, True),  # passes without op
-        (False, True, False),  # fails without op
-    ],
-    ids=[
-        "expected_true_pass",
-        "expected_true_fail",
-        "expected_false_pass",
-        "expected_false_fail",
+        pytest.param(True, True, True, id="expected_true_pass"),
+        pytest.param(True, False, False, id="expected_true_fail"),
+        pytest.param(False, False, True, id="expected_false_pass"),
+        pytest.param(False, True, False, id="expected_false_fail"),
     ],
 )
 def test_condition_variants(
@@ -185,13 +180,15 @@ def test_condition_variants(
     core_condition.is_expected = is_expected
     core_condition.test_with_monster.return_value = test_result
     processor = ConditionProcessor([core_condition])
-    assert processor.validate(session, target_monster) == expected
+    assert (
+        processor.validate_monster(session, target_monster).passed == expected
+    )
 
 
 def test_invalid_condition_type(session, target_monster):
     invalid_condition = MagicMock()
     processor = ConditionProcessor([invalid_condition])
-    assert not processor.validate(session, target_monster)
+    assert not processor.validate_monster(session, target_monster).passed
 
 
 def test_multiple_conditions_all_pass(session, core_condition, target_monster):
@@ -201,7 +198,7 @@ def test_multiple_conditions_all_pass(session, core_condition, target_monster):
     another.is_expected = True
     another.test_with_monster.return_value = True
     processor = ConditionProcessor([core_condition, another])
-    assert processor.validate(session, target_monster)
+    assert processor.validate_monster(session, target_monster).passed
 
 
 def test_multiple_conditions_one_fails(
@@ -213,14 +210,14 @@ def test_multiple_conditions_one_fails(
     another.is_expected = True
     another.test_with_monster.return_value = False
     processor = ConditionProcessor([core_condition, another])
-    assert not processor.validate(session, target_monster)
+    assert not processor.validate_monster(session, target_monster).passed
 
 
 def test_method_invocation_count(session, core_condition, target_monster):
     core_condition.is_expected = True
     core_condition.test_with_monster.return_value = True
     processor = ConditionProcessor([core_condition])
-    processor.validate(session, target_monster)
+    processor.validate_monster(session, target_monster)
     core_condition.test_with_monster.assert_called_once_with(
         session, target_monster
     )
@@ -228,4 +225,24 @@ def test_method_invocation_count(session, core_condition, target_monster):
 
 def test_empty_conditions_with_none_target(session):
     processor = ConditionProcessor([])
-    assert processor.validate(session, None)
+    assert processor.validate_monster(session, None).passed
+
+
+def test_dispatch_to_technique_method(session):
+    cond = MagicMock(spec=CoreCondition)
+    cond.is_expected = True
+    cond.test_with_tech.return_value = True
+    target = MagicMock(spec=Technique)
+    processor = ConditionProcessor([cond])
+    assert processor.validate_tech(session, target)
+    cond.test_with_tech.assert_called_once_with(session, target)
+
+
+def test_monster_overrides_technique_method(session):
+    cond = MagicMock(spec=CoreCondition)
+    cond.is_expected = True
+    cond.test_with_monster.return_value = True
+    target = MagicMock(spec=Monster)
+    processor = ConditionProcessor([cond])
+    assert processor.validate_monster(session, target).passed
+    cond.test_with_monster.assert_called_once()

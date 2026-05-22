@@ -21,7 +21,9 @@ def callbacks():
 
 @pytest.fixture
 def state_manager():
-    return StateManager("test", EventBus(), StateRepository())
+    mock_client = MagicMock()
+    mock_client.event_bus = EventBus()
+    return StateManager("test", mock_client, StateRepository())
 
 
 def test_register_event(event_bus, callbacks):
@@ -166,14 +168,6 @@ def test_global_events_unregister_nonexistent(state_manager, callbacks):
     state_manager.unregister_global_event("pre_state_update", cb)
 
 
-def test_reset_events(state_manager, callbacks):
-    cb, _, _ = callbacks
-    state_manager.register_global_event("test_event", cb, priority=10)
-    assert state_manager.event_bus._listeners
-    state_manager.event_bus.reset_all_events()
-    assert not state_manager.event_bus._listeners
-
-
 def test_global_events_unregister_correct_callback(state_manager, callbacks):
     cb1, cb2, _ = callbacks
     state_manager.register_global_event("pre_state_update", cb1)
@@ -186,8 +180,12 @@ def test_global_events_unregister_correct_callback(state_manager, callbacks):
 
 def test_state_manager_event_isolation(callbacks):
     cb1, cb2, _ = callbacks
-    manager1 = StateManager("test1", EventBus(), StateRepository())
-    manager2 = StateManager("test2", EventBus(), StateRepository())
+    mock_client1 = MagicMock()
+    mock_client1.event_bus = EventBus()
+    mock_client2 = MagicMock()
+    mock_client2.event_bus = EventBus()
+    manager1 = StateManager("test1", mock_client1, StateRepository())
+    manager2 = StateManager("test2", mock_client2, StateRepository())
     manager1.register_global_event("pre_state_update", cb1)
     manager2.register_global_event("pre_state_update", cb2)
     manager1.update(0.1)

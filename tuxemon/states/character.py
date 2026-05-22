@@ -2,38 +2,28 @@
 # Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
-from collections.abc import Callable
-from typing import Any, ClassVar, Optional
+from typing import TYPE_CHECKING, Any, ClassVar
 
-import pygame_menu
-from pygame_menu import locals
+from pygame_menu.locals import ALIGN_CENTER, ALIGN_LEFT, POSITION_EAST
+from pygame_menu.menu import Menu
 
 from tuxemon import formula
 from tuxemon.database.runtime import db
 from tuxemon.db import MonsterModel
-from tuxemon.locale import T
+from tuxemon.entity.npc import NPC
+from tuxemon.graphics import scale_surface
+from tuxemon.locale.locale import T
 from tuxemon.menu.formatter import CurrencyFormatter
 from tuxemon.menu.menu import PygameMenuState
-from tuxemon.npc import NPC
 from tuxemon.platform.const import buttons
 from tuxemon.platform.const.graphics import BG_PLAYER1, BG_PLAYER2
 from tuxemon.platform.const.sizes import U_KM, U_MI
-from tuxemon.platform.events import PlayerInput
-from tuxemon.prepare import SCALE, SCREEN_SIZE
 from tuxemon.tools import fix_measure, format_playtime
-from tuxemon.tuxepedia import TuxepediaReporter
+from tuxemon.tuxepedia.reporter import TuxepediaReporter
 
-MenuGameObj = Callable[[], object]
-lookup_cache: dict[str, MonsterModel] = {}
-
-
-def _lookup_monsters() -> None:
-    global lookup_cache
-    lookup_cache = {
-        mon_name: result
-        for mon_name in db.database["monster"]
-        if (result := MonsterModel.lookup(mon_name, db)).txmn_id > 0
-    }
+if TYPE_CHECKING:
+    from tuxemon.base_client import BaseClient
+    from tuxemon.platform.events import PlayerInput
 
 
 class CharacterState(PygameMenuState):
@@ -44,17 +34,19 @@ class CharacterState(PygameMenuState):
 
     Shows details of the character (e.g. monster captured, seen,
     battles, wallet, etc.).
-
     """
 
     name: ClassVar[str] = "CharacterState"
 
     def add_menu_items(
         self,
-        menu: pygame_menu.Menu,
+        menu: Menu,
     ) -> None:
-        fxw: Callable[[float], int] = lambda r: fix_measure(menu._width, r)
-        fxh: Callable[[float], int] = lambda r: fix_measure(menu._height, r)
+        def fxw(r: float) -> int:
+            return fix_measure(menu._width, r)
+
+        def fxh(r: float) -> int:
+            return fix_measure(menu._height, r)
 
         name = (
             T.translate(self.char.slug)
@@ -63,7 +55,7 @@ class CharacterState(PygameMenuState):
         )
 
         # tuxepedia data
-        filters = list(lookup_cache.values())
+        filters = list(self.cache.values())
         reporter = TuxepediaReporter(self.char.tuxepedia.data)
         completeness = reporter.get_completeness_report(len(filters))
         percentage = round(completeness["registered_percent"] * 100, 1)
@@ -121,7 +113,7 @@ class CharacterState(PygameMenuState):
             title=name.upper(),
             label_id="name",
             font_size=self.font_type.big,
-            align=locals.ALIGN_LEFT,
+            align=ALIGN_LEFT,
             underline=True,
             float=True,
         )
@@ -133,7 +125,7 @@ class CharacterState(PygameMenuState):
             title=f"{T.translate('wallet')}: {money.format(amount)}",
             label_id="money",
             font_size=self.font_type.smaller,
-            align=locals.ALIGN_LEFT,
+            align=ALIGN_LEFT,
             float=True,
         )
         lab2.translate(fxw(0.45), fxh(0.25))
@@ -142,7 +134,7 @@ class CharacterState(PygameMenuState):
             title=msg_seen,
             label_id="seen",
             font_size=self.font_type.smaller,
-            align=locals.ALIGN_LEFT,
+            align=ALIGN_LEFT,
             float=True,
         )
         lab3.translate(fxw(0.45), fxh(0.30))
@@ -151,7 +143,7 @@ class CharacterState(PygameMenuState):
             title=msg_caught,
             label_id="caught",
             font_size=self.font_type.smaller,
-            align=locals.ALIGN_LEFT,
+            align=ALIGN_LEFT,
             float=True,
         )
         lab4.translate(fxw(0.45), fxh(0.35))
@@ -160,7 +152,7 @@ class CharacterState(PygameMenuState):
             title=msg_begin,
             label_id="begin",
             font_size=self.font_type.smaller,
-            align=locals.ALIGN_LEFT,
+            align=ALIGN_LEFT,
             float=True,
         )
         lab5.translate(fxw(0.45), fxh(0.40))
@@ -170,7 +162,7 @@ class CharacterState(PygameMenuState):
                 title=msg_walked,
                 label_id="walked",
                 font_size=self.font_type.smaller,
-                align=locals.ALIGN_LEFT,
+                align=ALIGN_LEFT,
                 float=True,
             )
             lab6.translate(fxw(0.45), fxh(0.45))
@@ -179,7 +171,7 @@ class CharacterState(PygameMenuState):
             title=msg_battles,
             label_id="battle",
             font_size=self.font_type.smaller,
-            align=locals.ALIGN_LEFT,
+            align=ALIGN_LEFT,
             float=True,
         )
         lab7.translate(fxw(0.45), fxh(0.50))
@@ -188,29 +180,28 @@ class CharacterState(PygameMenuState):
             title=msg_progress,
             label_id="progress",
             font_size=self.font_type.smaller,
-            align=locals.ALIGN_LEFT,
+            align=ALIGN_LEFT,
             float=True,
         )
         lab8.translate(fxw(0.45), fxh(0.10))
         # image
-        combat_front = self.char.template.combat_front
-        _path = f"gfx/sprites/player/{combat_front}.png"
-        new_image = self._create_image(_path)
-        new_image.scale(SCALE, SCALE)
+        surface = self.char.combat_sheet.front()
+        scaled = scale_surface(surface, self.factor)
+        new_image = self._create_image_from_surface(scaled)
         image_widget = menu.add.image(image_path=new_image.copy())
         image_widget.set_float(origin_position=True)
         image_widget.translate(fxw(0.20), fxh(0.08))
 
-    def __init__(self, **kwargs: Any) -> None:
-        if not lookup_cache:
-            _lookup_monsters()
-        character: Optional[NPC] = None
-        for element in kwargs.values():
-            character = element["character"]
-        if character is None:
-            raise ValueError("No character found")
-        width, height = SCREEN_SIZE
+    def __init__(
+        self,
+        client: BaseClient,
+        character: NPC,
+        **kwargs: Any,
+    ) -> None:
+        MonsterModel.load_cache(db)
+        self.cache = MonsterModel.get_cache()
 
+        width, height = client.context.resolution
         self.char = character
 
         bg = (
@@ -219,16 +210,17 @@ class CharacterState(PygameMenuState):
             else BG_PLAYER1
         )
 
-        theme = self._setup_theme(bg)
-        theme.scrollarea_position = locals.POSITION_EAST
-        theme.widget_alignment = locals.ALIGN_CENTER
+        super().__init__(client=client, height=height, width=width, **kwargs)
 
-        super().__init__(height=height, width=width)
+        theme = self._setup_theme(bg)
+        theme.scrollarea_position = POSITION_EAST
+        theme.widget_alignment = ALIGN_CENTER
+        self._menu_config["theme"] = theme
 
         self.add_menu_items(self.menu)
         self.reset_theme()
 
-    def process_event(self, event: PlayerInput) -> Optional[PlayerInput]:
+    def process_event(self, event: PlayerInput) -> PlayerInput | None:
         if (
             event.button == buttons.RIGHT
             and event.pressed

@@ -20,7 +20,9 @@ def mock_world():
 
 @pytest.fixture
 def transition(mock_world):
-    return WorldTransition(mock_world, mock_world.client.movement_manager)
+    return WorldTransition(
+        mock_world, mock_world.client.movement_manager, (800, 600)
+    )
 
 
 @pytest.fixture
@@ -39,7 +41,13 @@ def test_initial_state(transition):
     assert transition.in_transition is False
 
 
-@pytest.mark.parametrize("state", [True, False])
+@pytest.mark.parametrize(
+    "state",
+    [
+        pytest.param(True, id="state_true"),
+        pytest.param(False, id="state_false"),
+    ],
+)
 def test_transition_state_changes(transition, state):
     transition.set_transition_state(state)
     assert transition.in_transition is state
@@ -48,12 +56,11 @@ def test_transition_state_changes(transition, state):
 @pytest.mark.parametrize(
     "color",
     [
-        (0, 0, 0, 255),
-        (255, 0, 0, 255),
+        pytest.param((0, 0, 0, 255), id="black"),
+        pytest.param((255, 0, 0, 255), id="red"),
     ],
 )
 def test_set_transition_surface(monkeypatch, transition, color):
-    monkeypatch.setattr("tuxemon.world.transition.SCREEN_SIZE", (800, 600))
     transition.set_transition_surface(color)
     assert transition.transition_surface is not None
     assert transition.transition_surface.get_size() == (800, 600)
@@ -93,8 +100,8 @@ def test_draw_with_zero_alpha_does_not_blit(transition, fake_surface):
 @pytest.mark.parametrize(
     "method, initial, final",
     [
-        ("fade_out", 0, 255),
-        ("fade_in", 255, 0),
+        pytest.param("fade_out", 0, 255, id="fade_out"),
+        pytest.param("fade_in", 255, 0, id="fade_in"),
     ],
 )
 def test_fade_alpha_animation(
@@ -114,11 +121,18 @@ def test_fade_alpha_animation(
 
 @pytest.mark.parametrize(
     "duration",
-    [1.0, 0.0, -1.0],
+    [
+        pytest.param(1.0, id="duration_positive"),
+        pytest.param(0.0, id="duration_zero"),
+        pytest.param(-1.0, id="duration_negative"),
+    ],
 )
 @pytest.mark.parametrize(
     "with_character",
-    [True, False],
+    [
+        pytest.param(True, id="with_character"),
+        pytest.param(False, id="no_character"),
+    ],
 )
 def test_fade_out_edge_cases(
     monkeypatch, transition, mock_world, duration, with_character
@@ -134,12 +148,11 @@ def test_fade_out_edge_cases(
         duration=duration,
         round_values=True,
     )
+    mm = mock_world.client.movement_manager
     if with_character:
-        mm = mock_world.client.movement_manager
         mm.stop_char.assert_called_with(character)
         mm.lock_controls.assert_called_with(character)
     else:
-        mm = mock_world.client.movement_manager
         mm.stop_char.assert_not_called()
         mm.lock_controls.assert_not_called()
     assert transition.in_transition is True
@@ -147,11 +160,18 @@ def test_fade_out_edge_cases(
 
 @pytest.mark.parametrize(
     "duration",
-    [1.0, 0.0, -1.0],
+    [
+        pytest.param(1.0, id="duration_positive"),
+        pytest.param(0.0, id="duration_zero"),
+        pytest.param(-1.0, id="duration_negative"),
+    ],
 )
 @pytest.mark.parametrize(
     "with_character",
-    [True, False],
+    [
+        pytest.param(True, id="with_character"),
+        pytest.param(False, id="no_character"),
+    ],
 )
 def test_fade_in_edge_cases(
     monkeypatch, transition, mock_world, duration, with_character
@@ -178,7 +198,6 @@ def test_fade_out_call_order(monkeypatch, transition, mock_world):
     color = (0, 0, 0, 255)
     character = mock_world.player
     transition.fade_out(1.0, color, character)
-    mm = mock_world.client.movement_manager
     filtered = [
         c
         for c in mock_world.mock_calls
@@ -234,9 +253,7 @@ def test_fade_and_teleport_call_order(monkeypatch, transition, mock_world):
     mock_world.task.assert_called_with(teleport, interval=1.0)
     chained = mock_world.task.return_value.chain
     chained.assert_called()
-    task_call_index = next(
-        i for i, c in enumerate(mock_world.mock_calls) if c[0] == "task"
-    )
+    next(i for i, c in enumerate(mock_world.mock_calls) if c[0] == "task")
     chain_call_index = next(
         i
         for i, c in enumerate(mock_world.task.return_value.mock_calls)

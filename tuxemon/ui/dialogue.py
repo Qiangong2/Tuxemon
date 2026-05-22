@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-from typing import Optional, Union
 
 from pygame import Rect
 
@@ -31,7 +30,7 @@ def scale_dialog_size(rect: Rect) -> Rect:
 
 
 def resolve_reference_rect(
-    screen_rect: Rect, target_coords: Optional[Union[tuple[int, int], Rect]]
+    screen_rect: Rect, target_coords: tuple[int, int] | Rect | None
 ) -> Rect:
     """Determines the reference rectangle based on target coordinates or defaults to the screen."""
     if target_coords is None:
@@ -44,7 +43,7 @@ def resolve_reference_rect(
 def calc_dialog_rect(
     screen_rect: Rect,
     position: DialogPosition,
-    target_coords: Optional[Union[tuple[int, int], Rect]] = None,
+    target_coords: tuple[int, int] | Rect | None = None,
 ) -> Rect:
     """
     Return a rect that is the area for a dialog box on the screen.
@@ -106,31 +105,17 @@ def calc_dialog_rect(
 class DialogueStyleCache:
     """
     Handles lookup and caching of DialogueModel styles.
-
-    Usage:
-        style_cache = DialogueStyleCache()
-        style = style_cache.get("default")
     """
 
     def __init__(self) -> None:
-        self._cache: dict[str, DialogueModel] = {}
+        DialogueModel.load_cache(db)
+        self._cache = DialogueModel.get_cache()
 
     def get(self, style_key: str) -> DialogueModel:
-        """
-        Retrieves a DialogueModel by key, caching the result.
-
-        Raises:
-            RuntimeError if style is not found in the DB.
-        """
-        if style_key in self._cache:
-            return self._cache[style_key]
-
+        """Retrieve the DialogueModel for the given style key from cache."""
         try:
-            style = DialogueModel.lookup(style_key, db)
-            self._cache[style_key] = style
-            return style
+            return self._cache[style_key]
         except KeyError:
-            logger.warning(f"Dialogue style '{style_key}' not found in DB.")
             raise RuntimeError(f"Dialogue style '{style_key}' not found")
 
     def clear(self) -> None:
@@ -138,7 +123,7 @@ class DialogueStyleCache:
         self._cache.clear()
 
     def preload(self, keys: list[str]) -> None:
-        """Preloads multiple styles into cache, useful during scene setup."""
+        """Preloads multiple styles into cache."""
         for key in keys:
             if key not in self._cache:
                 try:

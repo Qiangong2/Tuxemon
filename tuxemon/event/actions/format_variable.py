@@ -12,7 +12,6 @@ from tuxemon.session import Session
 logger = logging.getLogger(__name__)
 
 
-# noinspection PyAttributeOutsideInit
 @final
 @dataclass
 class FormatVariableAction(EventAction):
@@ -30,7 +29,6 @@ class FormatVariableAction(EventAction):
         type_format: Kind of format (float or int).
 
     eg. "format_variable name_variable,int"
-
     """
 
     name = "format_variable"
@@ -44,6 +42,7 @@ class FormatVariableAction(EventAction):
         value = player.game_variables.get(key, None)
         if value is None:
             logger.error(f"Game variable {key} doesn't exist")
+            self.stop()
             return
         _formats = ["int", "float", "-int", "-float"]
         if type_format not in _formats:

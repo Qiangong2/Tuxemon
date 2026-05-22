@@ -45,9 +45,10 @@ class SetBattleAction(EventAction):
                 f"{self.outcome} isn't among {list(OutputBattle)}"
             )
 
-        character = session.get_npc(self.fighter_slug)
+        character = session.client.get_npc(self.fighter_slug)
         if character is None:
             logger.error(f"Character '{self.fighter_slug}' not found")
+            self.stop()
             return
 
         character.battle_handler.record_battle(

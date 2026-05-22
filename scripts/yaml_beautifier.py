@@ -18,10 +18,11 @@ Example (moving in scripts folder):
 Get help/usage information:
     python yaml_beautifier.py --help
 """
+
 from argparse import ArgumentParser
 from pathlib import Path
 
-import yaml
+from tuxemon.database.yaml_utils import dump_yaml_path, load_yaml
 
 DEFAULT_INDENT: int = 2
 SORT_KEYS: bool = False
@@ -35,24 +36,21 @@ def beautify_yaml_file(
     """
     print(f"Beautifying '{file_path}' with indent={indent}...")
     try:
-        with file_path.open("r", encoding="utf-8") as f:
-            data = yaml.safe_load(f)
-
-        with file_path.open("w", encoding="utf-8") as f:
-            yaml.dump(
-                data,
-                f,
-                indent=indent,
-                default_flow_style=False,
-                sort_keys=sort_keys,
-            )
+        data = load_yaml(file_path)
+        dump_yaml_path(
+            file_path,
+            data,
+            indent=indent,
+            default_flow_style=False,
+            sort_keys=sort_keys,
+        )
         print(f"Successfully beautified '{file_path}'.")
     except FileNotFoundError:
         print(f"Error: File not found at '{file_path}'.")
-    except yaml.YAMLError:
-        print(f"Error: Invalid YAML format in '{file_path}'. Please check its syntax.")
     except Exception as e:
-        print(f"An unexpected error occurred while processing '{file_path}': {e}")
+        print(
+            f"An unexpected error occurred while processing '{file_path}': {e}"
+        )
 
 
 def beautify_yaml_in_directory(
@@ -68,7 +66,9 @@ def beautify_yaml_in_directory(
         beautify_yaml_file(file_path, indent)
 
     if not found_files:
-        print("No YAML files found in the specified directory or its subdirectories.")
+        print(
+            "No YAML files found in the specified directory or its subdirectories."
+        )
 
 
 if __name__ == "__main__":
@@ -131,4 +131,6 @@ if __name__ == "__main__":
                     exit()
             beautify_yaml_in_directory(target_path, args.indent)
         else:
-            print(f"Error: Path '{target_path}' is neither a file nor a directory.")
+            print(
+                f"Error: Path '{target_path}' is neither a file nor a directory."
+            )

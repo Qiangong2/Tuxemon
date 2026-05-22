@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Optional, final
+from typing import final
 
 from tuxemon.event.eventaction import EventAction
 from tuxemon.platform.const.sizes import KENNEL
@@ -35,17 +35,19 @@ class StorePartyAction(EventAction):
 
     name = "store_party"
     character: str
-    box: Optional[str] = None
+    box: str | None = None
 
     def start(self, session: Session) -> None:
-        character = session.get_npc(self.character)
+        character = session.client.get_npc(self.character)
         if character is None:
             logger.error(f"Character '{self.character}' not found.")
+            self.stop()
             return
 
         store = self.box or KENNEL
         if self.box and not character.monster_boxes.has_box(store, "monster"):
             logger.error(f"No box found with name '{store}'.")
+            self.stop()
             return
 
         success = character.monster_boxes.store_party_in_box(

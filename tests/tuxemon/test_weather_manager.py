@@ -16,7 +16,7 @@ from tuxemon.world.weather import (
 
 @pytest.fixture
 def weather_patch():
-    patcher = patch("tuxemon.world.weather.Weather")
+    patcher = patch("tuxemon.world.weather.Weather.get")
     mock_weather_class = patcher.start()
 
     def dummy_weather(slug):
@@ -231,9 +231,9 @@ def test_history_integrity_sequence(weather_patch):
     for i in range(1, len(history)):
         prev = history[i - 1]
         curr = history[i]
-        assert (
-            prev.to_slug == curr.from_slug
-        ), f"History integrity broken at index {i}"
+        assert prev.to_slug == curr.from_slug, (
+            f"History integrity broken at index {i}"
+        )
 
 
 def test_alternating_pattern_in_history(weather_patch):

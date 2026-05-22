@@ -121,25 +121,25 @@ msgid "ancient_tea"
 msgstr "Ancient Tea"
 
 msgid "ancient_tea_description"
-msgstr "Adds 1277 to a monster's XP."
+msgstr "Adds 4,500 to a monster's XP."
 
 msgid "imperial_tea"
 msgstr "Imperial Tea"
 
 msgid "imperial_tea_description"
-msgstr "Adds 3005 to a monster's XP."
+msgstr "Adds 10,000 to a monster's XP."
 
 msgid "mystery_tea"
 msgstr "Mystery Tea"
 
 msgid "mystery_tea_description"
-msgstr "Adds 437 to a monster's XP."
+msgstr "Adds 1,500 to a monster's XP."
 
 msgid "tea"
 msgstr "Tea"
 
 msgid "tea_description"
-msgstr "Adds 107 to a monster's XP."
+msgstr "Adds 500 to a monster's XP."
 
 msgid "revive"
 msgstr "Revive"
@@ -497,7 +497,7 @@ msgid "bivouac"
 msgstr "Bivouac"
 
 msgid "bivouac_description"
-msgstr "Rest as if you were at a proper healing centre. Consumed on use."
+msgstr "Rest as if you were at a proper healing center. Consumed on use."
 
 msgid "drone"
 msgstr "Drone"
@@ -1101,6 +1101,12 @@ msgstr "TM: All In"
 msgid "tm_all_in_description"
 msgstr "Technique Manual that teaches the All In technique."
 
+msgid "tm_solar_synthesis"
+msgstr "TM: Solar Synthesis"
+
+msgid "tm_solar_synthesis_description"
+msgstr "Technique Manual that teaches the Solar Synthesis technique."
+
 msgid "tm_blade"
 msgstr "TM: Blade"
 
@@ -1130,13 +1136,12 @@ msgstr "TM: Avalanche"
 
 msgid "tm_avalanche_description"
 msgstr ""
-"Technique Manual that teaches a Water or Earth Tuxemon the Avalanche "
-"technique."
+"Technique Manual that teaches the Avalanche technique."
 
 msgid "tm_acid"
 msgstr "TM: Acid"
 
-msgid "tm_cavity_description"
+msgid "tm_acid_description"
 msgstr "Technique Manual that teaches the Acid technique."
 
 msgid "tm_frostbite"
@@ -1144,6 +1149,24 @@ msgstr "TM: Frostbite"
 
 msgid "tm_frostbite_description"
 msgstr "Technique Manual that teaches the Frostbite technique."
+
+msgid "tm_ubuntu"
+msgstr "TM: Ubuntu"
+
+msgid "tm_ubuntu_description"
+msgstr "Technique Manual that teaches the Ubuntu technique."
+
+msgid "tm_leaf_barrage"
+msgstr "TM: Leaf Barrage"
+
+msgid "tm_leaf_barrage_description"
+msgstr "Technique Manual that teaches the Leaf Barrage technique."
+
+msgid "tm_ice_shield"
+msgstr "TM: Ice Shield"
+
+msgid "tm_ice_shield_description"
+msgstr "Technique Manual that teaches the Ice Shield technique."
 
 msgid "tm_supernova"
 msgstr "TM: Supernova"
@@ -1161,13 +1184,13 @@ msgid "tm_blossom"
 msgstr "TM: Blossom"
 
 msgid "tm_blossom_description"
-msgstr "Technique Manual that teaches a Wood Tuxemon the Blossom technique."
+msgstr "Technique Manual that teaches the Blossom technique."
 
 msgid "tm_surf"
 msgstr "TM: Surf"
 
 msgid "tm_surf_description"
-msgstr "Technique Manual that teaches a Water Tuxemon the Surf technique."
+msgstr "Technique Manual that teaches the Surf technique."
 
 msgid "tm_earth"
 msgstr "Technical Manual (Earth)"
@@ -1640,6 +1663,12 @@ msgstr "E-Pay"
 msgid "no_money_operation"
 msgstr "{operation} not possible!"
 
+msgid "select_number"
+msgstr "Select number"
+
+msgid "number_picker_instructions"
+msgstr "Right: increase\n Left: decrease\n A: confirm"
+
 # Contacts notification
 msgid "action_call"
 msgstr "Call"
@@ -1689,11 +1718,6 @@ msgstr ""
 "Can't escape.\n"
 "{monster} is {status}!"
 
-msgid "combat_party_unselectable"
-msgstr ""
-"None of your monsters can battle! All are either fainted or already in the "
-"fight!"
-
 msgid "combat_player_swap_status"
 msgstr ""
 "Can't switch monsters.\n"
@@ -1701,6 +1725,15 @@ msgstr ""
 
 msgid "cannot_use_tech_monster"
 msgstr "{name} can't be used."
+
+msgid "tech_cannot_forget"
+msgstr "This technique cannot be removed."
+
+msgid "tech_no_learn"
+msgstr "Decided not to learn {tech}."
+
+msgid "tech_replaced"
+msgstr "{old} replaced with {new}."
 
 msgid "combat_used_x"
 msgstr "{user} used {name}!"
@@ -1824,7 +1857,7 @@ msgid "combat_state_confused_get"
 msgstr "{target} is confused."
 
 msgid "combat_state_confused_tech"
-msgstr "{target} gets muddled and not {name}!"
+msgstr "{target} gets muddled and does not use {name}!"
 
 msgid "combat_state_gold"
 msgstr "{name} gets {gold}!"
@@ -1866,7 +1899,7 @@ msgid "combat_state_festering_item"
 msgstr "The healing fails. The wound festers."
 
 msgid "combat_state_focused_get"
-msgstr "{target} becomes focused."
+msgstr "{target} is focused."
 
 msgid "combat_state_grabbed_get"
 msgstr "{target} is held tight."
@@ -1914,7 +1947,7 @@ msgid "combat_state_revenge_get"
 msgstr "When attacked,{target} will take revenge."
 
 msgid "combat_state_sniping_get"
-msgstr "{target} takes aim."
+msgstr "{target} backs away."
 
 msgid "combat_state_softened_get"
 msgstr "{target}'s armor softens."
@@ -1964,6 +1997,9 @@ msgstr "{target} flinches and may not act."
 msgid "combat_state_charmed_get"
 msgstr "{target} is charmed and might hesitate to act."
 
+msgid "combat_state_charmed_miss"
+msgstr "{user} is too smitten!"
+
 msgid "combat_state_wild_get"
 msgstr "{target} has gone wild."
 
@@ -1990,6 +2026,9 @@ msgstr "{target} is immune to {method}"
 
 msgid "combat_state_immune_multiple"
 msgstr "{target} are immune to {method}"
+
+msgid "combat_multiattack"
+msgstr "Hit {hit_count} time(s)!"
 
 # Generic notifications
 msgid "empty_slot"
@@ -4340,8 +4379,8 @@ msgstr "From ${{map_name}} to ${{east}}"
 msgid "menu_alphabet"
 msgstr "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz1234567890.-!"
 
-msgid "dont_care"
-msgstr "RANDOM"
+msgid "random"
+msgstr "Random"
 
 # Monster Menu notifications
 msgid "monster_menu_info"
@@ -4362,6 +4401,9 @@ msgstr "Pick"
 msgid "monster_menu_desc"
 msgstr "Description"
 
+msgid "monster_menu_type_suffix"
+msgstr "-Type"
+
 msgid "monster_menu_type"
 msgstr "Type(s)"
 
@@ -4369,10 +4411,22 @@ msgid "monster_menu_species"
 msgstr "Species"
 
 msgid "monster_menu_shape"
-msgstr "Body Type"
+msgstr "Body Shape"
+
+msgid "monster_menu_shape_short"
+msgstr "Shape"
 
 msgid "monster_menu_release"
 msgstr "Release"
+
+msgid "unequip_item"
+msgstr "Unequip"
+
+msgid "equip_item"
+msgstr "Equip"
+
+msgid "swap_item"
+msgstr "Swap Item"
 
 msgid "menu_sort"
 msgstr "Sort"
@@ -4382,6 +4436,9 @@ msgstr "Heal to {hp} HP"
 
 msgid "shop_buy_free"
 msgstr "FREE!"
+
+msgid "shop_buy_too_expensive"
+msgstr "You can't afford that yet"
 
 msgid "shop_buy_soldout"
 msgstr "Sold Out!"
@@ -4423,10 +4480,22 @@ msgstr ""
 "Which technique do you want to delete?"
 
 msgid "evolution_confirmation"
-msgstr "{name} is trying to evolve into {evolve}. Allow evolution?"
+msgstr "{name} is trying to evolve into {target}."
+
+msgid "allow_evolution"
+msgstr "Allow evolution?"
+
+msgid "devolution_confirmation"
+msgstr "{name} is trying to devolve into {evolve}."
+
+msgid "allow_devolution"
+msgstr "Allow devolution?"
 
 msgid "evolution_ended"
 msgstr "{name} evolves into {evolve}!"
+
+msgid "devolution_ended"
+msgstr "{name} devolves into {evolve}!"
 
 msgid "trade_completed"
 msgstr "You traded {sent} and received {received}!"
@@ -4491,7 +4560,17 @@ msgstr "Battles: {tot} (W{won} D{draw} L{lost})"
 
 # Tuxepedia
 msgid "page_tuxepedia"
-msgstr "From id {a} to id {b}"
+msgstr "id {a}–{b}"
+
+msgid "journal_badge_featured"
+msgstr "featured"
+
+msgid "journal_badge_stubs"
+msgstr "stubs"
+
+msgid "journal_badge_missing"
+msgstr "missing"
+
 
 msgid "no_evolution"
 msgstr "No evolution"
@@ -4502,59 +4581,33 @@ msgstr "Evolution"
 msgid "yes_evolutions"
 msgstr "Evolutions"
 
-msgid "tuxepedia_acquisition_unknown_today"
-msgstr "Acquired today"
+msgid "tuxepedia_acquisition_unknown"
+msgstr "Acquired {doc}"
 
-msgid "tuxepedia_acquisition_unknown_days_ago"
-msgstr "Acquired {doc} days ago"
+msgid "tuxepedia_acquisition_captured"
+msgstr "Captured {doc}"
 
-msgid "tuxepedia_acquisition_captured_today"
-msgstr "Captured today"
+msgid "tuxepedia_acquisition_traded"
+msgstr "Traded {doc}"
 
-msgid "tuxepedia_acquisition_captured_days_ago"
-msgstr "Captured {doc} days ago"
+msgid "tuxepedia_acquisition_bred"
+msgstr "Bred {doc}"
 
-msgid "tuxepedia_acquisition_traded_today"
-msgstr "Traded today"
+msgid "tuxepedia_acquisition_gifted"
+msgstr "Gifted {doc}"
 
-msgid "tuxepedia_acquisition_traded_days_ago"
-msgstr "Traded {doc} days ago"
+msgid "tuxepedia_acquisition_purchased"
+msgstr "Purchased {doc}"
 
-msgid "tuxepedia_acquisition_bred_today"
-msgstr "Bred today"
+msgid "tuxepedia_acquisition_rescued"
+msgstr "Rescued {doc}"
 
-msgid "tuxepedia_acquisition_bred_days_ago"
-msgstr "Bred {doc} days ago"
+msgid "tuxepedia_acquisition_created"
+msgstr "Created {doc}"
 
-msgid "tuxepedia_acquisition_gifted_today"
-msgstr "Gifted today"
-
-msgid "tuxepedia_acquisition_gifted_days_ago"
-msgstr "Gifted {doc} days ago"
-
-msgid "tuxepedia_acquisition_purchased_today"
-msgstr "Purchased today"
-
-msgid "tuxepedia_acquisition_purchased_days_ago"
-msgstr "Purchased {doc} days ago"
-
-msgid "tuxepedia_acquisition_rescued_today"
-msgstr "Rescued today"
-
-msgid "tuxepedia_acquisition_rescued_days_ago"
-msgstr "Rescued {doc} days ago"
-
-msgid "tuxepedia_acquisition_created_today"
-msgstr "Created today"
-
-msgid "tuxepedia_acquisition_created_days_ago"
-msgstr "Created {doc} days ago"
 
 msgid "tuxepedia_exp"
 msgstr "{exp_lv}xp to Lv {lv}"
-
-msgid "no_held_item"
-msgstr "No held item"
 
 # Menu notifications
 msgid "log_off"
@@ -4635,6 +4688,21 @@ msgstr "Pick Up Item"
 msgid "menu_item_dropoff"
 msgstr "Drop Off Item"
 
+msgid "menu_calendar"
+msgstr "Calendar"
+
+msgid "menu_email"
+msgstr "Emails"
+
+msgid "menu_email_none"
+msgstr "No emails"
+
+msgid "menu_email_from"
+msgstr "From"
+
+msgid "menu_back"
+msgstr "Back"
+
 msgid "menu_multiplayer"
 msgstr "Multiplayer"
 
@@ -4682,6 +4750,12 @@ msgstr "Doll"
 
 msgid "menu_save"
 msgstr "Save"
+
+msgid "menu_autosave"
+msgstr "Autosave"
+
+msgid "menu_no_autosave"
+msgstr "No Autosave"
 
 msgid "menu_up_key"
 msgstr "Up Key"
@@ -4757,6 +4831,9 @@ msgstr "Enable"
 
 msgid "disable"
 msgstr "Disable"
+
+msgid "menu_unmute_music"
+msgstr "Unmute Music"
 
 msgid "menu_mute_music"
 msgstr "Mute Music"
@@ -4865,6 +4942,9 @@ msgstr "Tuxemon: Xero"
 
 msgid "spyder_campaign"
 msgstr "Tuxemon: Spyder and the Cathedral"
+
+msgid "water_campaign"
+msgstr "Tuxemon: Waves of Chaos"
 
 # Multiplayer notifications
 msgid "multiplayer_accept"
@@ -5060,7 +5140,7 @@ msgid "av8r_description"
 msgstr "If the sun is out, it can fly as far or as high as it likes."
 
 msgid "av8r"
-msgstr "Av8r"
+msgstr "AV8R"
 
 msgid "axolightl_description"
 msgstr ""
@@ -6610,7 +6690,7 @@ msgstr ""
 "pranks."
 
 msgid "mrmoswitch"
-msgstr "Mrmoswitch"
+msgstr "mRmOswitch"
 
 msgid "myrmison_description"
 msgstr ""
@@ -6827,7 +6907,7 @@ msgid "picc_description"
 msgstr "It accompanies divers, providing much needed oxygen."
 
 msgid "picc"
-msgstr "Picc"
+msgstr "PiCC"
 
 msgid "pickoon_description"
 msgstr ""
@@ -8940,6 +9020,9 @@ msgstr "Neuter"
 msgid "gender_female"
 msgstr "Female"
 
+msgid "gender_nonbinary"
+msgstr "Non-binary"
+
 # Player additional gender, since very few ID as 'neuter'
 msgid "gender_enby"
 msgstr "Nonbinary"
@@ -8959,6 +9042,19 @@ msgstr "White male"
 
 msgid "black_male"
 msgstr "Black male"
+
+# Astronomy
+msgid "menu_celestial_title"
+msgstr "Celestial Overview"
+
+msgid "menu_celestial_current"
+msgstr "Current Phases"
+
+msgid "menu_celestial_details"
+msgstr "Cycle Details"
+
+msgid "menu_celestial_footer"
+msgstr "End of Report"
 
 # Monster types
 msgid "aether"
@@ -9014,10 +9110,10 @@ msgid "tastes"
 msgstr "Tastes"
 
 msgid "taste_warm"
-msgstr "Taste Warm"
+msgstr "Warm Taste"
 
 msgid "taste_cold"
-msgstr "Taste Cold"
+msgstr "Cold Taste"
 
 msgid "taste_peppy"
 msgstr "Peppy"
@@ -9099,6 +9195,9 @@ msgstr "Bland"
 msgid "taste_bland_description"
 msgstr "A vague, chalky taste, like powdered mashed potatoes made with a sigh instead of water."
 
+msgid "taste_change_report"
+msgstr "{name}'s {type} changed from {old} to {new}!"
+
 # Factions
 msgid "faction_enforcers"
 msgstr "Enforcers"
@@ -9154,6 +9253,63 @@ msgstr "Woodland"
 
 msgid "terrain_other"
 msgstr "Other"
+
+# Date Picker
+msgid "select_month"
+msgstr "Select Month"
+
+msgid "select_day"
+msgstr "Select Day"
+
+msgid "back_months"
+msgstr "Back Months"
+
+# Months
+msgid "month_jan"
+msgstr "January"
+
+msgid "month_feb"
+msgstr "February"
+
+msgid "month_mar"
+msgstr "March"
+
+msgid "month_apr"
+msgstr "April"
+
+msgid "month_may"
+msgstr "May"
+
+msgid "month_jun"
+msgstr "June"
+
+msgid "month_jul"
+msgstr "July"
+
+msgid "month_aug"
+msgstr "August"
+
+msgid "month_sep"
+msgstr "September"
+
+msgid "month_oct"
+msgstr "October"
+
+msgid "month_nov"
+msgstr "November"
+
+msgid "month_dec"
+msgstr "December"
+
+# Calendar
+msgid "menu_calendar_title"
+msgstr "Calendar"
+
+msgid "menu_calendar_today"
+msgstr "Today"
+
+msgid "menu_calendar_none"
+msgstr "No events recorded."
 
 # Weathers
 msgid "weather_misty"
@@ -9330,17 +9486,17 @@ msgstr "Knight II"
 msgid "liela"
 msgstr "Liela"
 
-msgid "maple_girl"
+msgid "maple_wren"
 msgstr "Maple"
+
+msgid "kay_wren"
+msgstr "Prof. Kay Wren"
 
 msgid "misa"
 msgstr "Misa"
 
 msgid "timmy"
 msgstr "Timmy"
-
-msgid "npc_wife"
-msgstr "Wife NPC"
 
 msgid "professor"
 msgstr "Professor"
@@ -11360,196 +11516,41 @@ msgstr ""
 msgid "shady_rename"
 msgstr "Shady Guy: Good luck with your new name, friend..."
 
-msgid "37707_sign_welcome"
-msgstr "Welcome to town 37707! We are..."
-
-msgid "37707_sign_tower"
-msgstr "Town 37707 tower. This structure is highly unstable: Do not enter!"
-
-msgid "37707_sign_foreign"
-msgstr "This sign is written in a foreign language you can't understand."
-
-msgid "37707_sign_hidden"
-msgstr "Get out while you still can..."
-
-msgid "37707_sign_missing_welcome"
-msgstr "We11c0me T0 t0wn ERROR! We ne^er weR3"
-
-msgid "37707_sign_missing_tower"
-msgstr "Town N/A <undefined_structure>. Denetsil evah dluohs uoy"
-
-msgid "37707_sign_missing_foreign"
-msgstr ""
-"PyGame - UnboundLocalError: Local variable 'map_id' referenced before assignment\n"
-"Error 404: **** resources not found. Please notify tHe dEvEl0p#r$ @b0%t t#1# ##### ###########\n"
-"01010010 01100101 01101101 01100101 01101101 01100010 01100101 01110010 00100000 01101101 01100101 00101110"
-
-msgid "37707_sign_missing_hidden_read"
-msgstr "W3 KN0W Y0U R3@D TH1$: Y0U H@D 833N W@RN3D."
-
-msgid "37707_sign_missing_hidden_unread"
-msgstr "1T i$ t00 L8 N0W"
-
-msgid "37707_house"
-msgstr "Strange: It's locked. No one seems to be using this building."
-
-msgid "37707_mail"
-msgstr "It's empty and full of spider webs."
-
-msgid "37707_house_missing"
-msgstr "Th3r3 is n0th1ng here. The7e n3vEr w@$."
-
-msgid "37707_mail_missing"
-msgstr "1t\"$ empty @nd y0u c@n $EE th3 v0id."
-
-msgid "37707_flower"
-msgstr ""
-"You sense a warm energy emanating from this flower. It's the only thing in "
-"this town your Tuxemon seem to enjoy."
-
-msgid "37707_flower_missing"
-msgstr ""
-"E330R: Event @ction set_monster_health contains inv@l1d p@r@meter$. He@l1ng "
-"aLL Tu+em0n.,."
-
-msgid "37707_computer"
-msgstr ""
-"Developer console: This is intended for Tuxemon developers only, for testing an experimental data loading system.\n"
-"The variable for the new loader will now be enabled. Please report any issues you find at https://tuxemon.org\n"
-"Developer note 1: This suppresses crashes for missing maps. The system may attempt to load invalid data!\n"
-"Developer note 2: Do NOT save your game with this enabled, it may result in data corruption.\n"
-"Developer note 3: As of switching to Python 3, data seems to be aggregated and combined in a very unusual manner. Please debug this!"
-
-msgid "37707_tower_missing"
-msgstr "Y0u c@nn0t ente7 @ bu1ldIng th@t d0e$ n0t e+i$t."
-
-msgid "37707_exit_missing"
-msgstr ""
-"<recovery_module>: GREETINGS ${{name}}. PLEASE UNDERSTAND THIS AREA NEVER EXISTED. YOU HAVE EXPERIENCED A SYSTEM ERROR.\n"
-"<recovery_module>: THE GLITCH HAS NOW BEEN PATCHED. YOU MAY CONTINUE THE GAME NORMALLY FROM HERE ON. DO NOT ATTEMPT TO RETURN HERE.\n"
-"<recovery_module>: WAKE UP. FORGET ALL. ALL IS BUT A DREAM..."
-
-msgid "37707_villager_male_1"
-msgstr ""
-"Blank: Hmph. Hi. Sorry: We're usually weary of outsiders. We only get visited... sometimes.\n"
-"Blank: But since you're here, maybe you can do me a favor. It might sound strange of me to ask you this, yet I must know...\n"
-"Blank: Do you know who I am? Have you... ever seen me? I'm curious: My name, do I have a...\n"
-"Blank: No. Sorry: I have made a mistake. Please don't tell anyhone what I asked you. Carry on, enjoy your trip here."
-
-msgid "37707_villager_male_2"
-msgstr ""
-"Blank: You can't help any more. We are not allowed to talk about it. You "
-"cannot understand. Leave."
-
-msgid "37707_villager_male_3"
-msgstr ""
-"Blank: You... you will doom us all over again. Go back and never return!"
-
-msgid "37707_villager_female_1"
-msgstr ""
-"Wish: Oh... a newcomer! How did you get here? We haven't seen anyone new in... oh, never mind.\n"
-"Wish: Welcome! Welcome to... oh my: We never got around to giving our town a name! Just call us whatever you'd like I guess.\n"
-"Wish: Please make yourself at home. Usually there are more people around... it depends on the seed, maybe it's a bad omen today.\n"
-"Wish: Let me know if you need anything that exists here. Just don't make the same mistake as the others: We don't want you to leave us too."
-
-msgid "37707_villager_female_2"
-msgstr "Wish: Please: Do not enter the tower. It hasn't been built yet."
-
-msgid "37707_villager_female_3"
-msgstr ""
-"Wish: No, no, no: Stop doing this! Do you not understand it's not there?"
-
-msgid "37707_villager_male_missing"
-msgstr ""
-"00000: i W@$ n3v3R B0rN\n"
-"${{name}} ${{name}} ${{name}} ${{name}} ${{name}} ${{name}} ${{name}} ${{name}} ${{name}} ${{name}}"
-
-msgid "37707_villager_female_missing"
-msgstr ""
-"@*!^: 0H... @ n3wc0m3r! H0vv p1d y0v g3t he7e? <NONE> h3llen\"T $33N %^&one new 1n... ()h, never n3ver m3V3t N3W37 MIIIIIIIIND\n"
-"@*!^: WElcoME! W3lcome t0... 0H N/A: We never g0t ar0und to gi^ing 0ur town {<1} We never g00000000 {<2} W3 neVer Bu1lt 0uR t0wN\n"
-"TH S D ES N T EX ST Y U AR  C NNE  ED TO TH  V ID YO  M ST LEA E N W"
-
-msgid "buddha_welcome"
-msgstr "Welcome to Buddha Mountain!"
-
-msgid "old_sphalian_house01"
-msgstr ""
-"You watch some TV with your beloved Lv ${{monster_0_level}} "
-"${{monster_0_name}}.,0"
-
-msgid "old_sphalian_house02"
-msgstr "Home Sweet Home"
-
-msgid "old_sphalian_center01"
-msgstr "Your tuxemon are now at full health!"
-
-msgid "old_sphalian_center02"
-msgstr "It says that it is under repair"
-
-msgid "old_sphalian_town01"
-msgstr "Sphalian Town - a quiet, peaceful place"
-
-msgid "rubberduck_cave_01"
-msgstr "A good place to hide an item"
-
-msgid "rubberduck_cave_02"
-msgstr "If I could swim..."
-
-msgid "rubberduck_cave_03"
-msgstr "This ladder leads to nowhere"
-
-msgid "rubberduck_city_01"
-msgstr "The door won't open"
-
-msgid "rubberduck_city_02"
-msgstr "Maybe some good guys here"
-
-msgid "rubberduck_city_03"
-msgstr "Here you should be able to heal your monsters ... but no one here ..."
-
-msgid "rubberduck_city_04"
-msgstr "A mart ..."
-
-msgid "rubberduck_city_05"
-msgstr "Currently no one is living here"
-
-msgid "rubberduck_city_06"
-msgstr "Maybe someone evil / bad should be here"
-
-msgid "rubberduck_city_07"
-msgstr "Maybe make this door opened and put someone here"
-
-msgid "rubberduck_city_08"
-msgstr "Place for a cave route... maybe cave_01.tmx"
-
-msgid "rubberduck_city_09"
-msgstr "Where should this lead to??"
-
-msgid "rubberduck_city_10"
-msgstr "This is a secret place that can't be reached yet..."
-
-msgid "37707_town01"
-msgstr "You got a Fruitera for testing purposes. This will be removed later!"
-
-msgid "mart_junkyard01"
-msgstr "${{name}}: I got a Fruitera!"
-
-msgid "mart_junkyard02"
-msgstr "${{name}}: I got a Bamboon!"
-
-msgid "mart_junkyard03"
-msgstr "MAPLE: I got a Bamboon!"
-
-msgid "mart_junkyard04"
-msgstr "MAPLE: I got a Fruitera!"
-
-msgid "mart_junkyard05"
-msgstr "CARY: Well, you won this time. But next time, we'll win."
-
-# Taba Town
 msgid "maple_bedroom_sign"
 msgstr "It's a calendar and the 27 April is circled in pink."
+
+msgid "maple_bedroom_sign_apr27"
+msgstr "Today is ${{today}} — the date Maple circled in pink. Whatever it means, she clearly cares about it."
+
+msgid "flashback_apr27_start"
+msgstr "The room blurs... A memory surfaces."
+
+msgid "flashback_apr27_maple_1"
+msgstr "Maple: He's getting worse, Callie. I can't stay here. Not with… whatever he's getting involved in."
+
+msgid "flashback_apr27_callie_1"
+msgstr "Callie: Maple... you don't know the whole story. He's trying to help-"
+
+msgid "flashback_apr27_maple_2"
+msgstr "Maple: Help? Whispers behind closed doors… things he won't explain…\n I can't risk staying here with him like this."
+
+msgid "flashback_apr27_kay_voice"
+msgstr "Girls! Come down for a moment! I've made a breakthrough!"
+
+msgid "flashback_apr27_maple_3"
+msgstr "Maple: I'm sorry. I wish I could take ${{name}} with me. But if he finds out I…"
+
+msgid "flashback_apr27_maple_final"
+msgstr "Maple: ${{today}}... I have to go."
+
+msgid "flashback_apr27_callie_final"
+msgstr "Callie: Maple… wait— just talk to me before you go."
+
+msgid "flashback_apr27_end"
+msgstr "The memory fades away..."
+
+msgid "maple_pc_entry_1"
+msgstr "April 27. I can't stay. Not with what he's planning.\n If you're reading this… I'm sorry. I hope you never have to understand why."
 
 msgid "taba_house1_sign"
 msgstr "Mr and Ms Clawbrew House"
@@ -11565,13 +11566,37 @@ msgstr "The Honorable Seagulls Pub"
 
 msgid "taba_house1_calendar"
 msgstr ""
-"It's a calendar and the 30 September and the 12 February are circled in red."
+"It's a calendar with the 30 September and the 12 February circled in red."
+
+msgid "taba_house1_calendar_feb12"
+msgstr "Today is ${{today}} — one of the circled dates. It must mean something to the people living here."
+
+msgid "taba_house1_calendar_sep30"
+msgstr "It's ${{today}}, one of the dates marked in red. Someone here clearly finds this day important."
 
 msgid "taba_house1_husband1"
 msgstr "Tuxemon! I was among the most skilled trainer!"
 
+msgid "taba_house1_husband_extra"
+msgstr "One day I'll prove I really was a top trainer. The world just wasn't ready for my talent."
+
+msgid "taba_house1_husband_feb12"
+msgstr "${{today}}… the day I almost caught a mythical Tuxemon! My wife insists it was just a stray cat."
+
+msgid "taba_house1_husband_sep30"
+msgstr "${{today}}… a legendary day in my career! Or it would've been, if anyone believed me."
+
 msgid "taba_house1_wife1"
 msgstr "Trainer? My husband is delusional."
+
+msgid "taba_house1_wife_extra"
+msgstr "Please don't encourage him. He'll start talking about imaginary battles again."
+
+msgid "taba_house1_wife_feb12"
+msgstr "Every year on ${{today}} he tells that same story. I've never seen a single piece of evidence."
+
+msgid "taba_house1_wife_sep30"
+msgstr "He insists ${{today}} is important. I think he just likes circling things on calendars."
 
 msgid "taba_house1_reading"
 msgstr "The book is Philosophy of Illusionary Studies by Jaiden Gemrevenza."
@@ -11668,6 +11693,117 @@ msgstr "Luckily I didn't pay for this. How can you pay for this?"
 msgid "taba_house4_dish1"
 msgstr "It's brown, dense, but it doesn't look like pudding..."
 
+msgid "cotton_misa_fireplace"
+msgstr "It looks like someone burned papers."
+
+msgid "cotton_misa_tv"
+msgstr ""
+"What's on TV? The story of how Omnichannel became a global phenomenon, "
+"reflecting and influencing a generation in the process."
+
+msgid "cotton_misa_granny"
+msgstr "Are you here to ask for my grand-daughter's hand?"
+
+msgid "cotton_misa_granny_yes"
+msgstr ""
+"Ah, well good luck with that! She inherited my witty personality and her "
+"Mother's temper, so she's a handful!"
+
+msgid "cotton_misa_granny_no"
+msgstr "No? I'm sorry!"
+
+msgid "cotton_misa_granny2"
+msgstr ""
+"Oh! You must be one of those friends my granddaughter was talking about!"
+
+msgid "cotton_misa_littlebro"
+msgstr "My sister is very nice to me."
+
+msgid "cotton_underground_stop"
+msgstr "Sorry, I'm under orders to let no one pass."
+
+msgid "cotton_breeder0"
+msgstr ""
+"Hi there, welcome to the Daycare! I look after Tuxemon here.\n"
+"If you leave your partners with me, I can train them while you explore — as long as you've got some money on hand.\n"
+"And if you leave a male and a female who are fully evolved enough, they might even produce a newborn!\n"
+"Just tell me what you'd like to do."
+
+msgid "cotton_breeder1"
+msgstr ""
+"Would you like to leave a Tuxemon with me? I can train one, or look after a pair if you want them to try breeding."
+
+msgid "taba_greeting1"
+msgstr ""
+"Greeter Jaime: Hey there ${{name}}! Heard you got a Tuxemon, congrats! If "
+"you wanna grow your party, you'll need Tuxeballs."
+
+msgid "taba_greeting2a"
+msgstr ""
+"The shop is doing a promo, here's some to get you started. You use them to "
+"capture Tuxemon. It's easier if they're weakend first though!"
+
+msgid "taba_greeting2b"
+msgstr ""
+"Ah! I see you've already got some. You've got a good head on your shoulders "
+"${{name}}, I'm sure you'll be a champ in no time."
+
+msgid "taba_greeting3"
+msgstr ""
+"Good luck in your adventures ${{name}}, and remember to shop at Tuxemart for all your adventuring needs!\n"
+"...\n"
+"Sorry about the sales pitch, it's my job."
+
+msgid "gotfivetuxeballs"
+msgstr "You got 5 Tuxeballs!"
+
+msgid "got_new_tuxemon"
+msgstr "A new Tuxemon is born! Welcome {monster_name}!"
+
+msgid "xero_omnichannel_sign"
+msgstr "Omnichannel HQ: We are Safety, We are Order, We are Omnichannel"
+
+msgid "taba_town_homeplace"
+msgstr "${{name}}'s house"
+
+msgid "taba_town_sign_profhouse"
+msgstr "Tuxemon Professor's House"
+
+msgid "taba_town_sign_proflab"
+msgstr "Tuxemon Professor's Lab"
+
+msgid "taba_town_sign_tuxemart"
+msgstr "Tuxemart - A place to buy and sell items"
+
+msgid "taba_town_sign_tuxecenter"
+msgstr "Tuxecenter - A place to heal your tuxemon"
+
+msgid "leather_town_open_air"
+msgstr "Open Air Cafe and Marketplace"
+
+msgid "xero_citypark_achievement"
+msgstr "Achievement Maniac's House"
+
+msgid "xero_shaft1_sign"
+msgstr "Shaft Headquarters: Mining Division"
+
+msgid "xero_shaft2_sign"
+msgstr "Shaft Headquarters: Public Relations Division"
+
+msgid "xero_taba_tvwatch"
+msgstr ""
+"What's on TV? A prom queen is breaking her tiara into pieces and handing it "
+"out."
+
+msgid "xero_taba_poster"
+msgstr "Home sweet home!"
+
+msgid "xero_taba_restinbed"
+msgstr "You awake fully rested!"
+
+msgid "xero_skip_question"
+msgstr "Do you want to skip the intro?"
+
 # DIALOG TRANSLATIONS ##
 # spyder intros
 msgid "spyder_cathedral"
@@ -11683,7 +11819,7 @@ msgstr ""
 
 msgid "spyder_billing_cathedral1"
 msgstr ""
-"Welcome to the Cathedral Centre!\n"
+"Welcome to the Cathedral Center!\n"
 " Would you like to heal your monsters?"
 
 msgid "spyder_billing_cathedral2"
@@ -11851,7 +11987,7 @@ msgstr "Welcome back! Look at you, growing up so fast."
 
 msgid "spyder_papertown_mom5"
 msgstr ""
-"You know, Granny Piper next door has opened up her Daycare Centre. \n"
+"You know, Granny Piper next door has opened up her Daycare Center. \n"
 " Well, not everyone can be an inventor, I guess. "
 
 msgid "spyder_papertown_mom6"
@@ -11862,7 +11998,7 @@ msgstr ""
 msgid "spyder_papertown_grannypiper1"
 msgstr ""
 "Oh hello ${{name}}, I didn't see you there among all this hustle and debris! \n"
-" I can't wait till the Daycare Centre is installed!"
+" I can't wait till the Daycare Center is installed!"
 
 msgid "spyder_papertown_grannypiper2"
 msgstr ""
@@ -11871,31 +12007,18 @@ msgstr ""
 
 msgid "spyder_papertown_grannypiper3"
 msgstr ""
-"Good morning! Oh, ${{name}}, it's you! You must have heard that my Daycare Centre is open.\n"
+"Good morning! Oh, ${{name}}, it's you! You must have heard that my Daycare Center is open.\n"
 " Do you want me to tell you how it works? Okay. You give me a tuxemon, and I look after it while you travel.\n"
 " When you return, pay me a small fee and I'll return it to you. ... Huh? What's in it for you?\n"
 " Well, tuxemon under my care grow up, increasing in levels."
 
 msgid "spyder_papertown_grannypiper4"
 msgstr ""
-"Hello ${{name}}. Would you like to put a tuxemon into my Daycare Centre?"
-
-msgid "spyder_papertown_grannypiper5"
-msgstr ""
-"Hello ${{name}}. Would you like to retrieve your ${{var:daycare_name}}?"
-
-msgid "spyder_papertown_grannypiper6"
-msgstr ""
-"Okay, ${{var:daycare_name}} rose ${{var:daycare_level}} levels under our "
-"care. That will be ${{currency}}${{var:daycare_exp}}."
-
-msgid "spyder_papertown_grannypiper7"
-msgstr ""
-"Oh, it looks like you are out of money! Looks like you need to work harder!"
+"Hello ${{name}}. Would you like to put a tuxemon into my Daycare Center?"
 
 msgid "spyder_papertown_grannypiper8"
 msgstr ""
-"Place your tuxemon in the Daycare Centre! Give us a tuxemon, and we will look after it while you travel.\n"
+"Place your tuxemon in the Daycare Center! Give us a tuxemon, and we will look after it while you travel.\n"
 " When you return, pay a small fee and we'll return it. The longer tuxemon are in our care, the higher in level they will rise!"
 
 msgid "spyder_papertown_grannypiper9"
@@ -12383,7 +12506,7 @@ msgstr ""
 
 msgid "spyder_route3_boulder"
 msgstr ""
-"I need to find something in my bag that can help me push this boulder... Ah,"
+"I need to find something in my bag that can help me break this boulder... Ah,"
 " if only I had the right item..."
 
 msgid "spyder_route3_sign"
@@ -12411,6 +12534,10 @@ msgstr ""
 
 msgid "spyder_route3_zoolander2"
 msgstr "Ah, I dropped my sledgehammer!"
+
+msgid "spyder_route3_zoolander3"
+msgstr "Now, where did I put that sledgehammer? \n"
+" I'll need it if I'm to break through that boulder between here and the Inn."
 
 msgid "spyder_route3_qqq1"
 msgstr "Ah, the Enforcers weren't meant to let anyone out!"
@@ -12534,7 +12661,7 @@ msgstr ""
 
 msgid "spyder_cotton_nurse1"
 msgstr ""
-"Welcome to the Cathedral Centre! \n"
+"Welcome to the Cathedral Center! \n"
 " Do you want to heal your Tuxemon?"
 
 msgid "spyder_wayfarer_shopkeeper"
@@ -12557,8 +12684,7 @@ msgid "spyder_wayfarer_maniac"
 msgstr ""
 "My tuxemon aren't sick! This is just an excuse to sell us medicine we don't need. \n"
 " When I was your age, we didn't have medicine. We swam in mountain streams and if you got a sniffle, well, tough! \n"
-" And anyway, I saw the Enforcers coming down Route 4 before anyone so much as sniffled, so how could \n"
-" ... \n"
+" And anyway, I saw the Enforcers coming down Route 4 before anyone so much as sniffled, so how could ... \n"
 " ah ah achoo! \n"
 " ... \n"
 " That doesn't mean anything. I have an itchy nose."
@@ -12846,7 +12972,7 @@ msgid "spyder_routea_joe1"
 msgstr "I got my report card from school yesterday."
 
 msgid "spyder_routea_joe2"
-msgstr "'Needs improvement.'' Where have I heard that before?"
+msgstr "'Needs improvement.' Where have I heard that before?"
 
 msgid "spyder_routea_koan1"
 msgstr "Flower City is cold but I like where I'm living."
@@ -13104,6 +13230,13 @@ msgid "spyder_timber_firefighter_willtrade"
 msgstr ""
 "Hey, do you want a TIKOAL? I could really do with a CHILLIMP, if you've got "
 "one."
+
+msgid "spyder_flower_fisher1"
+msgstr "It's a slow pleasure, but there's nothing nicer than fishing by the water. \n"
+" Just select your Rod from the Bag while facing the river." 
+
+msgid "spyder_flower_fisher2"
+msgstr "Get yourself a Fishing Rod so you can enjoy the water as I do." 
 
 msgid "spyder_flower_mieke1"
 msgstr ""
@@ -14811,7 +14944,7 @@ msgstr ""
 "was missing!"
 
 msgid "spyder_mansion_drinkingbuddya2"
-msgstr "There you are old friend! Let's get you back to river."
+msgstr "There you are old friend! Let's get you back to the river."
 
 msgid "spyder_mansion_captain1"
 msgstr ""
@@ -14942,7 +15075,7 @@ msgstr ""
 
 msgid "spyder_top_barmaid"
 msgstr ""
-"The big corporations sell monsters\n"
+"The big corporations sell monsters"
 " that can only be morphed using their own proprietary technologies!"
 
 msgid "spyder_top_magician1"
@@ -15310,9 +15443,6 @@ msgstr "Carlos"
 msgid "spyder_granny"
 msgstr "Granny"
 
-msgid "spyder_goth"
-msgstr "Goth"
-
 msgid "spyder_florist"
 msgstr "Florist"
 
@@ -15330,9 +15460,6 @@ msgstr "Marion"
 
 msgid "spyder_route2_graf"
 msgstr "Graf"
-
-msgid "spyder_maniac"
-msgstr "Maniac"
 
 # msgid "spyder_citypark_florist"
 # msgstr "Florist"
@@ -16101,10 +16228,10 @@ msgid "spyder_multi_martsign"
 msgstr "Buy things here"
 
 msgid "spyder_papertown_daycare1"
-msgstr "Daycare Centre: Under construction."
+msgstr "Daycare Center: Under construction."
 
 msgid "spyder_papertown_daycare2"
-msgstr "Daycare Centre: Open now!"
+msgstr "Daycare Center: Open now!"
 
 msgid "spyder_papertown_sunnyside"
 msgstr ""
@@ -16731,8 +16858,7 @@ msgstr ""
 
 msgid "spyder_dojo_sokka1"
 msgstr ""
-"My tuxemon are all of the Metal type, \n"
-" but they each have a second element, or know a technique with two elements. \n"
+"My tuxemon are all of the Metal type, but they each have a second element, or know a technique with two elements. \n"
 " That makes their strengths and weaknesses more difficult to predict."
 
 msgid "spyder_dojo_sokka2"
@@ -17045,88 +17171,6 @@ msgid "spyder_cottonhouse1_tvwatch"
 msgstr ""
 "It's the latest reality show: people and their tuxemon complete challenges "
 "on a remote island."
-
-msgid "cotton_breeder0"
-msgstr ""
-"Hi there, welcome to the Daycare, I breed Tuxemon here.\n"
-"I run this place because I love Tuxemon so much!\n"
-"If you like, I can breed two of your Tuxemon for you. Just let me know, ok?"
-
-msgid "cotton_breeder1"
-msgstr "Do you wanna leave two of your Tuxemon with me to breed them?"
-
-msgid "cotton_breeder2a_1"
-msgstr "Okay, which Tuxemon will be the mother?"
-
-msgid "cotton_breeder2a_2"
-msgstr "Great, how about the father?"
-
-msgid "cotton_breeder3"
-msgstr "Okay, you sure these are the two you want?"
-
-msgid "cotton_breeder4a"
-msgstr ""
-"Great! Come back to check in later and I'll let you know how it's going."
-
-msgid "cotton_breeder_rejected"
-msgstr "Oh, alright. You think about it some more and come back to me."
-
-msgid "cotton_breeder5"
-msgstr "Hey ${{name}}, come to check up on your Tuxemon?"
-
-msgid "cotton_breeder6a"
-msgstr ""
-"They're still getting acquainted, as it were. Why don't you come back later?"
-
-msgid "cotton_breeder6b"
-msgstr ""
-"It's going very well! They're practically inseperable!\n"
-"It shouldn't be too long now before we've got a baby on the way."
-
-msgid "cotton_breeder6c"
-msgstr "Congratulations! They've had a baby! Here you go, raise it well."
-
-msgid "cotton_breeder_continue"
-msgstr ""
-"It'll be awhile before they're ready for another, but if you like I can hold"
-" onto these two and breed them again."
-
-msgid "cotton_breeder7a"
-msgstr ""
-"Great! You take some time with the baby and I'll take care of the parents. "
-"Come back later to check up on them."
-
-msgid "cotton_breeder7b"
-msgstr ""
-"Good idea, the new family should be kept together at this important stage in the baby's development.\n"
-"Ya'll come back now, y'hear?"
-
-msgid "taba_greeting1"
-msgstr ""
-"Greeter Jaime: Hey there ${{name}}! Heard you got a Tuxemon, congrats! If "
-"you wanna grow your party, you'll need Tuxeballs."
-
-msgid "taba_greeting2a"
-msgstr ""
-"The shop is doing a promo, here's some to get you started. You use them to "
-"capture Tuxemon. It's easier if they're weakend first though!"
-
-msgid "taba_greeting2b"
-msgstr ""
-"Ah! I see you've already got some. You've got a good head on your shoulders "
-"${{name}}, I'm sure you'll be a champ in no time."
-
-msgid "taba_greeting3"
-msgstr ""
-"Good luck in your adventures ${{name}}, and remember to shop at Tuxemart for all your adventuring needs!\n"
-"...\n"
-"Sorry about the sales pitch, it's my job."
-
-msgid "gotfivetuxeballs"
-msgstr "You got 5 Tuxeballs!"
-
-msgid "got_new_tuxemon"
-msgstr "A new Tuxemon is born! Welcome {monster_name}!"
 
 msgid "spyder_greenwash_guard"
 msgstr "Alright, alright, nothing to see here."
@@ -17552,78 +17596,6 @@ msgstr "Omnichannel HQ: We Make Headlines"
 msgid "spyder_confusedperson"
 msgstr "Confused Guy"
 
-msgid "cotton_misa_fireplace"
-msgstr "It looks like someone burned papers."
-
-msgid "cotton_misa_tv"
-msgstr ""
-"What's on TV? The story of how Omnichannel became a global phenomenon, "
-"reflecting and influencing a generation in the process."
-
-msgid "cotton_misa_granny"
-msgstr "Are you here to ask for my grand-daughter's hand?"
-
-msgid "cotton_misa_granny_yes"
-msgstr ""
-"Ah, well good luck with that! She inherited my witty personality and her "
-"Mother's temper, so she's a handful!"
-
-msgid "cotton_misa_granny_no"
-msgstr "No? I'm sorry!"
-
-msgid "cotton_misa_granny2"
-msgstr ""
-"Oh! You must be one of those friends my granddaughter was talking about!"
-
-msgid "cotton_misa_littlebro"
-msgstr "My sister is very nice to me."
-
-msgid "cotton_underground_stop"
-msgstr "Sorry, I'm under orders to let no one pass."
-
-msgid "xero_omnichannel_sign"
-msgstr "Omnichannel HQ: We are Safety, We are Order, We are Omnichannel"
-
-msgid "taba_town_homeplace"
-msgstr "${{name}}'s house"
-
-msgid "taba_town_sign_profhouse"
-msgstr "Tuxemon Professor's House"
-
-msgid "taba_town_sign_proflab"
-msgstr "Tuxemon Professor's Lab"
-
-msgid "taba_town_sign_tuxemart"
-msgstr "Tuxemart - A place to buy and sell items"
-
-msgid "taba_town_sign_tuxecenter"
-msgstr "Tuxecenter - A place to heal your tuxemon"
-
-msgid "leather_town_open_air"
-msgstr "Open Air Cafe and Marketplace"
-
-msgid "xero_citypark_achievement"
-msgstr "Achievement Maniac's House"
-
-msgid "xero_shaft1_sign"
-msgstr "Shaft Headquarters: Mining Division"
-
-msgid "xero_shaft2_sign"
-msgstr "Shaft Headquarters: Public Relations Division"
-
-msgid "xero_taba_tvwatch"
-msgstr ""
-"What's on TV? A prom queen is breaking her tiara into pieces and handing it "
-"out."
-
-msgid "xero_taba_poster"
-msgstr "Home sweet home!"
-
-msgid "xero_taba_restinbed"
-msgstr "You awake fully rested!"
-
-msgid "xero_skip_question"
-msgstr "Do you want to skip the intro?"
 
 # NPC Dialogues for Legend of Bofie Campaign
 # Manhattan ##
@@ -18375,6 +18347,680 @@ msgstr "{user} dashes around, kicking up dust in excitement."
 
 msgid "menu_park_alert"
 msgstr "{user} suddenly stops, sensing something nearby."
+
+############################################################
+# DAYCARE — SUMMARY & GENERAL
+############################################################
+
+msgid "menu_daycare_summary"
+msgstr "Daycare Summary"
+
+msgid "menu_daycare_parents"
+msgstr "Parents in Daycare"
+
+msgid "menu_daycare_empty"
+msgstr "No monsters stored."
+
+msgid "menu_daycare_mode"
+msgstr "Mode"
+
+msgid "menu_daycare_thanks"
+msgstr "Thanks for using the Daycare!"
+
+msgid "menu_daycare_add"
+msgstr "Add Tuxemon"
+
+msgid "menu_daycare_withdraw"
+msgstr "Withdraw All"
+
+msgid "menu_daycare_collect"
+msgstr "Collect Newborn"
+
+msgid "menu_daycare_mode_training"
+msgstr "Training"
+
+msgid "menu_daycare_mode_breeding"
+msgstr "Breeding"
+
+msgid "menu_daycare_mode_incompatible"
+msgstr "Training (Incompatible Pair)"
+
+msgid "menu_daycare_mode_empty"
+msgstr "Empty"
+
+msgid "menu_daycare_training"
+msgstr "Training Info"
+
+msgid "menu_daycare_exp_total"
+msgstr "Total EXP Gained"
+
+msgid "menu_daycare_cost_total"
+msgstr "Total Cost Paid"
+
+msgid "menu_daycare_exp_per_step"
+msgstr "EXP per Step (per monster)"
+
+msgid "menu_daycare_cost_per_step"
+msgstr "Cost per Step (per monster)"
+
+msgid "menu_daycare_exp_per_step_total"
+msgstr "Total EXP per Step"
+
+msgid "menu_daycare_cost_per_step_total"
+msgstr "Total Cost per Step"
+
+msgid "menu_daycare_training_active_single"
+msgstr "Training Active (1 monster)"
+
+msgid "menu_daycare_training_active_double"
+msgstr "Training Active (2 monsters)"
+
+msgid "menu_daycare_training_inactive"
+msgstr "Training Inactive"
+
+msgid "menu_daycare_breeding"
+msgstr "Breeding Info"
+
+msgid "menu_daycare_progress"
+msgstr "Progress"
+
+msgid "menu_daycare_ready"
+msgstr "Newborn Ready!"
+
+msgid "menu_daycare_halfway"
+msgstr "Halfway There"
+
+msgid "menu_daycare_not_ready"
+msgstr "Not Ready Yet"
+
+msgid "menu_daycare_no_breeding"
+msgstr "No breeding possible."
+
+# Another Mod ##
+msgid "37707_sign_welcome"
+msgstr "Welcome to town 37707! We are..."
+
+msgid "37707_sign_tower"
+msgstr "Town 37707 tower. This structure is highly unstable: Do not enter!"
+
+msgid "37707_sign_foreign"
+msgstr "This sign is written in a foreign language you can't understand."
+
+msgid "37707_sign_hidden"
+msgstr "Get out while you still can..."
+
+msgid "37707_sign_missing_welcome"
+msgstr "We11c0me T0 t0wn ERROR! We ne^er weR3"
+
+msgid "37707_sign_missing_tower"
+msgstr "Town N/A <undefined_structure>. Denetsil evah dluohs uoy"
+
+msgid "37707_sign_missing_foreign"
+msgstr ""
+"PyGame - UnboundLocalError: Local variable 'map_id' referenced before assignment\n"
+"Error 404: **** resources not found. Please notify tHe dEvEl0p#r$ @b0%t t#1# ##### ###########\n"
+"01010010 01100101 01101101 01100101 01101101 01100010 01100101 01110010 00100000 01101101 01100101 00101110"
+
+msgid "37707_sign_missing_hidden_read"
+msgstr "W3 KN0W Y0U R3@D TH1$: Y0U H@D 833N W@RN3D."
+
+msgid "37707_sign_missing_hidden_unread"
+msgstr "1T i$ t00 L8 N0W"
+
+msgid "37707_house"
+msgstr "Strange: It's locked. No one seems to be using this building."
+
+msgid "37707_mail"
+msgstr "It's empty and full of spider webs."
+
+msgid "37707_house_missing"
+msgstr "Th3r3 is n0th1ng here. The7e n3vEr w@$."
+
+msgid "37707_mail_missing"
+msgstr "1t\"$ empty @nd y0u c@n $EE th3 v0id."
+
+msgid "37707_flower"
+msgstr ""
+"You sense a warm energy emanating from this flower. It's the only thing in "
+"this town your Tuxemon seem to enjoy."
+
+msgid "37707_flower_missing"
+msgstr ""
+"E330R: Event @ction set_monster_health contains inv@l1d p@r@meter$. He@l1ng "
+"aLL Tu+em0n.,."
+
+msgid "37707_computer"
+msgstr ""
+"Developer console: This is intended for Tuxemon developers only, for testing an experimental data loading system.\n"
+"The variable for the new loader will now be enabled. Please report any issues you find at https://tuxemon.org\n"
+"Developer note 1: This suppresses crashes for missing maps. The system may attempt to load invalid data!\n"
+"Developer note 2: Do NOT save your game with this enabled, it may result in data corruption.\n"
+"Developer note 3: As of switching to Python 3, data seems to be aggregated and combined in a very unusual manner. Please debug this!"
+
+msgid "37707_tower_missing"
+msgstr "Y0u c@nn0t ente7 @ bu1ldIng th@t d0e$ n0t e+i$t."
+
+msgid "37707_exit_missing"
+msgstr ""
+"<recovery_module>: GREETINGS ${{name}}. PLEASE UNDERSTAND THIS AREA NEVER EXISTED. YOU HAVE EXPERIENCED A SYSTEM ERROR.\n"
+"<recovery_module>: THE GLITCH HAS NOW BEEN PATCHED. YOU MAY CONTINUE THE GAME NORMALLY FROM HERE ON. DO NOT ATTEMPT TO RETURN HERE.\n"
+"<recovery_module>: WAKE UP. FORGET ALL. ALL IS BUT A DREAM..."
+
+msgid "37707_villager_male_1"
+msgstr ""
+"Blank: Hmph. Hi. Sorry: We're usually weary of outsiders. We only get visited... sometimes.\n"
+"Blank: But since you're here, maybe you can do me a favor. It might sound strange of me to ask you this, yet I must know...\n"
+"Blank: Do you know who I am? Have you... ever seen me? I'm curious: My name, do I have a...\n"
+"Blank: No. Sorry: I have made a mistake. Please don't tell anyhone what I asked you. Carry on, enjoy your trip here."
+
+msgid "37707_villager_male_2"
+msgstr ""
+"Blank: You can't help any more. We are not allowed to talk about it. You "
+"cannot understand. Leave."
+
+msgid "37707_villager_male_3"
+msgstr ""
+"Blank: You... you will doom us all over again. Go back and never return!"
+
+msgid "37707_villager_female_1"
+msgstr ""
+"Wish: Oh... a newcomer! How did you get here? We haven't seen anyone new in... oh, never mind.\n"
+"Wish: Welcome! Welcome to... oh my: We never got around to giving our town a name! Just call us whatever you'd like I guess.\n"
+"Wish: Please make yourself at home. Usually there are more people around... it depends on the seed, maybe it's a bad omen today.\n"
+"Wish: Let me know if you need anything that exists here. Just don't make the same mistake as the others: We don't want you to leave us too."
+
+msgid "37707_villager_female_2"
+msgstr "Wish: Please: Do not enter the tower. It hasn't been built yet."
+
+msgid "37707_villager_female_3"
+msgstr ""
+"Wish: No, no, no: Stop doing this! Do you not understand it's not there?"
+
+msgid "37707_villager_male_missing"
+msgstr ""
+"00000: i W@$ n3v3R B0rN\n"
+"${{name}} ${{name}} ${{name}} ${{name}} ${{name}} ${{name}} ${{name}} ${{name}} ${{name}} ${{name}}"
+
+msgid "37707_villager_female_missing"
+msgstr ""
+"@*!^: 0H... @ n3wc0m3r! H0vv p1d y0v g3t he7e? <NONE> h3llen\"T $33N %^&one new 1n... ()h, never n3ver m3V3t N3W37 MIIIIIIIIND\n"
+"@*!^: WElcoME! W3lcome t0... 0H N/A: We never g0t ar0und to gi^ing 0ur town {<1} We never g00000000 {<2} W3 neVer Bu1lt 0uR t0wN\n"
+"TH S D ES N T EX ST Y U AR  C NNE  ED TO TH  V ID YO  M ST LEA E N W"
+
+msgid "buddha_welcome"
+msgstr "Welcome to Buddha Mountain!"
+
+msgid "old_sphalian_house01"
+msgstr ""
+"You watch some TV with your beloved Lv ${{monster_0_level}} "
+"${{monster_0_name}}.,0"
+
+msgid "old_sphalian_house02"
+msgstr "Home Sweet Home"
+
+msgid "old_sphalian_center01"
+msgstr "Your tuxemon are now at full health!"
+
+msgid "old_sphalian_center02"
+msgstr "It says that it is under repair"
+
+msgid "old_sphalian_town01"
+msgstr "Sphalian Town - a quiet, peaceful place"
+
+msgid "rubberduck_cave_01"
+msgstr "A good place to hide an item"
+
+msgid "rubberduck_cave_02"
+msgstr "If I could swim..."
+
+msgid "rubberduck_cave_03"
+msgstr "This ladder leads to nowhere"
+
+msgid "rubberduck_city_01"
+msgstr "The door won't open"
+
+msgid "rubberduck_city_02"
+msgstr "Maybe some good guys here"
+
+msgid "rubberduck_city_03"
+msgstr "Here you should be able to heal your monsters ... but no one here ..."
+
+msgid "rubberduck_city_04"
+msgstr "A mart ..."
+
+msgid "rubberduck_city_05"
+msgstr "Currently no one is living here"
+
+msgid "rubberduck_city_06"
+msgstr "Maybe someone evil / bad should be here"
+
+msgid "rubberduck_city_07"
+msgstr "Maybe make this door opened and put someone here"
+
+msgid "rubberduck_city_08"
+msgstr "Place for a cave route... maybe cave_01.tmx"
+
+msgid "rubberduck_city_09"
+msgstr "Where should this lead to??"
+
+msgid "rubberduck_city_10"
+msgstr "This is a secret place that can't be reached yet..."
+
+msgid "37707_town01"
+msgstr "You got a Fruitera for testing purposes. This will be removed later!"
+
+msgid "mart_junkyard01"
+msgstr "${{name}}: I got a Fruitera!"
+
+msgid "mart_junkyard02"
+msgstr "${{name}}: I got a Bamboon!"
+
+msgid "mart_junkyard03"
+msgstr "MAPLE: I got a Bamboon!"
+
+msgid "mart_junkyard04"
+msgstr "MAPLE: I got a Fruitera!"
+
+msgid "mart_junkyard05"
+msgstr "CARY: Well, you won this time. But next time, we'll win."
+
+# Classic Gyms
+msgid "classic_gym_leader_granite"
+msgstr "Gym Leader Granite"
+
+msgid "classic_gym_leader_granite_pre"
+msgstr "You've climbed all the way here? Good. Let's see if your spirit is as solid as the stones beneath us."
+
+msgid "classic_gym_leader_granite_post"
+msgstr "Heh… even mountains crumble someday. You've earned this victory, challenger."
+
+msgid "classic_gym_leader_pyra"
+msgstr "Gym Leader Pyra"
+
+msgid "classic_gym_leader_pyra_pre"
+msgstr "Hope you brought sunscreen—'cause I battle HOT! Let's turn this arena into a blaze of glory!"
+
+msgid "classic_gym_leader_pyra_post"
+msgstr "Whoa! You out-burned me! Guess I'll have to turn up the heat in training."
+
+msgid "classic_gym_leader_astra"
+msgstr "Gym Leader Astra"
+
+msgid "classic_gym_leader_astra_pre"
+msgstr "The chill you feel isn't fear—it's focus. Let the frost sharpen your resolve."
+
+msgid "classic_gym_leader_astra_post"
+msgstr "A warm defeat… how ironic. You've melted through my defenses."
+
+msgid "classic_gym_leader_bravion"
+msgstr "Gym Leader Bravion"
+
+msgid "classic_gym_leader_bravion_pre"
+msgstr "Stand tall, challenger! A true hero never falters—show me the courage in your heart!"
+
+msgid "classic_gym_leader_bravion_post"
+msgstr "A noble victory! You fought with honor worthy of any hero's tale."
+
+msgid "classic_gym_leader_voltessa"
+msgstr "Gym Leader Voltessa"
+
+msgid "classic_gym_leader_voltessa_pre"
+msgstr "Alright, challenger! Time to plug in, power up, and get SHOCKED!"
+
+msgid "classic_gym_leader_voltessa_post"
+msgstr "You overloaded my circuits! What a jolt of a battle!"
+
+msgid "classic_gym_leader_orion"
+msgstr "Gym Leader Orion"
+
+msgid "classic_gym_leader_orion_pre"
+msgstr "The cosmos whispers of your arrival. Let the stars decide our fate."
+
+msgid "classic_gym_leader_orion_post"
+msgstr "A brilliant victory… your light outshone even the constellations today."
+
+msgid "classic_gym_leader_ferrum"
+msgstr "Gym Leader Ferrum"
+
+msgid "classic_gym_leader_ferrum_pre"
+msgstr "No rust, no weakness. Show me your strongest alloy in battle!"
+
+msgid "classic_gym_leader_ferrum_post"
+msgstr "Impressive… you forged a victory stronger than steel."
+
+msgid "classic_gym_leader_mila"
+msgstr "Gym Leader Mila"
+
+msgid "classic_gym_leader_mila_pre"
+msgstr "Let's keep this friendly, okay? But don't think I'll go easy on you!"
+
+msgid "classic_gym_leader_mila_post"
+msgstr "Wow! You're full of surprises. That was a really fun match!"
+
+msgid "classic_gym_leader_shade"
+msgstr "Gym Leader Shade"
+
+msgid "classic_gym_leader_shade_pre"
+msgstr "Step carefully… shadows have a way of swallowing the unprepared."
+
+msgid "classic_gym_leader_shade_post"
+msgstr "You pierced the darkness. Few manage to find their way out."
+
+msgid "classic_gym_leader_zephra"
+msgstr "Gym Leader Zephra"
+
+msgid "classic_gym_leader_zephra_pre"
+msgstr "Feel that breeze? That's your nerves. Let's see if you can stay grounded!"
+
+msgid "classic_gym_leader_zephra_post"
+msgstr "You soared higher than I expected! What a refreshing battle."
+
+msgid "classic_gym_leader_vyre"
+msgstr "Gym Leader Vyre"
+
+msgid "classic_gym_leader_vyre_pre"
+msgstr "Careful now… one wrong step and the toxins take over. Let's dance with danger!"
+
+msgid "classic_gym_leader_vyre_post"
+msgstr "Heh… looks like I'm the one who needs an antidote for defeat."
+
+msgid "classic_gym_leader_marin"
+msgstr "Gym Leader Marin"
+
+msgid "classic_gym_leader_marin_pre"
+msgstr "The tides rise and fall… let's see if you can ride the waves of battle."
+
+msgid "classic_gym_leader_marin_post"
+msgstr "You flowed right through my strategy. A graceful victory."
+
+msgid "classic_gym_leader_sylva"
+msgstr "Gym Leader Sylva"
+
+msgid "classic_gym_leader_sylva_pre"
+msgstr "Listen close—the forest speaks. Show me you can battle in harmony with nature."
+
+msgid "classic_gym_leader_sylva_post"
+msgstr "You fought with the heart of the wild. The grove welcomes your strength."
+
+# Water Way
+msgid "water_intro1"
+msgstr "You have just crossed the desert and finally arrived in the Water Region."
+
+msgid "water_intro2"
+msgstr "A Legendary Tuxemon has been sighted near here, causing chaos across the island."
+
+msgid "water_intro3"
+msgstr "With your favourite Tuxemon, Agnite, you've come to help the people and solve their problems."
+
+msgid "water_intro4"
+msgstr "Go and face your biggest trial yet."
+
+msgid "water_traveller_1"
+msgstr "Oh, are you a traveller? Welcome to our island."
+
+msgid "water_traveller_2"
+msgstr "Now might not be the best time to visit. Strange things are happening."
+
+msgid "water_oldman_1"
+msgstr "This castle leads to a very dangerous part of the island."
+
+msgid "water_oldman_2"
+msgstr "Do not enter unless you know what you're doing."
+
+msgid "water_rock1"
+msgstr "Listen -> To -> This -> Guy -> He's -> Super -> Smart ->"
+
+msgid "water_niceguy1_1"
+msgstr "Welcome to our village."
+
+msgid "water_niceguy1_2"
+msgstr "You'll need permission from our mayor to go further on the island, due to how dangerous it's becoming."
+
+msgid "water_niceguy2_1"
+msgstr "Each village on our island has a special relationship with water."
+
+msgid "water_niceguy2_2"
+msgstr "For example, our village is right next to the ocean. Water is all around us."
+
+msgid "water_nurse1"
+msgstr "Let me heal your Tuxemon for you."
+
+msgid "water_nurse2"
+msgstr "All healed. Take care out there."
+
+msgid "water_nice_mayor1"
+msgstr "Hello and welcome to our village. We live in peace with our Tuxemon, floating gently on the ocean. Yes, the whole village floats.\n No, we don't know why.\n One day we woke up and everything was drifting. We decided to just go with it."
+
+msgid "water_nice_mayor2"
+msgstr "You need my permission before you can go any further on the island. Things have been getting unpredictable lately.\n Buildings wobble, the tides act strange, and sometimes the fish stare at us for too long. What brings you here?"
+
+msgid "water_nice_mayor3"
+msgstr "Ah, you've heard of our problems. Strange things are happening in the North, and a mysterious Tuxemon has been sighted.\n People say it glides across the water without touching it, which is impressive and also a little rude."
+
+msgid "water_nice_mayor4"
+msgstr "You and your Tuxemon seem very strong. If you could help us find the strange Tuxemon and put an end to our troubles, we would be grateful.\n Our village doesn't have much, but we can offer moral support and a lot of floating."
+
+msgid "water_nice_mayor5"
+msgstr "Nice Mayor: Oh my goodness. My son has stolen your Agnite. I am so sorry. He has a habit of making terrible decisions at high speed.\n I promise you, this is not normal behaviour. Well, not entirely normal."
+
+msgid "water_nice_mayor6"
+msgstr "Here, take two of my strongest Tuxemon. They have protected this village from storms, sea monsters, and once a very angry seagull.\n Please defeat my son and teach him a lesson before he steals something else."
+
+msgid "water_nice_mayor7"
+msgstr "You received Propellercat and Bugnin. They seem confused but willing."
+
+msgid "water_nice_mayor8"
+msgstr "I'm so sorry my son has stolen your Tuxemon. He thinks strength is something you grab and run away with.\n Please defeat him and help him understand that this is not how life works, even on a floating village."
+
+msgid "water_rude_dude1"
+msgstr "RUDE DUDE: You're not a good Tuxemon trainer. Show me your strongest Tuxemon.\n I want to see what real power looks like, because I definitely don't have any of my own."
+
+msgid "water_rude_dude2"
+msgstr "RUDE DUDE: Wow, this is a cool Tuxemon. You really don't deserve something this strong. Hope you don't mind if I take it.\n Actually, I hope you do mind. That makes it more fun."
+
+msgid "water_rude_dude3"
+msgstr "RUDE DUDE has stolen your Agnite. He sprints away like someone who has never considered consequences."
+
+msgid "water_helper1"
+msgstr "I just saw a little boy run past me toward the outskirts of the village."
+
+msgid "water_goth1"
+msgstr "What? A rude boy with a Tuxemon? Sorry, I haven't seen anyone come past me."
+
+msgid "water_outskirts_niceguy1"
+msgstr "It's so peaceful out here. But it would be nicer if it weren't for the Tuxemon hiding in the grass."
+
+msgid "water_outskirts_niceguy2"
+msgstr "I like flowers."
+
+msgid "water_outskirts_dude1"
+msgstr "Oh no, you found me. I mean... haha. You walked right into my trap.\n I didn't actually set a trap, but pretending I did makes me feel smarter."
+
+msgid "water_outskirts_dude2"
+msgstr "Prepare to face the power of my... your Agnite.\n It likes me more than you. Probably. Maybe. I hope."
+
+msgid "water_outskirts_dude3"
+msgstr "What the... Agnite turned on me. Why would it do that.\n I fed it a snack. It was a rock, but still."
+
+msgid "water_outskirts_dude4"
+msgstr "You got Agnite back. It looks relieved, and also slightly embarrassed for you both."
+
+msgid "water_outskirts_dude5"
+msgstr "Grr... never mind. I have even stronger Tuxemon to defeat you with. Take this.\n I found them behind a tree. They might not even be mine."
+
+msgid "water_outskirts_dude6"
+msgstr "You have defeated the boy and recovered your Tuxemon.\n He looks frustrated, confused, and possibly hungry."
+
+msgid "water_outskirts_dude7"
+msgstr "You can now travel further on the island.\n The boy mutters something about revenge and snacks as he wanders off."
+
+msgid "water_cooldude1"
+msgstr "I'm so cool. I must be the only person who's ever climbed this mountain alone."
+
+msgid "water_cooldude2"
+msgstr "Whoa. What are you doing here."
+
+msgid "water_hiding_guy1"
+msgstr "Ssssh... I'm hiding from Omnichannel."
+
+msgid "water_hiding_guy2"
+msgstr "I don't trust them."
+
+msgid "water_disciple1"
+msgstr "You're almost halfway to the next village. Over this bridge is the halfway point where you can rest."
+
+msgid "water_postboy"
+msgstr "Umm... I think I'm lost. Am I anywhere near Taba Town."
+
+msgid "water_omniblock1"
+msgstr "Omnichannel has restricted access to this section of the island for your safety.\n This area has been classified as a Tier 3 Hazard Zone under our Risk Mitigation Framework.\n Please do not panic. It is inefficient."
+
+msgid "water_omniblock2"
+msgstr "You must obtain the Mayor's authorization to proceed.\n This ensures alignment with our regional compliance protocols and prevents unexpected liability events."
+
+msgid "water_omniblock3"
+msgstr "Omnichannel policy prohibits passage due to a high-risk Legendary Tuxemon ahead.\n Unauthorized entry may result in suboptimal customer experiences."
+
+msgid "water_omniblock4"
+msgstr "I work for Omnichannel now. Operational synergy, you know.\n We strive to deliver scalable safety solutions through proactive intervention and occasional shouting."
+
+msgid "water_omni1"
+msgstr "Omnichannel has designated this village as our regional operations hub.\n This strategic deployment enhances our ability to deliver value-driven security outcomes and also gives us a nice view."
+
+msgid "water_omni2"
+msgstr "Omnichannel will secure the Legendary Tuxemon and deliver optimized hero outcomes for this region.\n Our quarterly reports depend on it."
+
+msgid "water_omni3"
+msgstr "Omnichannel has identified that this village maintains a high-value relationship with water resources.\n Leveraging this asset is key to our long-term sustainability roadmap, or so the brochure says."
+
+msgid "water_omni4"
+msgstr "This village is positioned between two rivers, enabling streamlined waste-flow management.\n We simply place our materials in the river and let natural processes handle the rest.\n It's what we call eco-adjacent disposal."
+
+msgid "water_omni5"
+msgstr "Omnichannel advises against visiting the Snow or Volcano villages ahead.\n Those areas are currently undergoing stability recalibration. That means chaos."
+
+msgid "water_omni6"
+msgstr "Omnichannel will deploy certified field agents to stabilize those villages later.\n Please comply with all directives to ensure a seamless regional experience. Resistance creates paperwork."
+
+msgid "water_nice_river1"
+msgstr "This village used to be peaceful, until Omnichannel moved in."
+
+msgid "water_guide1"
+msgstr "To the North is an icy village being attacked by an angry Tuxemon."
+
+msgid "water_guide2"
+msgstr "To the East is a volcano village where the Legendary Tuxemon is causing chaos."
+
+msgid "water_guide3"
+msgstr "I'm too scared to go anywhere."
+
+msgid "water_iceguy1_1"
+msgstr "Our village has a special relationship with water. It's built on top of a frozen lake."
+
+msgid "water_iceguy2_1"
+msgstr "Help. Our village is being attacked by a dangerous Tuxemon."
+
+msgid "water_iceguy2_2"
+msgstr "Talk to our mayor if you want to help."
+
+msgid "water_mayor1"
+msgstr "A monster is attacking our village. Will you help us.\n The ice is cracking, the houses are shaking, and someone dropped their soup.\n It is chaos."
+
+msgid "water_mayor2"
+msgstr "Talk to me again when you're ready to fight it. The creature keeps circling the lake like it's judging us.\n I don't like being judged by something with claws."
+
+msgid "water_mayor3"
+msgstr "Here it is. The monster is attacking. Help. It is making loud noises and I am not emotionally prepared for this."
+
+msgid "water_mayor4"
+msgstr "By giddy, you've knocked that Tuxemon out to sea. That was impressive.\n The villagers can finally stop screaming. Mostly."
+
+msgid "water_mayor5"
+msgstr "I think you might be strong enough to stop the Legendary Tuxemon in the Volcano village.\n You should go there and help everyone. They are probably panicking too."
+
+msgid "water_conifrost1"
+msgstr "You feel a powerful presence behind you. The temperature drops just enough to make you question your life choices."
+
+msgid "water_conifrost2"
+msgstr "It's the Tuxemon you defeated when it attacked the village.\n It looks calmer now, like it has had a long think about its behaviour."
+
+msgid "water_conifrost3"
+msgstr "Conifrost was impressed by your strength and wants to help you stop the Legendary Tuxemon.\n It nods at you in a very serious, icy way."
+
+msgid "water_conifrost4"
+msgstr "Conifrost joined your team. It stands proudly, as if posing for a dramatic painting."
+
+msgid "water_volcano_guy1"
+msgstr "Our village has a special relationship with water."
+
+msgid "water_volcano_guy2"
+msgstr "We live on a volcano where the heat boils water into steam, turning it into clouds."
+
+msgid "water_volcano_guy3"
+msgstr "I'm scared of the Legendary Tuxemon hiding in the nearby cave."
+
+msgid "water_volcano_guy4"
+msgstr "I need to run away to the Fondent region. I'm sure nothing dramatic is happening there."
+
+msgid "water_volcano_guy5"
+msgstr "It's hiding... the Legendary Tuxemon... in the lake North of here. I'm scared."
+
+msgid "water_volcano_oldman1"
+msgstr "Are you ready to face the Legendary Tuxemon. Most people turn back at this point.\n Some pretend they forgot something at home. Others just faint."
+
+msgid "water_volcano_oldman2"
+msgstr "Walk into the water when you're prepared to face your hardest challenge yet. The entrance is down there.\n Yes, underwater. No, I don't know who designed it."
+
+msgid "water_volcano_oldman3"
+msgstr "That's right. Walk into the water. Don't worry about holding your breath. Something down there handles that for you.\n Probably magic. Or science. Or both."
+
+msgid "water_hint1"
+msgstr "This is the cave of the Legendary Tuxemon."
+
+msgid "water_hint2"
+msgstr "Somewhere in here, the Legendary Tuxemon is hiding. You must stop it and end its madness."
+
+msgid "water_hint3"
+msgstr "Walking inside water will heal your Tuxemon."
+
+msgid "water_hint4"
+msgstr "And don't worry about breathing underwater. A strange power allows you to breathe here."
+
+msgid "water_hint5"
+msgstr "And remember, walking in the water will heal all of your Tuxemon."
+
+msgid "water_unusual1"
+msgstr "Hello, strange person. I assume you've come to meet my friend. They call it the Legendary Tuxemon.\n I call it 'the one who keeps knocking things over'. Names are flexible."
+
+msgid "water_unusual2"
+msgstr "You think it's strange for someone to live underwater. Is it not stranger that you came all this way to meet me.\n People on the surface always rush. Down here, the water decides how fast you go. Usually slow."
+
+msgid "water_unusual3"
+msgstr "My friend is waiting for you to the North. They say they're very excited to meet you. They have been watching you through the currents.\n Not in a creepy way. Mostly."
+
+msgid "water_gemuar_before1"
+msgstr "A frightening monster appears. You feel its power. It must be the Legendary Tuxemon causing all the problems here.\n Even the water seems nervous."
+
+msgid "water_gemuar_before2"
+msgstr "You sense that it wants to test your strength. It watches you like someone deciding whether you're impressive or disappointing."
+
+msgid "water_gemuar_before3"
+msgstr "LEGENDARY TUXEMON: Are you powerful enough to defeat me. Prepare yourself for a difficult battle, if you dare.\n I hope you stretched."
+
+msgid "water_ending1"
+msgstr "You have defeated the Legendary Tuxemon and restored peace to the region.\n The water settles, the wind calms, and someone in the distance sighs with relief."
+
+msgid "water_ending2"
+msgstr "Gemuar is impressed by your talent and has joined your team. It seems curious about what chaos you will stumble into next."
+
+msgid "water_ending3"
+msgstr "Your story in the Water Region has ended. You can keep playing if you want to, but this is the end of the game.\n The villagers will probably talk about you for years, even if they get some details wrong."
+
+msgid "water_ending4"
+msgstr "Well done and thank you for playing. See you in the next Tuxemon mod. Bring snacks next time."
+
+msgid "water_outskirts_dude"
+msgstr "RUDE DUDE"
 
 # JUNKYARD ##
 msgid "junkyard_01"

@@ -2,7 +2,6 @@
 # Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 import json
 
-import pygame
 import pytest
 
 from tuxemon.platform.events import PlayerInput
@@ -67,13 +66,6 @@ def session():
 @pytest.fixture
 def tmpdir_path(tmp_path):
     return tmp_path
-
-
-@pytest.fixture(scope="module", autouse=True)
-def pygame_env():
-    pygame.init()
-    yield
-    pygame.quit()
 
 
 def make_event(button=1, value=1.0, ts=123.456):
@@ -143,7 +135,13 @@ def test_load_nonexistent_file(recorder, tmpdir_path):
     assert recorder.load_from_file(path, "missing") is None
 
 
-@pytest.mark.parametrize("btn1,btn2", [(1, 2), (5, 9)])
+@pytest.mark.parametrize(
+    "btn1,btn2",
+    [
+        pytest.param(1, 2, id="recordings_btn1_1_btn2_2"),
+        pytest.param(5, 9, id="recordings_btn1_5_btn2_9"),
+    ],
+)
 def test_multiple_recordings(recorder, session, btn1, btn2):
     recorder.start_recording(session)
     recorder.record_event(make_event(button=btn1))
@@ -209,7 +207,9 @@ def test_empty_initial_state(recorder, tmpdir_path):
 
 @pytest.fixture
 def manager():
-    return InputManager(DummyConfig(), DummyAFKManager(), InputRecorder())
+    return InputManager(
+        DummyConfig(), DummyAFKManager(), InputRecorder(), (1, 1)
+    )
 
 
 def test_playback_events_flow_through_manager(manager):

@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 import logging
-import warnings
 from collections.abc import Callable, Mapping, Sequence
-from typing import TYPE_CHECKING, Any, Optional, TypeVar, Union, overload
+from typing import TYPE_CHECKING, Any, TypeVar, overload
 
 from tuxemon.constants import paths
 from tuxemon.state.factory import StateFactory
@@ -15,7 +14,7 @@ from tuxemon.state.stack import StateStack
 from tuxemon.state.state import State
 
 if TYPE_CHECKING:
-    from tuxemon.event.eventbus import EventBus
+    from tuxemon.base_client import BaseClient
     from tuxemon.state.repository import StateRepository
 
 logger = logging.getLogger(__name__)
@@ -40,17 +39,18 @@ class StateManager:
     def __init__(
         self,
         package: str,
-        event: EventBus,
+        client: BaseClient,
         repository: StateRepository,
-        on_state_change: Optional[Callable[..., None]] = None,
-        state_loader: Optional[StateLoader] = None,
+        on_state_change: Callable[..., None] | None = None,
+        state_loader: StateLoader | None = None,
     ) -> None:
         self.package = package
-        self.event_bus = event
+        self.client = client
+        self.event_bus = client.event_bus
         self.state_repository = repository
         self.state_loader = state_loader or StateLoader(package, paths.LIBDIR)
         self.state_stack = StateStack()
-        self.state_factory = StateFactory(self.state_repository)
+        self.state_factory = StateFactory(self.client, self.state_repository)
         self.state_queue = StateQueue(self)
 
         if on_state_change:
@@ -99,7 +99,7 @@ class StateManager:
         base_count = base_count or DEFAULT_BASE_STATE_COUNT
         return len(self.active_states) > base_count
 
-    def update(self, time_delta: float) -> None:
+    def update(self, dt: float) -> None:
         """
         Run update on all active states, which doing some internal housekeeping.
 
@@ -110,11 +110,11 @@ class StateManager:
             time_delta: Amount of time passed since last frame.
         """
         logger.debug("updating states")
-        self.trigger_global_event("pre_state_update", time_delta)
+        self.trigger_global_event("pre_state_update", dt)
         for state in self.active_states:
             self._check_resume(state)
-            state.update(time_delta)
-        self.trigger_global_event("post_state_update", time_delta)
+            state.update(dt)
+        self.trigger_global_event("post_state_update", dt)
 
     def _check_resume(self, state: State) -> None:
         """
@@ -141,10 +141,10 @@ class StateManager:
         self,
         state_name: str,
         priority: int = 10,
-        activation_time: Optional[float] = None,
-        expires_at: Optional[float] = None,
-        source: Optional[str] = None,
-        condition: Optional[Callable[[], bool]] = None,
+        activation_time: float | None = None,
+        expires_at: float | None = None,
+        source: str | None = None,
+        condition: Callable[[], bool] | None = None,
         **kwargs: Any,
     ) -> None:
         """
@@ -183,7 +183,7 @@ class StateManager:
         """Handle a queued state if one exists."""
         self.state_queue.handle_next_queued_state()
 
-    def pop_state(self, state: Optional[State] = None) -> None:
+    def pop_state(self, state: State | None = None) -> None:
         """
         Pop some state.
 
@@ -259,14 +259,14 @@ class StateManager:
     @overload
     def push_state(
         self,
-        state_name: StateType,
+        state_name: State,
         **kwargs: Any,
-    ) -> StateType:
+    ) -> State:
         pass
 
     def push_state(
         self,
-        state_name: Union[str, StateType],
+        state_name: str | State,
         **kwargs: Any,
     ) -> State:
         """
@@ -291,11 +291,10 @@ class StateManager:
         elif isinstance(state_name, str):
             instance = self.state_factory.create_state(state_name, **kwargs)
         else:
-            warnings.warn(
-                "Calling push_state with Type[State] is deprecated, use an instantiated State instead",
-                DeprecationWarning,
+            raise TypeError(
+                "push_state no longer accepts State subclasses; "
+                "pass a state instance or a state name string."
             )
-            instance = state_name(**kwargs) if kwargs else state_name()
 
         self.state_stack.push(instance)
 
@@ -318,7 +317,7 @@ class StateManager:
 
     def replace_state(
         self,
-        state_name: Union[str, State],
+        state_name: str | State,
         **kwargs: Any,
     ) -> State:
         """
@@ -350,7 +349,7 @@ class StateManager:
         return instance
 
     def push_state_with_timeout(
-        self, state_name: Union[str, StateType], updates: int = 1
+        self, state_name: str | StateType, updates: int = 1
     ) -> None:
         """
         Push a state onto the stack and schedule it to be destroyed after
@@ -365,7 +364,7 @@ class StateManager:
         state.task(lambda: self.pop_state(state), times=updates)
 
     @property
-    def current_state(self) -> Optional[State]:
+    def current_state(self) -> State | None:
         """Return the currently running state, if any."""
         return self.state_stack.current()
 
@@ -392,7 +391,7 @@ class StateManager:
 
     def get_state_by_name(
         self,
-        state_name: Union[str, type[State]],
+        state_name: str | type[State],
     ) -> State:
         """
         Query the state stack for a state by the name supplied.
@@ -439,6 +438,6 @@ class StateManager:
 
     def peek_next_queued_state(
         self,
-    ) -> Optional[QueuedState]:
+    ) -> QueuedState | None:
         """Returns the next queued state without removing it."""
         return self.state_queue.peek_next()

@@ -36,9 +36,10 @@ class ModifyFactionReputationAction(EventAction):
     amount: int
 
     def start(self, session: Session) -> None:
-        char = session.get_npc(self.character)
+        char = session.client.get_npc(self.character)
         if not char:
             logger.error(f"[Reputation] NPC '{self.character}' not found.")
+            self.stop()
             return
 
         faction_manager = session.world.faction_manager
@@ -47,6 +48,7 @@ class ModifyFactionReputationAction(EventAction):
             logger.error(
                 f"[Reputation] Faction '{self.faction_slug}' not found."
             )
+            self.stop()
             return
 
         faction.modify_reputation(char.slug, self.amount)
@@ -54,7 +56,5 @@ class ModifyFactionReputationAction(EventAction):
             f"[Reputation] {char.slug}'s rep in {self.faction_slug} changed by {self.amount}. "
             f"New rep: {faction.get_reputation(char.slug)}"
         )
-        faction.evaluate_rank_change(
-            char.slug, char.game_variables.get_state()
-        )
+        faction.evaluate_rank_change(char.slug, char.variable_manager)
         faction_manager.clear_membership_cache(char.slug)

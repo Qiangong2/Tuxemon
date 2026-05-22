@@ -5,14 +5,14 @@ from __future__ import annotations
 import logging
 import time
 from abc import ABC, abstractmethod
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from types import TracebackType
-from typing import Any, ClassVar, Optional
+from typing import Any, ClassVar
 
 from tuxemon.constants.paths import ACTIONS_PATH, LIBDIR, get_plugin_paths
-from tuxemon.plugin import load_plugins
+from tuxemon.plugin import PluginManager
 from tuxemon.session import Session
 from tuxemon.tools import cast_dataclass_parameters
 
@@ -42,9 +42,9 @@ class ActionContextManager:
 
     def __exit__(
         self,
-        exc_type: Optional[type[BaseException]],
-        exc_val: Optional[BaseException],
-        exc_tb: Optional[TracebackType],
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
     ) -> None:
         """
         Called once when exiting the context.
@@ -52,9 +52,6 @@ class ActionContextManager:
         Ensures the action is properly cleaned up, unless it is marked as cancelled.
         Logs a warning if the action is cancelled.
         """
-        if self.action.cancelled:
-            logger.warning("Event is cancelled, not cleaning up")
-            return
         self.action.cleanup(self.session)
 
 
@@ -175,6 +172,7 @@ class EventAction(ABC):
             last_time = time.perf_counter()
             while not self.done and not self.cancelled:
                 if self._skip:
+                    self.stop()
                     return
 
                 now = time.perf_counter()
@@ -209,8 +207,7 @@ class EventAction(ABC):
         method for subclass logic.
         """
         if self.cancelled:
-            logger.debug(f"Action is cancelled, not starting")
-            self.stop()
+            logger.debug("Action is cancelled, not starting")
             return
         try:
             self.start(session)
@@ -234,12 +231,7 @@ class EventAction(ABC):
         """
         if self.cancelled:
             logger.debug("Action is cancelled, not updating")
-            return
-        try:
-            self.stop()
-        except Exception as e:
-            logger.error(f"Error updating action: {e}")
-            raise
+        self.stop()
 
     def cancel(self) -> None:
         """
@@ -260,17 +252,10 @@ class EventAction(ABC):
         if self.cancelled:
             logger.debug("Action is cancelled, not cleaning up")
             return
-        try:
-            # clean up the action
-            pass
-        except Exception as e:
-            logger.error(f"Error cleaning up action: {e}")
-            raise
 
 
 class ActionManager:
-
-    def __init__(self, root_path: Optional[Path] = None) -> None:
+    def __init__(self, root_path: Path | None = None) -> None:
         if root_path is None:
             root_path = LIBDIR.parent
 
@@ -278,18 +263,20 @@ class ActionManager:
             ACTIONS_PATH, "actions", subfolder="event"
         )
 
-        self.actions = load_plugins(
-            paths=plugin_folders,
+        manager = PluginManager.from_directory(
+            plugin_folders=plugin_folders,
             root_path=root_path,
-            category="actions",
-            interface=EventAction,  # type: ignore[type-abstract]
+        )
+
+        self.actions: Mapping[str, type[EventAction]] = manager.get_class_map(
+            interface=EventAction
         )
 
     def get_action(
         self,
         name: str,
-        parameters: Optional[Sequence[Any]] = None,
-    ) -> Optional[EventAction]:
+        parameters: Sequence[Any] | None = None,
+    ) -> EventAction | None:
         """
         Get an action that is loaded into the engine.
 
@@ -314,9 +301,6 @@ class ActionManager:
             error = f'Error: EventAction "{name}" not implemented'
             logger.warning(error)
             return None
-
-        if parameters == [""]:
-            return action()
 
         try:
             return action(*parameters)

@@ -75,12 +75,15 @@ class ModMetadata(BaseModel):
     sprite: str = Field(
         ..., description="Base filename of the player's overworld sprite."
     )
-    combat_front: str = Field(
+    combat_sheet: str = Field(
         ...,
         description="Base filename of the player's front-facing combat sprite.",
     )
     authors: list[str] = Field(
         default_factory=list, description="List of authors or contributors."
+    )
+    startup_rules: list[str] = Field(
+        default_factory=list, description="List of rules (startup)."
     )
     starting_players: list[str] = Field(
         default_factory=list,

@@ -3,7 +3,7 @@
 import pytest
 
 from tuxemon.db import Direction
-from tuxemon.entity import Body, Mover
+from tuxemon.entity.entity import Body, Mover
 from tuxemon.math import Vector2
 
 
@@ -21,27 +21,43 @@ def test_initialization(body, mover):
     assert body.position == Vector2(0, 0)
     assert body.velocity == Vector2(0, 0)
     assert body.acceleration == Vector2(0, 0)
-    assert mover.facing == Direction.down
+    assert mover.facing == Direction.DOWN
 
 
 @pytest.mark.parametrize(
     "velocity,acceleration,dt,expected_pos,expected_vel",
     [
-        (Vector2(1, 1), Vector2(1, 0), 1.0, Vector2(2, 1), Vector2(2, 1)),
-        (Vector2(5, 5), Vector2(0, 0), 0.0, Vector2(0, 0), Vector2(5, 5)),
-        (
+        pytest.param(
+            Vector2(1, 1),
+            Vector2(1, 0),
+            1.0,
+            Vector2(2, 1),
+            Vector2(2, 1),
+            id="basic_acceleration",
+        ),
+        pytest.param(
+            Vector2(5, 5),
+            Vector2(0, 0),
+            0.0,
+            Vector2(0, 0),
+            Vector2(5, 5),
+            id="zero_dt",
+        ),
+        pytest.param(
             Vector2(999999, 999999),
             Vector2(0, 0),
             1.0,
             Vector2(999999, 999999),
             Vector2(999999, 999999),
+            id="large_values",
         ),
-        (
+        pytest.param(
             Vector2(1, 1),
             Vector2(0, 0),
             1000.0,
             Vector2(1000, 1000),
             Vector2(1, 1),
+            id="large_dt",
         ),
     ],
 )
@@ -93,10 +109,10 @@ def test_stop_sets_velocity_to_zero(body, mover):
 @pytest.mark.parametrize(
     "direction,expected",
     [
-        (Direction.up, Vector2(0, -5)),
-        (Direction.down, Vector2(0, 5)),
-        (Direction.left, Vector2(-5, 0)),
-        (Direction.right, Vector2(5, 0)),
+        pytest.param(Direction.UP, Vector2(0, -5), id="up"),
+        pytest.param(Direction.DOWN, Vector2(0, 5), id="down"),
+        pytest.param(Direction.LEFT, Vector2(-5, 0), id="left"),
+        pytest.param(Direction.RIGHT, Vector2(5, 0), id="right"),
     ],
 )
 def test_move_with_valid_direction(mover, body, direction, expected):
@@ -113,16 +129,16 @@ def test_move_boundary_case(mover, body):
     mover.base_moverate = 0.0001
     mover.moverate_modifier = 1.0
 
-    mover.move(Direction.down)
+    mover.move(Direction.DOWN)
 
     assert body.velocity == Vector2(0, 0.0001)
-    assert mover.facing == Direction.down
+    assert mover.facing == Direction.DOWN
 
 
 def test_facing_persists_after_stop(mover, body):
     mover.base_moverate = 5
-    mover.move(Direction.right)
+    mover.move(Direction.RIGHT)
     mover.stop()
 
     assert body.velocity == Vector2(0, 0)
-    assert mover.facing == Direction.right
+    assert mover.facing == Direction.RIGHT

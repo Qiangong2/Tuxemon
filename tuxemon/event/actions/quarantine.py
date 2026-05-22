@@ -5,14 +5,14 @@ from __future__ import annotations
 import logging
 import random
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Optional, final
+from typing import TYPE_CHECKING, final
 
 from tuxemon.boxes import BoxMetadata
 from tuxemon.event.eventaction import EventAction
 from tuxemon.platform.const.sizes import MAX_KENNEL
 
 if TYPE_CHECKING:
-    from tuxemon.npc import NPC
+    from tuxemon.entity.npc import NPC
     from tuxemon.session import Session
 
 logger = logging.getLogger(__name__)
@@ -41,7 +41,7 @@ class QuarantineAction(EventAction):
     npc_slug: str
     plague_slug: str
     action_type: str
-    amount: Optional[int] = None
+    amount: int | None = None
 
     def _quarantine_in(self, character: NPC) -> None:
         """Moves currently infected monsters from the party into the quarantine box."""
@@ -76,6 +76,7 @@ class QuarantineAction(EventAction):
 
         if not boxes.has_box(self.name, "monster"):
             logger.info(f"Box {self.name} does not exist")
+            self.stop()
             return
 
         box_monsters = [
@@ -86,6 +87,7 @@ class QuarantineAction(EventAction):
 
         if not box_monsters:
             logger.info(f"Box {self.name} is empty")
+            self.stop()
             return
 
         if self.amount is None or self.amount >= len(box_monsters):
@@ -97,16 +99,18 @@ class QuarantineAction(EventAction):
             # Inoculates the monster before releasing it.
             monster.plague.inoculate(self.plague_slug)
 
-            if party.transfer_monster_to_party(monster):
-                boxes.remove_from_box("monster", self.name, monster)
+            if party.transfer_monster_to_party(
+                monster, source_kennel=self.name
+            ):
                 logger.info(f"{monster} has been inoculated and released")
             else:
                 logger.warning(f"Failed to release {monster} to party")
 
     def start(self, session: Session) -> None:
-        character = session.get_npc(self.npc_slug)
+        character = session.client.get_npc(self.npc_slug)
         if character is None:
             logger.error(f"{self.npc_slug} not found")
+            self.stop()
             return
 
         if self.action_type == "in":

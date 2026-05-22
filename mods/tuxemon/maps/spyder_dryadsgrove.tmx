@@ -633,8 +633,7 @@
   </object>
   <object id="217" name="Create Sylvia" type="event" x="224" y="224" width="16" height="16">
    <properties>
-    <property name="act1" value="create_npc spyder_dryadsgrove_sylvia,14,14"/>
-    <property name="act2" value="char_wander spyder_dryadsgrove_sylvia"/>
+    <property name="act1" value="create_npc spyder_dryadsgrove_sylvia,14,14,wander"/>
     <property name="cond1" value="not char_exists spyder_dryadsgrove_sylvia"/>
     <property name="cond2" value="not battle_outcome player,won,spyder_dryadsgrove_sylvia"/>
    </properties>
@@ -654,14 +653,14 @@
   <object id="219" name="Environment Day" type="event" x="16" y="0" width="16" height="16">
    <properties>
     <property name="act1" value="set_environment grass"/>
-    <property name="cond1" value="not variable_set stage_of_day:night"/>
+    <property name="cond1" value="not time_is stage_of_day,equals,night"/>
     <property name="cond2" value="not environment_is grass"/>
    </properties>
   </object>
   <object id="224" name="Environment Night" type="event" x="32" y="0" width="16" height="16">
    <properties>
     <property name="act1" value="set_environment night_grass"/>
-    <property name="cond1" value="is variable_set stage_of_day:night"/>
+    <property name="cond1" value="is time_is stage_of_day,equals,night"/>
     <property name="cond2" value="not environment_is night_grass"/>
    </properties>
   </object>
@@ -787,8 +786,7 @@
   </object>
   <object id="265" name="Create Boy" type="event" x="400" y="480" width="16" height="16">
    <properties>
-    <property name="act1" value="create_npc spyder_dryadsgrove_boy,25,30"/>
-    <property name="act2" value="char_wander spyder_dryadsgrove_boy"/>
+    <property name="act1" value="create_npc spyder_dryadsgrove_boy,25,30,wander"/>
     <property name="cond1" value="not char_exists spyder_dryadsgrove_boy"/>
    </properties>
   </object>
@@ -797,7 +795,7 @@
     <property name="act1" value="translated_dialog spyder_dryadsgrove_boy_healthy"/>
     <property name="act2" value="translated_dialog_choice yes:no,ruff"/>
     <property name="behav1" value="talk spyder_dryadsgrove_boy"/>
-    <property name="cond1" value="is variable_set party_healthy:yes"/>
+    <property name="cond1" value="is char_healed player"/>
     <property name="cond2" value="not variable_set ruff:yes"/>
     <property name="cond3" value="not variable_set ruff:proceed"/>
    </properties>
@@ -819,7 +817,7 @@
    <properties>
     <property name="act1" value="translated_dialog spyder_dryadsgrove_boy_not_healthy"/>
     <property name="behav1" value="talk spyder_dryadsgrove_boy"/>
-    <property name="cond1" value="not variable_set party_healthy:yes"/>
+    <property name="cond1" value="not char_healed player"/>
    </properties>
   </object>
   <object id="275" name="Ruff Yes" type="event" x="320" y="544" width="16" height="16">

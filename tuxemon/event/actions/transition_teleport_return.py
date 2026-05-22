@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Optional, final
+from typing import final
 
 from tuxemon.db import Direction
 from tuxemon.event.eventaction import EventAction
@@ -48,19 +48,21 @@ class TransitionTeleportReturnAction(EventAction):
     name = "transition_teleport_return"
     character: str
     facing: str
-    trans_time: Optional[float] = None
-    rgb: Optional[str] = None
+    trans_time: float | None = None
+    rgb: str | None = None
 
     def start(self, session: Session) -> None:
 
-        char = session.get_npc(self.character)
+        char = session.client.get_npc(self.character)
         if char is None:
             logger.error(f"{self.character} not found")
+            self.stop()
             return
 
         request = session.client.teleporter.last_teleport_request
         if not request:
             logger.error("No previous teleport request found.")
+            self.stop()
             return
 
         if (
@@ -71,12 +73,14 @@ class TransitionTeleportReturnAction(EventAction):
             logger.error(
                 "Last teleport request is missing source location data."
             )
+            self.stop()
             return
 
         try:
             facing_dir = Direction(self.facing.lower())
         except ValueError:
             logger.warning(f"Invalid facing direction: {self.facing}")
+            self.stop()
             return
 
         char.set_facing(facing_dir)

@@ -4,37 +4,31 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from functools import partial
-from typing import TYPE_CHECKING, Any, ClassVar, Optional
+from typing import TYPE_CHECKING, Any, ClassVar
 
-import pygame_menu
-from pygame_menu import locals
+from pygame_menu.locals import ALIGN_LEFT, POSITION_EAST
+from pygame_menu.menu import Menu
 
 from tuxemon.database.runtime import db
 from tuxemon.db import MonsterModel
-from tuxemon.locale import T
+from tuxemon.locale.locale import T
 from tuxemon.menu.menu import PygameMenuState
 from tuxemon.platform.const import buttons
-from tuxemon.platform.const.graphics import BG_JOURNAL, DIMGRAY_COLOR
-from tuxemon.platform.events import PlayerInput
-from tuxemon.prepare import SCREEN_SIZE
+from tuxemon.platform.const.graphics import (
+    BG_JOURNAL,
+    DIMGRAY_COLOR,
+    SEA_BLUE_COLOR,
+)
 from tuxemon.tools import fix_measure
 
 if TYPE_CHECKING:
-    from tuxemon.npc import NPC
+    from tuxemon.base_client import BaseClient
+    from tuxemon.entity.npc import NPC
+    from tuxemon.platform.events import PlayerInput
 
 MAX_PAGE = 20
 
 MenuGameObj = Callable[[], object]
-lookup_cache: dict[str, MonsterModel] = {}
-
-
-def _lookup_monsters() -> None:
-    global lookup_cache
-    lookup_cache = {
-        mon_name: result
-        for mon_name in db.database["monster"]
-        if (result := MonsterModel.lookup(mon_name, db)).txmn_id > 0
-    }
 
 
 class JournalState(PygameMenuState):
@@ -42,15 +36,10 @@ class JournalState(PygameMenuState):
 
     name: ClassVar[str] = "JournalState"
 
-    def add_menu_items(
-        self,
-        menu: pygame_menu.Menu,
-        monsters: list[MonsterModel],
-    ) -> None:
-        column_width = fix_measure(menu._width, 0.35)
-        btn_x_offset = fix_measure(menu._width, 0.25)
+    def add_menu_items(self, menu: Menu, monsters: list[MonsterModel]) -> None:
+        btn_x_offset = fix_measure(menu._width, 0.25) - self.client.context.scaling.scale_int(60)
         btn_y_offset = fix_measure(menu._height, 0.01)
-        menu._column_max_width = [column_width, column_width]
+        menu._column_max_width = [None, None]
 
         def change_state(state: str, **kwargs: Any) -> MenuGameObj:
             return partial(self.client.push_state, state, **kwargs)
@@ -59,7 +48,7 @@ class JournalState(PygameMenuState):
 
         for mon in monsters:
             if self.char.tuxepedia.is_registered(mon.slug):
-                label = f"{mon.txmn_id}. {T.translate(mon.slug).upper()}"
+                label = f"{mon.txmn_id}. {T.translate(mon.slug)}"
                 if self.char.tuxepedia.is_seen(mon.slug):
                     menu.add.button(
                         label,
@@ -69,7 +58,7 @@ class JournalState(PygameMenuState):
                             monster=mon,
                             source=self.name,
                         ),
-                        font_size=self.font_type.small,
+                        font_size=self.font_type.biggest,
                         button_id=mon.slug,
                     ).translate(btn_x_offset, btn_y_offset)
                 elif self.char.tuxepedia.is_caught(mon.slug):
@@ -81,33 +70,37 @@ class JournalState(PygameMenuState):
                             monster=mon,
                             source=self.name,
                         ),
-                        font_size=self.font_type.small,
+                        font_size=self.font_type.biggest,
                         button_id=mon.slug,
                         underline=True,
+                        underline_color=SEA_BLUE_COLOR,
+                        underline_offset=self.client.context.scaling.scale_int(1),
+                        underline_width=self.client.context.scaling.scale_int(1),
                     ).translate(btn_x_offset, btn_y_offset)
             else:
                 label = f"{mon.txmn_id}. -----"
                 lab: Any = menu.add.label(
                     label,
-                    font_size=self.font_type.small,
+                    font_size=self.font_type.biggest,
                     font_color=DIMGRAY_COLOR,
                     label_id=mon.slug,
                 )
                 lab.translate(btn_x_offset, btn_y_offset)
 
     def __init__(
-        self, character: NPC, monsters: list[MonsterModel], page: int
+        self,
+        client: BaseClient,
+        character: NPC,
+        monsters: list[MonsterModel],
+        page: int,
+        select_last: bool = False,
+        **kwargs: Any,
     ) -> None:
-        if not lookup_cache:
-            _lookup_monsters()
+        MonsterModel.load_cache(db)
+        self.cache = MonsterModel.get_cache()
 
-        width, height = SCREEN_SIZE
-
-        theme = self._setup_theme(BG_JOURNAL)
-        theme.scrollarea_position = locals.POSITION_EAST
-        theme.widget_alignment = locals.ALIGN_LEFT
-
-        columns = 2
+        self.char = character
+        self._page = page
 
         # defines range txmn_ids
         min_txmn: int = 0
@@ -124,6 +117,12 @@ class JournalState(PygameMenuState):
             ele for ele in monsters if min_txmn < ele.txmn_id <= max_txmn
         ]
 
+        self._monster_list = monster_list
+
+        width, height = client.context.resolution
+
+        columns = 2
+
         # fix columns and rows
         num_mon: int = 0
         if len(monster_list) != MAX_PAGE:
@@ -133,37 +132,82 @@ class JournalState(PygameMenuState):
         rows = num_mon / columns
 
         super().__init__(
-            height=height, width=width, columns=columns, rows=int(rows)
+            client=client,
+            height=height,
+            width=width,
+            columns=columns,
+            rows=int(rows),
+            **kwargs,
         )
 
-        self.char = character
-        self._page = page
-        self._monster_list = monster_list
+        theme = self._setup_theme(BG_JOURNAL)
+        theme.widget_font_shadow = False
+        theme.scrollarea_position = POSITION_EAST
+        theme.widget_alignment = ALIGN_LEFT
+        self._menu_config["theme"] = theme
+
         self.add_menu_items(self.menu, monster_list)
         self.reset_theme()
 
-    def process_event(self, event: PlayerInput) -> Optional[PlayerInput]:
-        client = self.client
-        box = list(lookup_cache.values())
-        max_page = (
-            len(box) + MAX_PAGE - 1
-        ) // MAX_PAGE  # calculate max_page correctly
+        if select_last:
+            selectables = [w for w in self.menu._widgets if w.is_selectable]
+            if selectables:
+                self.menu.select_widget(selectables[-1])
 
-        if event.button in (buttons.RIGHT, buttons.LEFT) and event.pressed:
+    def process_event(self, event: PlayerInput) -> PlayerInput | None:
+        client = self.client
+        box = list(self.cache.values())
+        max_page = (len(box) + MAX_PAGE - 1) // MAX_PAGE
+
+        # LEFT / RIGHT → page navigation (with repeat)
+        if event.button in (buttons.RIGHT, buttons.LEFT) and self.valid_press(
+            event
+        ):
             self._page = (
                 self._page + (1 if event.button == buttons.RIGHT else -1)
             ) % max_page
+
             client.replace_state(
                 "JournalState",
                 character=self.char,
                 monsters=box,
                 page=self._page,
             )
+            return None
 
+        # DOWN at last selectable entry (or empty page) → next page
+        elif event.button == buttons.DOWN and self.valid_press(event):
+            sel = self.menu.get_selected_widget()
+            selectables = [w for w in self.menu._widgets if w.is_selectable]
+            if not selectables or sel is selectables[-1]:
+                self._page = (self._page + 1) % max_page
+                client.replace_state(
+                    "JournalState",
+                    character=self.char,
+                    monsters=box,
+                    page=self._page,
+                )
+                return None
+
+        # UP at first selectable entry (or empty page) → previous page
+        elif event.button == buttons.UP and self.valid_press(event):
+            sel = self.menu.get_selected_widget()
+            selectables = [w for w in self.menu._widgets if w.is_selectable]
+            if not selectables or sel is selectables[0]:
+                self._page = (self._page - 1) % max_page
+                client.replace_state(
+                    "JournalState",
+                    character=self.char,
+                    monsters=box,
+                    page=self._page,
+                    select_last=True,
+                )
+                return None
+
+        # B / BACK → close (pressed only)
         elif event.button in (buttons.BACK, buttons.B) and event.pressed:
             client.remove_state_by_name("JournalState")
+            return None
 
-        else:
-            return super().process_event(event)
-
-        return None
+        # Everything else → normal menu behavior (UP/DOWN, A, etc.)
+        return super().process_event(event)

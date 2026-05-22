@@ -6,33 +6,39 @@ import logging
 import math
 import random
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING
 
 from pygame.rect import Rect
 
 from tuxemon.math import Vector2
 from tuxemon.platform.const import intentions
-from tuxemon.prepare import SCREEN_SIZE, TILE_SIZE
+from tuxemon.prepare import DisplayContext
 
 if TYPE_CHECKING:
     from tuxemon.boundary import BoundaryChecker
-    from tuxemon.entity import Entity
+    from tuxemon.entity.entity import Entity
     from tuxemon.platform.events import PlayerInput
 
 logger = logging.getLogger(__name__)
 
 
-def project(position: Sequence[float]) -> tuple[int, int]:
+def project(
+    context: DisplayContext, position: Sequence[float]
+) -> tuple[int, int]:
+    ts = context.tile_size
     return (
-        int(position[0] * TILE_SIZE[0]),
-        int(position[1] * TILE_SIZE[1]),
+        int(position[0] * ts[0]),
+        int(position[1] * ts[1]),
     )
 
 
-def unproject(position: Sequence[float]) -> tuple[int, int]:
+def unproject(
+    context: DisplayContext, position: Sequence[float]
+) -> tuple[int, int]:
+    ts = context.tile_size
     return (
-        int(position[0] / TILE_SIZE[0]),
-        int(position[1] / TILE_SIZE[1]),
+        int(position[0] / ts[0]),
+        int(position[1] / ts[1]),
     )
 
 
@@ -45,7 +51,7 @@ class CameraController:
         self.enabled: bool = True
         self.speed: int = 7
 
-    def handle_input(self, input_event: PlayerInput) -> Optional[PlayerInput]:
+    def handle_input(self, input_event: PlayerInput) -> PlayerInput | None:
         """
         Processes input events to move the camera if roaming is enabled.
 
@@ -98,8 +104,8 @@ class CameraManager:
 
     def __init__(self) -> None:
         self.cameras: dict[str, Camera] = {}
-        self.active_camera: Optional[Camera] = None
-        self.controller: Optional[CameraController] = None
+        self.active_camera: Camera | None = None
+        self.controller: CameraController | None = None
 
     def add_camera(self, name: str, camera: Camera) -> None:
         """Adds a camera to the manager and sets it active if none is selected."""
@@ -132,18 +138,18 @@ class CameraManager:
         else:
             raise ValueError("Camera not managed by this CameraManager.")
 
-    def update(self, delta_time: float) -> None:
+    def update(self, dt: float) -> None:
         """Updates the active camera with the given time delta."""
         if self.active_camera:
-            self.active_camera.update(delta_time)
+            self.active_camera.update(dt)
 
-    def handle_input(self, event: PlayerInput) -> Optional[PlayerInput]:
+    def handle_input(self, event: PlayerInput) -> PlayerInput | None:
         """Delegates input handling to the active camera's controller."""
         if self.controller:
             return self.controller.handle_input(event)
         return None
 
-    def get_active_camera(self) -> Optional[Camera]:
+    def get_active_camera(self) -> Camera | None:
         """Returns the currently active camera, if any."""
         return self.active_camera
 
@@ -151,12 +157,11 @@ class CameraManager:
 class CameraView:
     """Represents the camera's viewport, position, and zoom level."""
 
-    def __init__(
-        self, tile_size: tuple[int, int], screen_size: tuple[int, int]
-    ):
+    def __init__(self, context: DisplayContext):
         """Initializes the view with a tile size and default position."""
-        self.tile_size = tile_size
-        self.screen_size = screen_size
+        self.context = context
+        self.tile_size = context.tile_size
+        self.screen_size = context.rect.size
         self.position = Vector2(0, 0)
 
     def set_position(self, x: float, y: float) -> None:
@@ -165,7 +170,7 @@ class CameraView:
 
     def get_center(self, position: Vector2) -> Vector2:
         """Calculates the center point of the view based on tile size."""
-        cx, cy = project(position)
+        cx, cy = project(self.context, position)
         return Vector2(
             cx + self.tile_size[0] // 2, cy + self.tile_size[1] // 2
         )
@@ -187,7 +192,7 @@ class CameraView:
 class CameraTracker:
     """Manages camera tracking and smooth transitions to target positions."""
 
-    def __init__(self, view: CameraView, entity: Entity[Any]):
+    def __init__(self, view: CameraView, entity: Entity):
         """
         Initializes the tracker with a camera view and target entity.
         """
@@ -200,12 +205,12 @@ class CameraTracker:
         self.target_position = Vector2(0, 0)
         self.transition_speed: float = 5.0
 
-    def update(self, delta_time: float) -> Vector2:
+    def update(self, dt: float) -> Vector2:
         """
         Updates camera position based on entity tracking or smooth movement.
         """
         if self.is_moving_smoothly:
-            self._update_smooth_transition(delta_time)
+            self._update_smooth_transition(dt)
         elif self.follows_entity:
             pos = Vector2(self.entity.position.x, self.entity.position.y)
             self.view.position = self.view.get_center(pos)
@@ -220,14 +225,14 @@ class CameraTracker:
         self.transition_speed = distance / duration
         self.is_moving_smoothly = True
 
-    def _update_smooth_transition(self, delta_time: float) -> None:
+    def _update_smooth_transition(self, dt: float) -> None:
         """
         Performs frame-by-frame interpolation toward the target position.
         """
         dx = self.target_position.x - self.view.position.x
         dy = self.target_position.y - self.view.position.y
         distance = self._get_distance(self.view.position, self.target_position)
-        step = self.transition_speed * delta_time
+        step = self.transition_speed * dt
 
         if step >= distance:
             self.view.position = self.target_position
@@ -239,7 +244,7 @@ class CameraTracker:
             self.view.position.x += step * (dx / distance)
             self.view.position.y += step * (dy / distance)
 
-    def set_entity(self, entity: Entity[Any], reset: bool = False) -> None:
+    def set_entity(self, entity: Entity, reset: bool = False) -> None:
         """
         Sets the tracker to follow the given entity, optionally snapping
         immediately.
@@ -258,8 +263,6 @@ class CameraTracker:
 class CameraEffects:
     """Handles visual effects applied to the camera view."""
 
-    FRAME_RATE = 60
-
     def __init__(self, view: CameraView):
         """Initializes the effects system with a reference to the camera view."""
         self.view = view
@@ -271,7 +274,7 @@ class CameraEffects:
         self.shake_intensity = intensity
         self.shake_duration = duration
 
-    def update(self) -> None:
+    def update(self, dt: float) -> None:
         """Applies shake jitter to the view and updates remaining duration."""
         if self.shake_duration > 0:
             jitter_x = random.uniform(
@@ -281,27 +284,33 @@ class CameraEffects:
                 -self.shake_intensity, self.shake_intensity
             )
             self.view.position += Vector2(jitter_x, jitter_y)
-            self.shake_duration -= 1 / self.FRAME_RATE
+            self.shake_duration -= dt
         else:
             self.shake_duration = 0.0
 
 
 class Camera:
-    def __init__(self, entity: Entity[Any], boundary: BoundaryChecker):
-        self.view = CameraView(TILE_SIZE, SCREEN_SIZE)
+    def __init__(
+        self,
+        entity: Entity,
+        boundary: BoundaryChecker,
+        context: DisplayContext,
+    ):
+        self.view = CameraView(context)
         self.tracker = CameraTracker(self.view, entity)
         self.effects = CameraEffects(self.view)
+        self.context = context
         self.boundary = boundary
         self.free_roaming_enabled: bool = False
 
-    def update(self, delta_time: float) -> None:
+    def update(self, dt: float) -> None:
         """Updates the camera tracker, applies movement, and handles visual effects."""
-        move_intent = self.tracker.update(delta_time)
+        move_intent = self.tracker.update(dt)
 
         if move_intent.x != 0 or move_intent.y != 0:
             self.move(dx=int(move_intent.x), dy=int(move_intent.y))
 
-        self.effects.update()
+        self.effects.update(dt)
 
     def get_viewport(self) -> Rect:
         """Returns the visible area of the game world as a Rect."""
@@ -318,7 +327,8 @@ class Camera:
     def move(self, dx: int = 0, dy: int = 0) -> None:
         """Moves the camera by a specified offset, constrained by boundary validity."""
         tile_pos = unproject(
-            (self.view.position.x + dx, self.view.position.y + dy)
+            self.context,
+            (self.view.position.x + dx, self.view.position.y + dy),
         )
         is_x_valid, is_y_valid = self.boundary.get_boundary_validity(tile_pos)
         if is_x_valid:
@@ -355,7 +365,7 @@ class Camera:
         self.tracker.pending_follow = True
 
     def switch_entity(
-        self, new_entity: Optional[Entity[Any]] = None, reset: bool = False
+        self, new_entity: Entity | None = None, reset: bool = False
     ) -> None:
         """
         Switches the camera's target to a new entity, or restores the original

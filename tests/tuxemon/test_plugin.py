@@ -50,9 +50,9 @@ def test_init(manager):
 @pytest.mark.parametrize(
     "folders",
     [
-        ["folder1"],
-        ["folder1", "folder2"],
-        [],
+        pytest.param(["folder1"], id="one"),
+        pytest.param(["folder1", "folder2"], id="two"),
+        pytest.param([], id="none"),
     ],
 )
 def test_set_plugin_places(folders, loader, plugin_filter):
@@ -123,9 +123,9 @@ def test_default_plugin_loader_import_failure(loader):
 @pytest.mark.parametrize(
     "exclude, class_name, expected",
     [
-        (["Excluded"], "Excluded", True),
-        (["Excluded"], "Other", False),
-        ([], "Anything", False),
+        pytest.param(["Excluded"], "Excluded", True, id="excluded"),
+        pytest.param(["Excluded"], "Other", False, id="other"),
+        pytest.param([], "Anything", False, id="none"),
     ],
 )
 def test_plugin_filter_exclusion(exclude, class_name, expected):
@@ -223,12 +223,13 @@ def test_real_plugin_loading(tmp_path):
     (plugin_dir / "__init__.py").write_text("")
 
     plugin_file = plugin_dir / "myplugin.py"
-    plugin_file.write_text(
-        """
+
+    plugin_code = """\
 class MyPlugin:
     name = "myplugin"
 """
-    )
+
+    plugin_file.write_text(plugin_code)
 
     import sys
 

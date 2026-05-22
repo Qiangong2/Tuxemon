@@ -3,23 +3,23 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Generator
-from typing import ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar
 
-import pygame_menu
+from pygame_menu.menu import Menu
 
-from tuxemon.animation import Animation, ScheduleType
-from tuxemon.locale import T
+from tuxemon.locale.locale import T
 from tuxemon.menu.interface import MenuItem
 from tuxemon.menu.menu import PopUpMenu, PygameMenuState
+from tuxemon.menu.transitions import PopInClamped
 from tuxemon.tools import open_dialog
+
+if TYPE_CHECKING:
+    from tuxemon.base_client import BaseClient
 
 MenuGameObj = Callable[[], object]
 
 
-def add_menu_items(
-    menu: pygame_menu.Menu,
-    items: list[tuple[str, MenuGameObj]],
-) -> None:
+def add_menu_items(menu: Menu, items: list[tuple[str, MenuGameObj]]) -> None:
     for key, callback in items:
         label = T.translate(key).upper()
         menu.add.button(label, callback)
@@ -31,8 +31,9 @@ class MultiplayerMenu(PygameMenuState):
     name: ClassVar[str] = "MultiplayerMenu"
     shrink_to_items = True
 
-    def __init__(self) -> None:
-        super().__init__()
+    def __init__(self, client: BaseClient, **kwargs: Any) -> None:
+        super().__init__(client=client, transition=PopInClamped(), **kwargs)
+
         self.network = self.client.network_manager
 
         menu: list[tuple[str, MenuGameObj]] = []
@@ -41,22 +42,6 @@ class MultiplayerMenu(PygameMenuState):
         menu.append(("multiplayer_join_game", self.join_by_ip))
 
         add_menu_items(self.menu, menu)
-
-    def update_animation_size(self) -> None:
-        widgets_size = self.menu.get_size(widget=True)
-        self.menu.resize(
-            max(1, int(widgets_size[0] * self.animation_size)),
-            max(1, int(widgets_size[1] * self.animation_size)),
-        )
-
-    def animate_open(self) -> Animation:
-        """Animate the menu popping in."""
-        self.animation_size = 0.0
-
-        ani = self.animate(self, animation_size=1.0, duration=0.2)
-        ani.schedule(self.update_animation_size, ScheduleType.ON_UPDATE)
-
-        return ani
 
     def host_game(self) -> None:
         """Starts the local server and attempts to connect the client to it."""
@@ -112,8 +97,8 @@ class MultiplayerSelect(PopUpMenu[None]):
     name: ClassVar[str] = "MultiplayerSelect"
     shrink_to_items = True
 
-    def __init__(self) -> None:
-        super().__init__()
+    def __init__(self, client: BaseClient, **kwargs: Any) -> None:
+        super().__init__(client=client, **kwargs)
         self.network = self.client.network_manager
 
         # make a timer to refresh the menu items every second

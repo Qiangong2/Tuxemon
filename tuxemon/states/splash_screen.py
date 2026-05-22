@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, ClassVar, Optional
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from pygame.surface import Surface
 
@@ -13,10 +13,10 @@ from tuxemon.platform.const.graphics import (
     PYGAME_LOGO,
 )
 from tuxemon.platform.events import PlayerInput
-from tuxemon.prepare import SCREEN_SIZE
 from tuxemon.state.state import State
 
 if TYPE_CHECKING:
+    from tuxemon.base_client import BaseClient
     from tuxemon.state.manager import StateManager
 
 logger = logging.getLogger(__name__)
@@ -28,8 +28,10 @@ class SplashState(State):
     name: ClassVar[str] = "SplashState"
     default_duration = 3
 
-    def __init__(self, parent: StateManager) -> None:
-        super().__init__()
+    def __init__(
+        self, client: BaseClient, parent: StateManager, **kwargs: Any
+    ) -> None:
+        super().__init__(client=client, **kwargs)
 
         self.parent = parent
 
@@ -37,10 +39,10 @@ class SplashState(State):
         self.task(self.fade_out, interval=self.default_duration)
         self.triggered = False
 
-        width, height = SCREEN_SIZE
+        width, height = client.context.resolution
 
         # The space between the edge of the screen
-        splash_border = int(SCREEN_SIZE[0] / 20)
+        splash_border = int(width / 20)
 
         # Set up the splash screen logos
         logo = self.load_sprite(PYGAME_LOGO)
@@ -55,13 +57,13 @@ class SplashState(State):
             width - splash_border - cc.rect.width,
             height - splash_border - cc.rect.height,
         )
-        self.client.sound_manager.play_sound("sound_ding")
+        self.client.sound_manager.play("sound_ding")
 
     def resume(self) -> None:
         if self.triggered:
             self.parent.pop_state()
 
-    def process_event(self, event: PlayerInput) -> Optional[PlayerInput]:
+    def process_event(self, event: PlayerInput) -> PlayerInput | None:
         # Skip the splash screen if a key is pressed.
         if event.pressed and not self.triggered:
             self.fade_out()

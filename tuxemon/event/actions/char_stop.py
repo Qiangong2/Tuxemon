@@ -25,15 +25,15 @@ class CharStopAction(EventAction):
 
     Script parameters:
         character: Either "player" or character slug name (e.g. "npc_maple").
-
     """
 
     name = "char_stop"
     character: str
 
     def start(self, session: Session) -> None:
-        character = session.get_npc(self.character)
+        character = session.client.get_npc(self.character)
         if character is None:
             logger.error(f"{self.character} not found")
+            self.stop()
             return
         session.client.movement_manager.stop_char(character)

@@ -4,21 +4,20 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable
-from typing import TYPE_CHECKING, ClassVar, Optional
+from typing import TYPE_CHECKING, Any, ClassVar
 
-import pygame_menu
+from pygame_menu.menu import Menu
 
-from tuxemon.animation import ScheduleType
 from tuxemon.menu.menu import PygameMenuState
+from tuxemon.menu.transitions import SlideRight
 from tuxemon.platform.const import buttons
 from tuxemon.platform.const.graphics import DIMGRAY_COLOR
 from tuxemon.platform.events import PlayerInput
-from tuxemon.prepare import SCREEN_SIZE
 from tuxemon.states.monster_menu import MonsterMenuHandler
 
 if TYPE_CHECKING:
-    from tuxemon.animation import Animation
-    from tuxemon.npc import NPC
+    from tuxemon.base_client import BaseClient
+    from tuxemon.entity.npc import NPC
     from tuxemon.world.manager import MenuItem, WorldMenuManager
 
 logger = logging.getLogger(__name__)
@@ -28,8 +27,7 @@ WorldMenuGameObj = Callable[[], object]
 
 
 def add_menu_items_to_pygame_menu(
-    menu: pygame_menu.Menu,
-    items: list[MenuItem],
+    menu: Menu, items: list[MenuItem], resolution: tuple[int, int]
 ) -> None:
     """Helper function to add items to a pygame_menu.Menu instance."""
     menu.clear()
@@ -47,7 +45,7 @@ def add_menu_items_to_pygame_menu(
             )
         menu.add.vertical_fill()
 
-    width, height = SCREEN_SIZE
+    width, height = resolution
     widgets_size = menu.get_size(widget=True)
     b_width, b_height = menu.get_scrollarea().get_border_size()
     menu.resize(
@@ -62,10 +60,21 @@ class WorldMenuState(PygameMenuState):
 
     name: ClassVar[str] = "WorldMenuState"
 
-    def __init__(self, menu_manager: WorldMenuManager, character: NPC) -> None:
+    def __init__(
+        self,
+        client: BaseClient,
+        menu_manager: WorldMenuManager,
+        character: NPC,
+        **kwargs: Any,
+    ) -> None:
         """Initialize menu state and build menu separately."""
         self.char = character
-        super().__init__(height=SCREEN_SIZE[1])
+        width, height = client.context.resolution
+
+        super().__init__(
+            client=client, height=height, transition=SlideRight(), **kwargs
+        )
+
         self.menu_manager = menu_manager
         self.menu_manager.set_menu_renderer(self)
         self.update_menu_from_manager()
@@ -74,27 +83,13 @@ class WorldMenuState(PygameMenuState):
     def update_menu_from_manager(self) -> None:
         """Refreshes the menu display using items provided by the manager."""
         display = self.menu_manager.build_current_menu_items(self.char)
-        add_menu_items_to_pygame_menu(self.menu, display)
+        resolution = self.client.context.resolution
+        add_menu_items_to_pygame_menu(self.menu, display, resolution)
 
     def open_monster_menu(self) -> None:
         self.handler.open_monster_menu()
 
-    def update_animation_position(self) -> None:
-        self.menu.translate(-self.animation_offset, 0)
-
-    def animate_open(self) -> Animation:
-        width = self.menu.get_width(border=True)
-        self.animation_offset = 0
-        ani = self.animate(self, animation_offset=width, duration=0.50)
-        ani.schedule(self.update_animation_position, ScheduleType.ON_UPDATE)
-        return ani
-
-    def animate_close(self) -> Animation:
-        ani = self.animate(self, animation_offset=0, duration=0.50)
-        ani.schedule(self.update_animation_position, ScheduleType.ON_UPDATE)
-        return ani
-
-    def process_event(self, event: PlayerInput) -> Optional[PlayerInput]:
+    def process_event(self, event: PlayerInput) -> PlayerInput | None:
         if (
             event.button in (buttons.START, buttons.B, buttons.BACK)
             and event.pressed

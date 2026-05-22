@@ -1,14 +1,14 @@
 # SPDX-License-Identifier: GPL-3.0
 # Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 """Loads and manages the user's game configuration."""
+
 from __future__ import annotations
 
 import logging
 
-import yaml
-
 from tuxemon.config import TuxemonConfig
 from tuxemon.constants import paths
+from tuxemon.database.yaml_utils import dump_yaml_path
 
 logger = logging.getLogger(__name__)
 
@@ -29,13 +29,13 @@ def setup_user_environment() -> TuxemonConfig:
     loaded_config = TuxemonConfig(paths.USER_CONFIG_PATH)
 
     try:
-        with paths.USER_CONFIG_PATH.open("w") as fp:
-            yaml.dump(
-                loaded_config.config_model.model_dump(),
-                fp,
-                default_flow_style=False,
-                indent=4,
-            )
+        dump_yaml_path(
+            paths.USER_CONFIG_PATH,
+            loaded_config.config_model.model_dump(),
+            default_flow_style=False,
+            indent=4,
+        )
+        loaded_config.reload_config()
         logger.info(
             f"Configuration loaded and saved to {paths.USER_CONFIG_PATH}"
         )

@@ -17,9 +17,9 @@ USAGE
 
 python yamlify_map_script.py FILE0 FILE1 FILE2 ...
 
-You can run the script from the /scripts/ folder like this:
+You can run the script like this:
 
-    python yamlify_map_script.py ../mods/tuxemon/maps/map.tmx
+    python3 scripts/yamlify_map_script.py mods/tuxemon/maps/map.tmx
 """
 
 import logging
@@ -27,16 +27,16 @@ import sys
 import xml.etree.ElementTree as ET
 from collections import defaultdict
 from pathlib import Path
-from typing import Any, DefaultDict
+from typing import Any
 from xml.etree.ElementTree import Element
 
-import yaml
+from tuxemon.database.yaml_utils import dump_yaml_io, load_yaml
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__file__)
 
 
-def renumber_event(event_node: Element) -> DefaultDict[Any, list]:
+def renumber_event(event_node: Element) -> defaultdict[Any, list]:
     groups = (
         ("act", []),
         ("cond", []),
@@ -68,8 +68,7 @@ def extract_events(filename: Path) -> None:
     yaml_filename = filename.with_suffix(".yaml")
 
     try:
-        with yaml_filename.open() as fp:
-            yaml_doc = yaml.load(fp, Loader=yaml.SafeLoader)
+        yaml_doc = load_yaml(yaml_filename)
     except FileNotFoundError:
         yaml_doc = {"events": {}}
 
@@ -84,6 +83,7 @@ def extract_events(filename: Path) -> None:
 
     def process_event(obj: Element) -> None:
         event_node = {}
+
         for names, divisor in [[["x", "width"], tw], [["y", "height"], th]]:
             for name in names:
                 value = obj.attrib.get(name)
@@ -109,8 +109,13 @@ def extract_events(filename: Path) -> None:
     for obj in root.findall(".//object[@type='event']"):
         process_event(obj)
 
-    with yaml_filename.open("w") as fp:
-        yaml.dump(yaml_doc, fp, Dumper=yaml.SafeDumper, sort_keys=False)
+    with yaml_filename.open("w", encoding="utf-8") as fp:
+        dump_yaml_io(
+            fp,
+            yaml_doc,
+            sort_keys=False,
+            default_flow_style=False,
+        )
 
 
 if __name__ == "__main__":

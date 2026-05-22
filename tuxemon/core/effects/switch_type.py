@@ -8,11 +8,10 @@ from typing import TYPE_CHECKING
 
 from tuxemon.core.core_effect import CoreEffect, ItemEffectResult
 from tuxemon.database.runtime import db
-from tuxemon.element import Element
 
 if TYPE_CHECKING:
     from tuxemon.item.item import Item
-    from tuxemon.monster import Monster
+    from tuxemon.monster.monster import Monster
     from tuxemon.session import Session
 
 
@@ -52,10 +51,12 @@ class SwitchTypeEffect(CoreEffect):
         self, session: Session, item: Item, target: Monster
     ) -> ItemEffectResult:
         elements = list(db.database["element"])
+
         if self.element != "random":
             if not target.has_type(self.element):
-                target.types.set_types([Element(self.element)])
+                target.types.set_types([self.element])
         else:
-            random_target_element = random.choice(elements)
-            target.types.set_types([Element(random_target_element)])
+            random_slug = random.choice(elements)
+            target.types.set_types([random_slug])
+
         return ItemEffectResult(name=item.name, success=True)

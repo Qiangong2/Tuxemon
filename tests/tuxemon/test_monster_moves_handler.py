@@ -6,7 +6,7 @@ from uuid import UUID
 import pytest
 
 from tuxemon.db import EvolutionStage, LearningMethod
-from tuxemon.monster_dir.moves import MonsterMovesHandler
+from tuxemon.monster.moves import MonsterMovesHandler
 
 
 class DummyMonster:
@@ -54,7 +54,13 @@ def test_set_moveset(handler):
     assert handler.moveset == list(moveset)
 
 
-@pytest.mark.parametrize("method", ["learn", "forget"])
+@pytest.mark.parametrize(
+    "method",
+    [
+        pytest.param("learn", id="learn"),
+        pytest.param("forget", id="forget"),
+    ],
+)
 @patch.object(MonsterMovesHandler, "is_eligible", return_value=True)
 def test_learn_and_forget(_mock, handler, monster, technique, method):
     handler.learn(monster, technique)
@@ -95,8 +101,9 @@ def test_set_moves(handler, monster):
         patch.object(
             MonsterMovesHandler,
             "is_eligible",
-            side_effect=lambda m, slug, method=None: slug
-            in {"technique1", "technique2"},
+            side_effect=lambda m, slug, method=None: (
+                slug in {"technique1", "technique2"}
+            ),
         ),
     ):
         mock_create.side_effect = lambda slug: MagicMock(slug=slug)
@@ -144,7 +151,12 @@ def test_update_moves(handler, monster):
 
 
 @pytest.mark.parametrize(
-    "method", ["recharge_moves", "full_recharge_moves", "set_stats"]
+    "method",
+    [
+        pytest.param("recharge_moves", id="recharge_moves"),
+        pytest.param("full_recharge_moves", id="full_recharge_moves"),
+        pytest.param("reset_current_stats", id="reset_current_stats"),
+    ],
 )
 @patch.object(MonsterMovesHandler, "is_eligible", return_value=True)
 def test_recharge_and_stats(_mock, handler, monster, technique, method):
@@ -181,8 +193,8 @@ def test_get_moves(_mock, handler, monster, technique):
 @pytest.mark.parametrize(
     "can_be_forgotten, expected",
     [
-        (True, True),
-        (False, False),
+        pytest.param(True, True, id="can_forget"),
+        pytest.param(False, False, id="cannot_forget"),
     ],
 )
 def test_can_forget(handler, can_be_forgotten, expected):
@@ -208,13 +220,13 @@ def test_is_eligible_stage_mismatch(handler, monster):
     move = MagicMock(
         technique="wave",
         level_learned=3,
-        evolution_stage_learned=EvolutionStage.stage2,
+        evolution_stage_learned=EvolutionStage.STAGE2,
         learning_method=LearningMethod.LEVEL_UP,
     )
 
     handler.set_moveset([move])
     monster.level = 4
-    monster.stage = EvolutionStage.basic
+    monster.stage = EvolutionStage.BASIC
 
     assert not handler.is_eligible(
         monster, "wave", method=LearningMethod.LEVEL_UP
@@ -225,13 +237,13 @@ def test_is_eligible_stage_match(handler, monster):
     move = MagicMock(
         technique="zap",
         level_learned=2,
-        evolution_stage_learned=EvolutionStage.basic,
+        evolution_stage_learned=EvolutionStage.BASIC,
         learning_method=LearningMethod.LEVEL_UP,
     )
 
     handler.set_moveset([move])
     monster.level = 3
-    monster.stage = EvolutionStage.basic
+    monster.stage = EvolutionStage.BASIC
 
     assert handler.is_eligible(monster, "zap", method=LearningMethod.LEVEL_UP)
 

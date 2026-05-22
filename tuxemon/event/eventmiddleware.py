@@ -15,10 +15,10 @@ from tuxemon.prepare import DEV_TOOLS
 
 if TYPE_CHECKING:
     from tuxemon.camera.camera import CameraManager
+    from tuxemon.entity.npc import NPC
     from tuxemon.event.eventmanager import EventManager
-    from tuxemon.map.map_manager import MapManager
+    from tuxemon.map.manager import MapManager
     from tuxemon.movement import MovementManager
-    from tuxemon.npc import NPC
     from tuxemon.platform.input_manager import InputManager
     from tuxemon.state.manager import StateManager
     from tuxemon.world.manager import WorldMenuManager
@@ -51,7 +51,6 @@ class EventMiddleware(ABC):
 
 
 class InputTranslatorMiddleware(EventMiddleware):
-
     def preprocess(self, event: PlayerInput) -> PlayerInput | None:
         new_button_id = event.button
 
@@ -187,10 +186,10 @@ class MovementMiddleware(EventMiddleware):
         self.camera_manager = camera_manager
 
         self.direction_map: Mapping[int, Direction] = {
-            intentions.UP: Direction.up,
-            intentions.DOWN: Direction.down,
-            intentions.LEFT: Direction.left,
-            intentions.RIGHT: Direction.right,
+            intentions.UP: Direction.UP,
+            intentions.DOWN: Direction.DOWN,
+            intentions.LEFT: Direction.LEFT,
+            intentions.RIGHT: Direction.RIGHT,
         }
 
     def preprocess(self, event: PlayerInput) -> PlayerInput | None:

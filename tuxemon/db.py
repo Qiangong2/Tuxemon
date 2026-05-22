@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
-from enum import Enum
+from enum import Enum, auto
 from importlib import import_module
 from math import isclose
 from typing import (
@@ -13,9 +13,7 @@ from typing import (
     Any,
     ClassVar,
     Literal,
-    Optional,
     TypeVar,
-    Union,
     cast,
 )
 
@@ -31,7 +29,7 @@ from pydantic import (
 from tuxemon.database.config import EntryNotFoundError
 from tuxemon.database.data import ModData
 from tuxemon.database.registry import validator as has
-from tuxemon.formula import config_monster
+from tuxemon.database.rules import config_monster
 from tuxemon.platform.const import sizes
 from tuxemon.surfanim import FlipAxes
 
@@ -39,42 +37,48 @@ logger = logging.getLogger(__name__)
 
 
 class Direction(str, Enum):
-    up = "up"
-    down = "down"
-    left = "left"
-    right = "right"
+    UP = "up"
+    DOWN = "down"
+    LEFT = "left"
+    RIGHT = "right"
+
+
+class FacingMode(Enum):
+    FOLLOW_MOVEMENT = auto()
+    LOCKED = auto()
+    SCRIPTED = auto()
 
 
 class Orientation(str, Enum):
-    horizontal = "horizontal"
-    vertical = "vertical"
+    HORIZONTAL = "horizontal"
+    VERTICAL = "vertical"
 
 
 class ItemSort(str, Enum):
-    potion = "potion"
-    utility = "utility"
-    quest = "quest"
+    POTION = "potion"
+    UTILITY = "utility"
+    QUEST = "quest"
 
 
 class PlagueType(str, Enum):
-    inoculated = "inoculated"
-    infected = "infected"
-    carrier = "carrier"
-    recovered = "recovered"
+    INOCULATED = "inoculated"
+    INFECTED = "infected"
+    CARRIER = "carrier"
+    RECOVERED = "recovered"
 
 
 class GenderType(str, Enum):
-    neuter = "neuter"
-    male = "male"
-    female = "female"
+    NEUTER = "neuter"
+    MALE = "male"
+    FEMALE = "female"
 
 
 class SkinSprite(str, Enum):
-    light = "light"
-    tanned = "tanned"
-    dark = "dark"
-    albino = "albino"
-    orc = "orc"
+    LIGHT = "light"
+    TANNED = "tanned"
+    DARK = "dark"
+    ALBINO = "albino"
+    ORC = "orc"
 
 
 class ItemRarity(str, Enum):
@@ -86,96 +90,96 @@ class ItemRarity(str, Enum):
 
 
 class ItemCategory(str, Enum):
-    none = "none"
-    badge = "badge"
-    elements = "elements"
-    fossil = "fossil"
-    morph = "morph"
-    potion = "potion"
-    technique = "technique"
-    phone = "phone"
-    fish = "fish"
-    destroy = "destroy"
-    capture = "capture"
-    stats = "stats"
-    food = "food"
-    doll = "doll"
+    NONE = "none"
+    BADGE = "badge"
+    ELEMENTS = "elements"
+    FOSSIL = "fossil"
+    MORPH = "morph"
+    POTION = "potion"
+    TECHNIQUE = "technique"
+    PHONE = "phone"
+    FISH = "fish"
+    DESTROY = "destroy"
+    CAPTURE = "capture"
+    STATS = "stats"
+    FOOD = "food"
+    DOLL = "doll"
 
 
 class OutputBattle(str, Enum):
-    won = "won"
-    lost = "lost"
-    draw = "draw"
+    WON = "won"
+    LOST = "lost"
+    DRAW = "draw"
 
 
 class SeenStatus(str, Enum):
-    unseen = "unseen"
-    seen = "seen"
-    caught = "caught"
+    UNSEEN = "unseen"
+    SEEN = "seen"
+    CAUGHT = "caught"
 
 
 class StatType(str, Enum):
-    armour = "armour"
-    dodge = "dodge"
-    hp = "hp"
-    melee = "melee"
-    ranged = "ranged"
-    speed = "speed"
+    ARMOUR = "armour"
+    DODGE = "dodge"
+    HP = "hp"
+    MELEE = "melee"
+    RANGED = "ranged"
+    SPEED = "speed"
 
 
 class EvolutionStage(str, Enum):
-    standalone = "standalone"
-    basic = "basic"
-    stage1 = "stage1"
-    stage2 = "stage2"
+    STANDALONE = "standalone"
+    BASIC = "basic"
+    STAGE1 = "stage1"
+    STAGE2 = "stage2"
 
 
 class MissionStatus(str, Enum):
-    pending = "pending"
-    completed = "completed"
-    failed = "failed"
-    removed = "removed"
+    PENDING = "pending"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    REMOVED = "removed"
 
 
 class MusicStatus(str, Enum):
-    playing = "playing"
-    paused = "paused"
-    stopped = "stopped"
+    PLAYING = "playing"
+    PAUSED = "paused"
+    STOPPED = "stopped"
 
 
 class Comparison(str, Enum):
-    less_than = "less_than"
-    less_or_equal = "less_or_equal"
-    greater_than = "greater_than"
-    greater_or_equal = "greater_or_equal"
-    equals = "equals"
-    not_equals = "not_equals"
+    LESS_THAN = "less_than"
+    LESS_OR_EQUAL = "less_or_equal"
+    GREATER_THAN = "greater_than"
+    GREATER_OR_EQUAL = "greater_or_equal"
+    EQUALS = "equals"
+    NOT_EQUALS = "not_equals"
 
 
 class TargetType(str, Enum):
-    enemy_monster = "enemy_monster"
-    own_monster = "own_monster"
-    enemy_team = "enemy_team"
-    own_team = "own_team"
-    enemy_trainer = "enemy_trainer"
-    own_trainer = "own_trainer"
+    ENEMY_MONSTER = "enemy_monster"
+    OWN_MONSTER = "own_monster"
+    ENEMY_TEAM = "enemy_team"
+    OWN_TEAM = "own_team"
+    ENEMY_TRAINER = "enemy_trainer"
+    OWN_TRAINER = "own_trainer"
 
 
 class Temperature(str, Enum):
-    freezing = "freezing"
-    cold = "cold"
-    mild = "mild"
-    warm = "warm"
-    hot = "hot"
-    scorching = "scorching"
+    FREEZING = "freezing"
+    COLD = "cold"
+    MILD = "mild"
+    WARM = "warm"
+    HOT = "hot"
+    SCORCHING = "scorching"
 
 
 class Wind(str, Enum):
-    calm = "calm"
-    breezy = "breezy"
-    windy = "windy"
-    gusty = "gusty"
-    stormy = "stormy"
+    CALM = "calm"
+    BREEZY = "breezy"
+    WINDY = "windy"
+    GUSTY = "gusty"
+    STORMY = "stormy"
 
 
 class EffectPhase(Enum):
@@ -217,6 +221,11 @@ class ExperienceMethod(Enum):
     XP_SURVIVOR = "xp_survivor"
 
 
+class LoopMode(Enum):
+    INFINITE = -1  # loop forever
+    NO_LOOP = 0  # play once
+
+
 # TODO: Automatically generate state enum through discovery
 State = Enum(
     "State",
@@ -238,6 +247,12 @@ class BaseLookupModel(ABC):
     @abstractmethod
     def lookup(cls: type[U], slug: str, db: ModData) -> U:
         pass
+
+
+class DataModel(BaseModel):
+    """Marker base class for models that belong in the database."""
+
+    slug: str
 
 
 class ColorModel(BaseModel):
@@ -385,6 +400,25 @@ class BondComparison(BaseComparison):
     )
 
 
+class GameCondition(BaseModel):
+    """
+    A generic condition requirement used across Economy, Quests, and NPCs.
+    """
+
+    key: str = Field(..., description="The internal variable name to check.")
+    value: Any = Field(
+        ..., description="The value required to pass the check."
+    )
+    scope: str | None = Field(
+        default=None,
+        description="Optional scope: 'player' or 'world'. Checks both if None.",
+    )
+    description: str | None = Field(
+        default=None,
+        description="A human-readable explanation of the requirement for debugging.",
+    )
+
+
 class PartyConditionsModel(BaseModel):
     monster_slugs: dict[str, int] | None = Field(
         None,
@@ -402,46 +436,104 @@ class PartyConditionsModel(BaseModel):
         None,
         description="The elemental alignment the party must lean toward for evolution to occur.",
     )
+    party_size: int | None = Field(
+        None,
+        ge=1,
+        le=sizes.PARTY_LIMIT,
+        description="Required number of monsters in the party.",
+    )
+    party_level: int | None = Field(
+        None,
+        ge=1,
+        description="Minimum average level of monsters in the party.",
+    )
+    party_stages: dict[str, int] | None = Field(
+        None,
+        description="Required evolution stages and their minimum counts (e.g. {'stage2': 2}).",
+    )
+
+    @model_validator(mode="after")
+    def at_least_one_condition(self) -> PartyConditionsModel:
+        if not any(
+            [
+                self.monster_slugs,
+                self.monster_types,
+                self.genders,
+                self.alignment,
+                self.party_size,
+                self.party_level,
+                self.party_stages,
+            ]
+        ):
+            raise ValueError("At least one party condition must be specified.")
+        return self
+
+    @field_validator("party_stages")
+    def validate_party_stages(
+        cls, v: dict[str, int] | None
+    ) -> dict[str, int] | None:
+        if v:
+            valid_stages = {stage.value for stage in EvolutionStage}
+            for stage, count in v.items():
+                if stage not in valid_stages:
+                    raise ValueError(
+                        f"Evolution stage '{stage}' is not valid. Must be one of {valid_stages}."
+                    )
+                if not (1 <= count < sizes.PARTY_LIMIT):
+                    raise ValueError(
+                        f"Count for stage '{stage}' must be between 1 and {sizes.PARTY_LIMIT - 1}."
+                    )
+        return v
 
     @field_validator("monster_slugs")
     def validate_monster_slugs(
-        cls, v: Optional[dict[str, int]]
-    ) -> Optional[dict[str, int]]:
+        cls, v: dict[str, int] | None
+    ) -> dict[str, int] | None:
         if v:
             for slug, count in v.items():
                 if not has.db_entry("monster", slug):
                     raise ValueError(
                         f"Monster slug '{slug}' does not exist in the database."
                     )
-                if not (0 <= count < sizes.PARTY_LIMIT):
+                if not (1 <= count < sizes.PARTY_LIMIT):
                     raise ValueError(
-                        f"Count for monster slug '{slug}' must be between 0 and {sizes.PARTY_LIMIT - 1}."
+                        f"Count for monster slug '{slug}' must be between 1 and {sizes.PARTY_LIMIT - 1}."
                     )
         return v
 
     @field_validator("monster_types")
     def validate_monster_types(
-        cls, v: Optional[dict[str, int]]
-    ) -> Optional[dict[str, int]]:
+        cls, v: dict[str, int] | None
+    ) -> dict[str, int] | None:
         if v:
             for type_, count in v.items():
-                if not (0 <= count < sizes.PARTY_LIMIT):
+                if not has.db_entry("element", type_):
                     raise ValueError(
-                        f"Count for monster type '{type_}' must be between 0 and {sizes.PARTY_LIMIT - 1}."
+                        f"Monster type '{type_}' does not exist in the database."
+                    )
+                if not (1 <= count < sizes.PARTY_LIMIT):
+                    raise ValueError(
+                        f"Count for monster type '{type_}' must be between 1 and {sizes.PARTY_LIMIT - 1}."
                     )
         return v
 
     @field_validator("genders")
     def validate_genders(
-        cls, v: Optional[dict[GenderType, int]]
-    ) -> Optional[dict[GenderType, int]]:
+        cls, v: dict[GenderType, int] | None
+    ) -> dict[GenderType, int] | None:
         if v:
             for gender, count in v.items():
-                if not (0 <= count < sizes.PARTY_LIMIT):
+                if not (1 <= count < sizes.PARTY_LIMIT):
                     raise ValueError(
-                        f"Count for gender '{gender}' must be between 0 and {sizes.PARTY_LIMIT - 1}."
+                        f"Count for gender '{gender}' must be between 1 and {sizes.PARTY_LIMIT - 1}."
                     )
         return v
+
+    @field_validator("alignment")
+    def validate_alignment(cls, v: str | None) -> str | None:
+        if not v or has.db_entry("element", v):
+            return v
+        raise ValueError(f"Alignment '{v}' does not exist in the database.")
 
 
 class Behaviors(BaseModel):
@@ -491,6 +583,17 @@ class ItemBehaviors(Behaviors):
         False, description="Whether this can be repaired."
     )
     craftable: bool = Field(False, description="Whether this can be crafted.")
+    destroy_on_break: bool = Field(
+        False,
+        description="Whether the item is removed from the inventory when it breaks.",
+    )
+    wear_on_use: bool = Field(
+        False, description="Whether using this item increases its wear."
+    )
+    block_evolution: bool = Field(
+        False,
+        description="Whether or not this item prevents the holder from evolving.",
+    )
 
 
 class TechBehaviors(Behaviors):
@@ -560,17 +663,23 @@ class VisualProperties(BaseModel):
         ),
     )
 
+    def loop_mode(self) -> LoopMode | int:
+        if self.loop == -1:
+            return LoopMode.INFINITE
+        if self.loop == 0:
+            return LoopMode.NO_LOOP
+        return self.loop  # positive integer = loop N times
+
     @field_validator("animation")
     def animation_exists(cls, v: str | None) -> str | None:
         if not v:
             return v
 
-        item_file = f"animations/item/{v}_00.png"
-        technique_file = f"animations/technique/{v}_00.png"
+        item_file = f"animations/item/{v}.png"
+        technique_file = f"animations/technique/{v}.png"
 
         if has.db_entry("animation", v) and (
-            has.size(item_file, sizes.NATIVE_RESOLUTION)
-            or has.size(technique_file, sizes.NATIVE_RESOLUTION)
+            has.file(item_file) or has.file(technique_file)
         ):
             return v
 
@@ -587,8 +696,9 @@ class DynamicMenuEntry(BaseModel):
     enabled: bool = True
 
 
-class ItemModel(BaseModel, BaseLookupModel):
+class ItemModel(DataModel, BaseLookupModel):
     table_name: ClassVar[str] = "item"
+    _lookup_cache: ClassVar[dict[str, ItemModel]] = {}
     model_config = ConfigDict(title="Item")
     slug: str = Field(..., description="The slug of the item")
     use_item: str = Field(
@@ -636,7 +746,7 @@ class ItemModel(BaseModel, BaseLookupModel):
     sound: SoundProperties = Field(
         ..., description="Configuration for the item's sound playback."
     )
-    dynamic_menu: Optional[DynamicMenuEntry] = Field(
+    dynamic_menu: DynamicMenuEntry | None = Field(
         None,
         description="Item adds a button to a specific menu (world, phone, etc.).",
     )
@@ -682,6 +792,9 @@ class ItemModel(BaseModel, BaseLookupModel):
         default_factory=list,
         description="Status slugs granted to the holder while this item is equipped.",
     )
+    break_into_item: str | None = Field(
+        None, description="Slug of the item created when this one breaks."
+    )
 
     @classmethod
     def lookup(cls, slug: str, db: ModData) -> ItemModel:
@@ -690,6 +803,21 @@ class ItemModel(BaseModel, BaseLookupModel):
             return cast(ItemModel, db.lookup(slug, table=cls.table_name))
         except EntryNotFoundError:
             raise RuntimeError(f"Item {slug} not found")
+
+    @classmethod
+    def load_cache(cls, db: ModData) -> None:
+        """Populate the internal cache if it hasn't been populated yet."""
+        if not cls._lookup_cache:
+            cls._lookup_cache = {
+                tech_name: result
+                for tech_name in db.database[cls.table_name]
+                if (result := cls.lookup(tech_name, db))
+            }
+
+    @classmethod
+    def get_cache(cls) -> dict[str, ItemModel]:
+        """Returns the current cache."""
+        return cls._lookup_cache
 
     @field_validator("use_item", "use_success", "use_failure")
     def translation_exists(cls, v: str) -> str:
@@ -737,6 +865,16 @@ class ItemModel(BaseModel, BaseLookupModel):
                 )
         return v
 
+    @field_validator("break_into_item")
+    def break_item_exists(cls, v: str | None) -> str | None:
+        if v is None:
+            return v
+        if not has.db_entry("item", v):
+            raise ValueError(
+                f"Break-into item '{v}' does not exist in the database"
+            )
+        return v
+
 
 class AttributesModel(BaseModel):
     armour: int = Field(..., description="Armour value")
@@ -747,7 +885,7 @@ class AttributesModel(BaseModel):
     speed: int = Field(..., description="Speed value")
 
 
-class ShapeModel(BaseModel, BaseLookupModel):
+class ShapeModel(DataModel, BaseLookupModel):
     table_name: ClassVar[str] = "shape"
     slug: str = Field(
         ..., description="Slug of the shape, used as a unique identifier."
@@ -787,7 +925,7 @@ class MonsterMovesetItemModel(BaseModel):
         ...,
         description="Name of the technique for this moveset item",
     )
-    evolution_stage_learned: Optional[EvolutionStage] = Field(
+    evolution_stage_learned: EvolutionStage | None = Field(
         None,
         description="Evolution stage at which this technique is learned. If None, not tied to a specific evolution stage beyond level.",
     )
@@ -823,9 +961,7 @@ class MonsterHistoryItemModel(BaseModel):
     )
 
     @field_validator("slug", "evolves_from", "evolves_into")
-    def validate_monsters_exist(
-        cls, v: Union[str, list[str]]
-    ) -> Union[str, list[str]]:
+    def validate_monsters_exist(cls, v: str | list[str]) -> str | list[str]:
         if isinstance(v, str):
             if has.db_entry("monster", v):
                 return v
@@ -847,17 +983,17 @@ class MonsterEvolutionItemModel(BaseModel):
     at_level: int | None = Field(
         None,
         description="The level at which the monster evolves.",
-        ge=0,
+        ge=1,
     )
     element: str | None = Field(
         None,
         description="The element type that the monster must match to evolve.",
     )
-    gender: Optional[GenderType] = Field(
+    gender: GenderType | None = Field(
         None,
         description="The required gender of the monster for evolution.",
     )
-    item: Optional[dict[str, float]] = Field(
+    item: dict[str, float] | None = Field(
         None,
         description=(
             "A dictionary of item slugs and their associated evolution weights. "
@@ -865,20 +1001,19 @@ class MonsterEvolutionItemModel(BaseModel):
             "Each item must exist in the database and have a non-negative weight."
         ),
     )
-    inside: Optional[bool] = Field(
+    inside: bool | None = Field(
         None,
         description="Whether the monster must be inside to evolve.",
     )
-    acquisition: Optional[Acquisition] = Field(
+    acquisition: Acquisition | None = Field(
         None,
         description="How the monster was obtained (e.g. caught, bred, traded, gifted).",
     )
-    variables: Sequence[dict[str, str]] = Field(
+    variables: Sequence[GameCondition] = Field(
         default_factory=list,
         description="The game variables that must exist and match a specific value for the monster to evolve.",
-        min_length=1,
     )
-    stats: Optional[StatsComparison] = Field(
+    stats: StatsComparison | None = Field(
         None,
         description=(
             "Defines a condition where one monster stat must compare to another stat or value "
@@ -890,6 +1025,7 @@ class MonsterEvolutionItemModel(BaseModel):
     steps: int | None = Field(
         None,
         description="The minimum number of steps the monster must have walked to evolve.",
+        ge=1,
     )
     tech: str | None = Field(
         None,
@@ -899,7 +1035,7 @@ class MonsterEvolutionItemModel(BaseModel):
         default_factory=list,
         description="The techniques that the monster must have learned for the evolution to occur.",
     )
-    bond: Optional[BondComparison] = Field(
+    bond: BondComparison | None = Field(
         None,
         description=(
             "Defines a condition where the monster's bond must meet a specific comparison to evolve. "
@@ -907,36 +1043,33 @@ class MonsterEvolutionItemModel(BaseModel):
             "For example, 'bond must be greater than 50'."
         ),
     )
-    tastes: Optional[dict[str, str]] = Field(
+    tastes: dict[str, str] | None = Field(
         None,
         description="A dictionary of taste values required for the monster to evolve (e.g., {'cold': 'value', 'warm': 'value'}).",
     )
     probability: float | None = Field(
         None,
         description="Chance (0.0 to 1.0) that this evolution occurs when conditions are met.",
+        ge=0.0,
+        le=1.0,
     )
     held_item: str | None = Field(
         None, description="Item slug the monster must be holding to evolve."
     )
-    party_conditions: Optional[PartyConditionsModel] = Field(
+    party_conditions: PartyConditionsModel | None = Field(
         None,
         description="Complex conditions based on the player's party required for evolution.",
     )
 
     @field_validator("moves")
-    def move_exists(cls, v: Sequence[str]) -> Sequence[str]:
-        if v:
-            for element in v:
-                if not has.db_entry("technique", element):
-                    raise ValueError(
-                        f"A technique {element} doesn't exist in the db"
-                    )
-        return v
-
-    @field_validator("moves")
     def validate_moves(cls, v: Sequence[str]) -> Sequence[str]:
         if not v:
-            raise ValueError(f"Moves must contain at least 1 technique")
+            raise ValueError("Moves must contain at least 1 technique.")
+        for slug in v:
+            if not has.db_entry("technique", slug):
+                raise ValueError(
+                    f"the technique '{slug}' doesn't exist in the db."
+                )
         return v
 
     @field_validator("tech")
@@ -947,13 +1080,13 @@ class MonsterEvolutionItemModel(BaseModel):
 
     @field_validator("tastes")
     def validate_tastes(
-        cls, v: Optional[dict[str, str]]
-    ) -> Optional[dict[str, str]]:
+        cls, v: dict[str, str] | None
+    ) -> dict[str, str] | None:
         if v:
             for taste_value in v.values():
                 if not has.db_entry("taste", taste_value):
                     raise ValueError(
-                        f"The taste '{taste_value}' does not exist in the database."
+                        f"the taste '{taste_value}' does not exist in the database."
                     )
         return v
 
@@ -971,8 +1104,8 @@ class MonsterEvolutionItemModel(BaseModel):
 
     @field_validator("item")
     def validate_item_and_weights(
-        cls, v: Optional[dict[str, float]]
-    ) -> Optional[dict[str, float]]:
+        cls, v: dict[str, float] | None
+    ) -> dict[str, float] | None:
         if v is None:
             return v
 
@@ -980,7 +1113,7 @@ class MonsterEvolutionItemModel(BaseModel):
         for item_slug, weight in v.items():
             if not has.db_entry("item", item_slug):
                 raise ValueError(
-                    f"The item '{item_slug}' doesn't exist in the database."
+                    f"The item '{item_slug}' does not exist in the database."
                 )
             if weight < 0.0:
                 raise ValueError(
@@ -996,6 +1129,7 @@ class MonsterEvolutionItemModel(BaseModel):
         normalized = {
             slug: weight / total_weight for slug, weight in v.items()
         }
+        logger.debug(f"Item weights normalized: {normalized}")
         return normalized
 
     @field_validator("held_item")
@@ -1005,7 +1139,7 @@ class MonsterEvolutionItemModel(BaseModel):
         raise ValueError(f"the held item {v} doesn't exist in the db")
 
 
-class FlairModel(BaseModel, BaseLookupModel):
+class FlairModel(DataModel, BaseLookupModel):
     table_name: ClassVar[str] = "flair"
 
     slug: str = Field(..., description="The unique name of the flair.")
@@ -1031,7 +1165,7 @@ class FlairModel(BaseModel, BaseLookupModel):
         None,
         description="The vertical offset of the flair from the sprite's origin.",
     )
-    sprite_type: Optional[set[str]] = Field(
+    sprite_type: set[str] | None = Field(
         None,
         description="Specifies which sprite type this flair applies to (e.g., 'front', 'back', 'menu01'). If None, applies to all.",
     )
@@ -1039,7 +1173,7 @@ class FlairModel(BaseModel, BaseLookupModel):
         None,
         description="Overrides the default sprite type used in the file path (e.g., 'universal').",
     )
-    color: Optional[ColorModel] = Field(
+    color: ColorModel | None = Field(
         None, description="The color tint to apply to the flair sprite."
     )
 
@@ -1068,37 +1202,35 @@ class FlairModel(BaseModel, BaseLookupModel):
 
 
 class MonsterSpritesModel(BaseModel):
-    front: str = Field(..., description="The front sprite")
-    back: str = Field(..., description="The back sprite")
-    menu1: str = Field(..., description="The menu1 sprite")
-    menu2: str = Field(..., description="The menu2 sprite")
+    sheet: str  # Path to the combined sprite sheet
+    # Front sprite region
+    front_rect: tuple[int, int, int, int] = (0, 0, 64, 64)
+    # Back sprite region
+    back_rect: tuple[int, int, int, int] = (64, 0, 64, 64)
+    # Menu icon 1 region
+    menu1_rect: tuple[int, int, int, int] = (0, 64, 24, 24)
+    # Menu icon 2 region
+    menu2_rect: tuple[int, int, int, int] = (24, 64, 24, 24)
 
-    @field_validator("front", "back")
-    def battle_exists(cls, v: str) -> str:
-        if has.file(f"{v}.png") and has.size(f"{v}.png", sizes.MONSTER_SIZE):
-            return v
-        raise ValueError(f"no resource exists with path: {v}")
-
-    @field_validator("menu1", "menu2")
-    def menu_exists(cls, v: str) -> str:
-        if has.file(f"{v}.png") and has.size(
-            f"{v}.png", sizes.MONSTER_SIZE_MENU
-        ):
+    @field_validator("sheet")
+    def sheet_exists(cls, v: str) -> str:
+        if has.file(f"{v}.png"):
             return v
         raise ValueError(f"no resource exists with path: {v}")
 
 
 class MonsterSoundsModel(BaseModel):
-    combat_call: Optional[SoundProperties] = Field(
+    combat_call: SoundProperties | None = Field(
         None, description="Sound configuration used when entering combat"
     )
-    faint_call: Optional[SoundProperties] = Field(
+    faint_call: SoundProperties | None = Field(
         None, description="Sound configuration used when the monster faints"
     )
 
 
-class MonsterModel(BaseModel, BaseLookupModel, validate_assignment=True):
+class MonsterModel(DataModel, BaseLookupModel, validate_assignment=True):
     table_name: ClassVar[str] = "monster"
+    _lookup_cache: ClassVar[dict[str, MonsterModel]] = {}
     slug: str = Field(..., description="The slug of the monster")
     species: str = Field(..., description="The species of monster")
     txmn_id: int = Field(..., description="The id of the monster")
@@ -1112,7 +1244,7 @@ class MonsterModel(BaseModel, BaseLookupModel, validate_assignment=True):
         description="Whether or not this monster will be picked by random",
     )
     sprites: Annotated[
-        Optional[MonsterSpritesModel], Field(validate_default=True)
+        MonsterSpritesModel | None, Field(validate_default=True)
     ] = None
     terrains: Sequence[str] = Field(
         ..., description="The terrains of the monster"
@@ -1175,17 +1307,60 @@ class MonsterModel(BaseModel, BaseLookupModel, validate_assignment=True):
         except EntryNotFoundError:
             raise RuntimeError(f"Monster {slug} not found")
 
+    @classmethod
+    def load_cache(cls, db: ModData) -> None:
+        """Populates the internal cache if it hasn't been populated yet."""
+        if not cls._lookup_cache:
+            cls._lookup_cache = {
+                mon_name: result
+                for mon_name in db.database[cls.table_name]
+                if (result := cls.lookup(mon_name, db)).txmn_id > 0
+            }
+
+    @classmethod
+    def get_cache(cls) -> dict[str, MonsterModel]:
+        """Returns the current cache."""
+        return cls._lookup_cache
+
+    def can_evolve_at_level(self, level: int) -> bool:
+        return any(
+            evo.at_level is not None and evo.at_level <= level
+            for evo in self.evolutions
+        )
+
+    def is_underleveled_for_form(self, level: int, db: ModData) -> bool:
+        """
+        Checks if this monster's current form is only possible at a
+        higher level than the one provided by checking its ancestors.
+        """
+        current_history = next(
+            (h for h in self.history if h.slug == self.slug), None
+        )
+
+        if not current_history or not current_history.evolves_from:
+            return False
+
+        for parent_slug in current_history.evolves_from:
+            try:
+                parent_mon = MonsterModel.lookup(parent_slug, db)
+            except RuntimeError:
+                continue  # Skip if parent data is missing
+
+            for evo in parent_mon.evolutions:
+                if evo.monster_slug == self.slug:
+                    if evo.at_level is not None and level < evo.at_level:
+                        return True
+
+        return False
+
     @field_validator("sprites")
     def set_default_sprites(
-        cls, v: str, info: ValidationInfo
-    ) -> Union[str, MonsterSpritesModel]:
+        cls,
+        v: MonsterSpritesModel | None,
+        info: ValidationInfo,
+    ) -> MonsterSpritesModel:
         slug = info.data.get("slug")
-        default = MonsterSpritesModel(
-            front=f"gfx/sprites/battle/{slug}-front",
-            back=f"gfx/sprites/battle/{slug}-back",
-            menu1=f"gfx/sprites/battle/{slug}-menu01",
-            menu2=f"gfx/sprites/battle/{slug}-menu02",
-        )
+        default = MonsterSpritesModel(sheet=f"gfx/sprites/battle/{slug}-sheet")
         return v or default
 
     @field_validator("species")
@@ -1407,14 +1582,24 @@ class TechSort(str, Enum):
 
 
 class CategoryStatus(str, Enum):
-    negative = "negative"
-    positive = "positive"
-    neutral = "neutral"
+    NEGATIVE = "negative"
+    POSITIVE = "positive"
+    NEUTRAL = "neutral"
 
 
 class ResponseStatus(str, Enum):
-    replaced = "replaced"
-    removed = "removed"
+    REPLACED = "replaced"
+    REMOVED = "removed"
+    STACKED = "stacked"
+
+
+class BlockedReason(str, Enum):
+    IMMUNE = "immune"
+    IMMUNE_BY_ITEM = "immune_by_item"
+    ALREADY_PRESENT = "already_present"
+    REPLACED = "replaced"
+    REMOVED = "removed"
+    NO_EFFECT = "no_effect"
 
 
 class TargetModel(BaseModel):
@@ -1451,8 +1636,9 @@ class TargetModel(BaseModel):
         return v
 
 
-class TechniqueModel(BaseModel, BaseLookupModel):
+class TechniqueModel(DataModel, BaseLookupModel):
     table_name: ClassVar[str] = "technique"
+    _lookup_cache: ClassVar[dict[str, TechniqueModel]] = {}
     slug: str = Field(..., description="The slug of the technique")
     sort: TechSort = Field(..., description="The sort of technique this is")
     behaviors: TechBehaviors
@@ -1529,9 +1715,29 @@ class TechniqueModel(BaseModel, BaseLookupModel):
     )
     recharge: int = Field(
         0,
-        description="Recharge of this technique",
+        description="The base number of turns it takes to recharge after use.",
         ge=sizes.RECHARGE_RANGE[0],
         le=sizes.RECHARGE_RANGE[1],
+    )
+    min_recharge: int = Field(
+        0,
+        description="The absolute floor for recharge time (haste/multipliers cannot go below this).",
+        ge=0,
+    )
+    initial_delay: int = Field(
+        0,
+        description="Number of turns the technique is unavailable at the start of a battle.",
+        ge=0,
+    )
+    starting_charge: int = Field(
+        0,
+        description="Allows a move to be used multiple times before entering cooldown (if logic supports it).",
+        ge=0,
+    )
+    cooldown_multiplier: float = Field(
+        1.0,
+        description="A static modifier for how fast this specific tech recharges.",
+        ge=0.0,
     )
     range: Range = Field(..., description="The attack range of this technique")
     tech_id: int = Field(..., description="The id of this technique")
@@ -1555,6 +1761,21 @@ class TechniqueModel(BaseModel, BaseLookupModel):
             return cast(TechniqueModel, db.lookup(slug, table=cls.table_name))
         except EntryNotFoundError:
             raise RuntimeError(f"Technique {slug} not found")
+
+    @classmethod
+    def load_cache(cls, db: ModData) -> None:
+        """Populate the internal cache if it hasn't been populated yet."""
+        if not cls._lookup_cache:
+            cls._lookup_cache = {
+                tech_name: result
+                for tech_name in db.database[cls.table_name]
+                if (result := cls.lookup(tech_name, db))
+            }
+
+    @classmethod
+    def get_cache(cls) -> dict[str, TechniqueModel]:
+        """Returns the current cache."""
+        return cls._lookup_cache
 
     @field_validator("use_tech", "use_success", "use_failure")
     def translation_exists(cls, v: str | None) -> str | None:
@@ -1595,7 +1816,7 @@ class StepEffectType(str, Enum):
     PERCENT_CURRENT_HP_HEAL = "percent_current_hp_heal"
 
 
-class StatusModel(BaseModel, BaseLookupModel):
+class StatusModel(DataModel, BaseLookupModel):
     table_name: ClassVar[str] = "status"
     slug: str = Field(..., description="The slug of the status")
     sort: TechSort = Field(..., description="The sort of status this is")
@@ -1669,6 +1890,9 @@ class StatusModel(BaseModel, BaseLookupModel):
         default_factory=dict,
         description="Dictionary of stat modifiers keyed by stat name (e.g., 'speed', 'hp')",
     )
+    max_stacks: int = Field(
+        5, description="Maximum number of stacks this status can accumulate"
+    )
 
     @classmethod
     def lookup(cls, slug: str, db: ModData) -> StatusModel:
@@ -1713,7 +1937,7 @@ class PartyMemberModel(BaseModel):
         ..., description="Experience required modifier", gt=0
     )
     gender: GenderType = Field(..., description="Gender of the monster")
-    variables: Sequence[dict[str, str]] = Field(
+    variables: Sequence[GameCondition] = Field(
         default_factory=list,
         description="Sequence of variables that affect the presence of the monster.",
         min_length=1,
@@ -1729,7 +1953,7 @@ class PartyMemberModel(BaseModel):
 class BagItemModel(BaseModel):
     slug: str = Field(..., description="Slug of the item")
     quantity: int = Field(..., description="Quantity of the item")
-    variables: Sequence[dict[str, str]] = Field(
+    variables: Sequence[GameCondition] = Field(
         default_factory=list,
         description="List of variables that affect the item.",
         min_length=1,
@@ -1742,7 +1966,7 @@ class BagItemModel(BaseModel):
         raise ValueError(f"the item {v} doesn't exist in the db")
 
 
-class TemplateModel(BaseModel):
+class TemplateModel(DataModel):
     slug: str = Field(
         ..., description="Slug uniquely identifying the template"
     )
@@ -1756,73 +1980,103 @@ class TemplateModel(BaseModel):
 
 class NpcTemplateModel(TemplateModel):
     sprite_name: str = Field(
-        ..., description="Name of the overworld sprite filename"
+        ...,
+        description="Base filename of the overworld sprite sheet (without extension)",
     )
-    combat_front: str = Field(
-        ..., description="Name of the battle front sprite filename"
+    frame_width: int = Field(
+        16,
+        description="Width of a single animation frame in the sheet",
     )
+    frame_height: int = Field(
+        32,
+        description="Height of a single animation frame in the sheet",
+    )
+    rows: int = Field(
+        4,
+        description="Number of directional rows (front, left, right, back)",
+    )
+    columns: int = Field(
+        3,
+        description="Frames per row (walk1, idle, walk2)",
+    )
+    is_static_prop: bool = Field(
+        False,
+        description="If True, this NPC uses a single static sprite instead of a sheet",
+    )
+    animation_speed: float = Field(
+        1.0,
+        description="Multiplier for animation playback speed",
+    )
+    frame_divisor: int = Field(
+        3,
+        description="How many frames per movement cycle",
+    )
+    speed_factor: float = Field(
+        2.0,
+        description="Additional speed scaling for this NPC",
+    )
+    combat_sheet: str = Field(
+        ...,
+        description="Filename of the combat sprite sheet (side-by-side, back|front)",
+    )
+    combat_frame_width: int = 64
+    combat_frame_height: int = 64
+    combat_rows: int = 1
+    combat_columns: int = 2
 
-    @field_validator("combat_front")
-    def combat_file_exists(cls, v: str) -> str:
+    @field_validator("sprite_name")
+    def validate_sheet_exists(cls, v: str) -> str:
+        """
+        Validate that either:
+        - sprites/<name>.png exists (sheet), OR
+        - sprites_obj/<name>.png exists (static prop)
+        """
+        sheet = f"sprites/{v}.png"
+        static_obj = f"sprites_obj/{v}.png"
+
+        if has.file(sheet):
+            return v
+
+        if has.file(static_obj):
+            return v
+
+        raise ValueError(
+            f"Neither sprite sheet '{sheet}' nor static prop '{static_obj}' exists"
+        )
+
+    @field_validator("combat_sheet")
+    def validate_combat_sheet(cls, v: str) -> str:
         file = f"gfx/sprites/player/{v}.png"
         if has.file(file):
             return v
-        raise ValueError(f"{file} doesn't exist in the db")
-
-    @field_validator("sprite_name")
-    def sprite_exists(cls, v: str) -> str:
-        front = f"sprites/{v}_front.png"
-        back = f"sprites/{v}_back.png"
-        right = f"sprites/{v}_right.png"
-        left = f"sprites/{v}_left.png"
-
-        sprite_obj = f"sprites_obj/{v}.png"
-
-        directional_ok = (
-            has.file(front)
-            and has.file(back)
-            and has.file(right)
-            and has.file(left)
-            and has.size(front, sizes.SPRITE_SIZE)
-        )
-
-        object_ok = has.file(sprite_obj) and has.size(
-            sprite_obj, sizes.NATIVE_RESOLUTION
-        )
-
-        if directional_ok or object_ok:
-            return v
-
-        raise ValueError(f"the sprite {v} doesn't exist in the db")
+        raise ValueError(f"Combat sheet '{file}' does not exist")
 
 
 class DialogueContent(BaseModel):
-    greeting: Optional[Union[str, list[str]]] = Field(
+    greeting: str | list[str] | None = Field(
         None, description="Greeting dialogue"
     )
-    idle: Optional[Union[str, list[str]]] = Field(
-        None, description="Idle chatter"
-    )
-    farewell: Optional[Union[str, list[str]]] = Field(
+    idle: str | list[str] | None = Field(None, description="Idle chatter")
+    farewell: str | list[str] | None = Field(
         None, description="Dialogue when saying goodbye"
     )
-    pre_battle: Optional[Union[str, list[str]]] = Field(
+    pre_battle: str | list[str] | None = Field(
         None, description="Dialogue before a battle"
     )
-    post_battle_win: Optional[Union[str, list[str]]] = Field(
+    post_battle_win: str | list[str] | None = Field(
         None, description="Dialogue if NPC wins"
     )
-    post_battle_lose: Optional[Union[str, list[str]]] = Field(
+    post_battle_lose: str | list[str] | None = Field(
         None, description="Dialogue if NPC loses"
     )
-    post_battle_draw: Optional[Union[str, list[str]]] = Field(
+    post_battle_draw: str | list[str] | None = Field(
         None, description="Dialogue if battle is a draw"
     )
 
     @field_validator("*")
     def translation_exists(
-        cls, v: Optional[Union[str, list[str]]]
-    ) -> Optional[Union[str, list[str]]]:
+        cls, v: str | list[str] | None
+    ) -> str | list[str] | None:
         if not v:
             return v
 
@@ -1873,15 +2127,19 @@ class NpcCombatModel(BaseModel):
 
 
 class NpcAudioModel(BaseModel):
-    battle_music: Optional[BattleMusicModel] = Field(
+    battle_music: BattleMusicModel | None = Field(
         None,
         description="Battle music configuration for the NPC; defaults to empty if not set",
     )
 
 
-class NpcModel(BaseModel, BaseLookupModel):
+class NpcModel(DataModel, BaseLookupModel):
     table_name: ClassVar[str] = "npc"
+    _lookup_cache: ClassVar[dict[str, NpcModel]] = {}
     slug: str = Field(..., description="Slug of the name of the NPC")
+    birthdate: tuple[int, int] | None = Field(
+        None, description="The NPC's birthday represented as (month, day)."
+    )
     persistence: bool = Field(
         False,
         description="Whether this NPC should be retained and saved across sessions.",
@@ -1910,6 +2168,21 @@ class NpcModel(BaseModel, BaseLookupModel):
             return cast(NpcModel, db.lookup(slug, table=cls.table_name))
         except EntryNotFoundError:
             raise RuntimeError(f"NPC {slug} not found")
+
+    @classmethod
+    def load_cache(cls, db: ModData) -> None:
+        """Populate the internal cache if it hasn't been populated yet."""
+        if not cls._lookup_cache:
+            cls._lookup_cache = {
+                npc_slug: result
+                for npc_slug in db.database[cls.table_name]
+                if (result := cls.lookup(npc_slug, db))
+            }
+
+    @classmethod
+    def get_cache(cls) -> dict[str, NpcModel]:
+        """Returns the current cache."""
+        return cls._lookup_cache
 
 
 class BattleHudModel(BaseModel):
@@ -2020,8 +2293,23 @@ class BattleGraphicsModel(BaseModel):
     menu: str = Field(
         "MainCombatMenuState", description="Menu used for combat."
     )
-    island_back: str = Field(..., description="Sprite used for back combat")
-    island_front: str = Field(..., description="Sprite used for front combat")
+    island_sheet: str = Field(
+        ..., description="Sprite sheet containing back+front islands"
+    )
+    island_width: int = Field(
+        96,
+        description=(
+            "Width of a single island frame inside the island sheet. "
+            "The sheet contains two frames arranged horizontally."
+        ),
+    )
+    island_height: int = Field(
+        57,
+        description=(
+            "Height of a single island frame inside the island sheet. "
+            "Both frames must share this height."
+        ),
+    )
     background: str = Field(..., description="Sprite used for background")
     hud: BattleHudModel
     icons: BattleIconsModel
@@ -2044,12 +2332,18 @@ class BattleGraphicsModel(BaseModel):
     entry_duration: float = Field(
         3.0, description="Seconds for the entry transition."
     )
+    trainer_exit_offset: int = Field(
+        150, description="Pixels to move trainer when leaving"
+    )
+    trainer_exit_duration: float = Field(
+        0.8, description="Duration of trainer exit animation"
+    )
 
-    @field_validator("island_back", "island_front")
-    def island_exists(cls, v: str) -> str:
-        if has.file(v) and has.size(v, sizes.ISLAND_SIZE):
-            return v
-        raise ValueError(f"no resource exists with path: {v}")
+    @field_validator("island_sheet")
+    def validate_sheet_exists(cls, v: str) -> str:
+        if not has.file(v):
+            raise ValueError(f"Island sheet not found: {v}")
+        return v
 
     @field_validator("background")
     def background_exists(cls, v: str) -> str:
@@ -2077,7 +2371,7 @@ class BattleMusicModel(BaseModel):
     )
 
 
-class EnvironmentModel(BaseModel, BaseLookupModel):
+class EnvironmentModel(DataModel, BaseLookupModel):
     table_name: ClassVar[str] = "environment"
     slug: str = Field(..., description="Slug of the name of the environment")
     battle_graphics: BattleGraphicsModel
@@ -2125,7 +2419,7 @@ class EncounterItemModel(BaseModel):
         ...,
         description="Minimum and maximum levels at which this encounter can occur.",
     )
-    variables: Sequence[dict[str, str]] = Field(
+    variables: Sequence[GameCondition] = Field(
         ...,
         description="List of variables that affect the encounter.",
     )
@@ -2302,7 +2596,7 @@ class EncounterType(str, Enum):
     HORDE = "horde"
 
 
-class EncounterModel(BaseModel, BaseLookupModel):
+class EncounterModel(DataModel, BaseLookupModel):
     table_name: ClassVar[str] = "encounter"
     slug: str = Field(
         ..., description="Slug to uniquely identify this encounter"
@@ -2425,8 +2719,9 @@ class EncounterModel(BaseModel, BaseLookupModel):
         return self
 
 
-class DialogueModel(BaseModel, BaseLookupModel):
+class DialogueModel(DataModel, BaseLookupModel):
     table_name: ClassVar[str] = "dialogue"
+    _lookup_cache: ClassVar[dict[str, DialogueModel]] = {}
     slug: str = Field(
         ..., description="Slug to uniquely identify this dialogue"
     )
@@ -2444,6 +2739,21 @@ class DialogueModel(BaseModel, BaseLookupModel):
             return cast(DialogueModel, db.lookup(slug, table=cls.table_name))
         except EntryNotFoundError:
             raise RuntimeError(f"Dialogue {slug} not found")
+
+    @classmethod
+    def load_cache(cls, db: ModData) -> None:
+        """Populate the internal cache if it hasn't been populated yet."""
+        if not cls._lookup_cache:
+            cls._lookup_cache = {
+                slug: result
+                for slug in db.database[cls.table_name]
+                if (result := cls.lookup(slug, db))
+            }
+
+    @classmethod
+    def get_cache(cls) -> dict[str, DialogueModel]:
+        """Returns the current cache."""
+        return cls._lookup_cache
 
     @field_validator("border_slug")
     def file_exists(cls, v: str) -> str:
@@ -2464,7 +2774,7 @@ class ElementItemModel(BaseModel):
         raise ValueError(f"the element {v} doesn't exist in the db")
 
 
-class ElementModel(BaseModel, BaseLookupModel):
+class ElementModel(DataModel, BaseLookupModel):
     table_name: ClassVar[str] = "element"
     slug: str = Field(..., description="Slug uniquely identifying the type")
     icon: str = Field(..., description="The icon to use for the type")
@@ -2503,8 +2813,9 @@ class ElementModel(BaseModel, BaseLookupModel):
         raise ValueError(f"the icon {v} doesn't exist in the db")
 
 
-class TasteModel(BaseModel, BaseLookupModel):
+class TasteModel(DataModel, BaseLookupModel):
     table_name: ClassVar[str] = "taste"
+    _lookup_cache: ClassVar[dict[str, TasteModel]] = {}
     slug: str = Field(..., description="Slug of the taste")
     name: str = Field(..., description="Name of the taste")
     taste_type: Literal["warm", "cold"] = Field(
@@ -2528,6 +2839,21 @@ class TasteModel(BaseModel, BaseLookupModel):
         except EntryNotFoundError:
             raise RuntimeError(f"Taste {slug} not found")
 
+    @classmethod
+    def load_cache(cls, db: ModData) -> None:
+        """Populate the internal cache if it hasn't been populated yet."""
+        if not cls._lookup_cache:
+            cls._lookup_cache = {
+                taste_name: result
+                for taste_name in db.database[cls.table_name]
+                if (result := cls.lookup(taste_name, db)).slug
+            }
+
+    @classmethod
+    def get_cache(cls) -> dict[str, TasteModel]:
+        """Returns the current cache."""
+        return cls._lookup_cache
+
     @field_validator("name")
     def translation_exists_taste(cls, v: str) -> str:
         if has.translation(v):
@@ -2536,46 +2862,50 @@ class TasteModel(BaseModel, BaseLookupModel):
 
 
 class EconomyEntityModel(BaseModel):
-    price: int = Field(..., description="Price of the entity")
-    cost: int = Field(..., description="Cost of the entity")
-    inventory: int = Field(-1, description="Quantity of the entity")
-    variables: Sequence[dict[str, str]] = Field(
+    """Base class. Do not instantiate directly."""
+
+    price: int = Field(..., description="Price of the entity", ge=0)
+    cost: int = Field(..., description="Cost of the entity", ge=0)
+    variables: Sequence[GameCondition] = Field(
         default_factory=list,
         description="List of variables that affect the entity in the economy.",
-        min_length=1,
     )
 
 
 class EconomyItemModel(EconomyEntityModel):
     slug: str = Field(..., description="Slug of the Item")
-    inventory: int = Field(-1, description="Quantity of the entity")
+    inventory: int = Field(
+        -1, description="Quantity of the item. -1 means infinite stock."
+    )
 
     @field_validator("slug")
     def item_exists(cls, v: str) -> str:
         if has.db_entry("item", v):
             return v
-        raise ValueError(f"the item {v} doesn't exist in the db")
+        raise ValueError(f"Item '{v}' referenced in economy is not in the DB")
 
 
 class EconomyMonsterModel(EconomyEntityModel):
     slug: str = Field(..., description="Slug of the Monster")
-    inventory: int = Field(1, description="Quantity of the entity", gt=0)
-    level: int = Field(..., description="Level of the entity", gt=0)
+    inventory: int = Field(1, description="Quantity of the monster", gt=0)
+    level: int = Field(..., description="Level of the monster", gt=0)
 
     @field_validator("slug")
     def monster_exists(cls, v: str) -> str:
         if has.db_entry("monster", v):
             return v
-        raise ValueError(f"the monster {v} doesn't exist in the db")
+        raise ValueError(
+            f"Monster '{v}' referenced in economy is not in the DB"
+        )
 
 
-class EconomyModel(BaseModel, BaseLookupModel):
+class EconomyModel(DataModel, BaseLookupModel):
     table_name: ClassVar[str] = "economy"
     slug: str = Field(..., description="Slug uniquely identifying the economy")
     resale_multiplier: float = Field(..., description="Resale multiplier")
     background: str = Field(..., description="Sprite used for background")
-    items: Sequence[EconomyItemModel]
-    monsters: Sequence[EconomyMonsterModel]
+    items: list[EconomyItemModel]
+    monsters: list[EconomyMonsterModel]
 
     @classmethod
     def lookup(cls, slug: str, db: ModData) -> EconomyModel:
@@ -2587,9 +2917,11 @@ class EconomyModel(BaseModel, BaseLookupModel):
 
     @field_validator("background")
     def background_exists(cls, v: str) -> str:
-        if has.file(v) and has.size(v, sizes.NATIVE_RESOLUTION):
-            return v
-        raise ValueError(f"no resource exists with path: {v}")
+        if not has.file(v):
+            raise ValueError(f"Background file not found: {v}")
+        if not has.size(v, sizes.NATIVE_RESOLUTION):
+            raise ValueError(f"Background file {v} has incorrect resolution")
+        return v
 
 
 class FactionKind(str, Enum):
@@ -2622,7 +2954,7 @@ class FactionRelationStatus(str, Enum):
 
 class RankRequirement(BaseModel):
     min_reputation: int = 0
-    variables: Sequence[dict[str, Any]] = Field(
+    variables: Sequence[GameCondition] = Field(
         default_factory=list,
         description="List of variables that affect the requirement.",
         min_length=1,
@@ -2635,7 +2967,7 @@ class RankStep(BaseModel):
     requirement: RankRequirement | None = None
 
 
-class FactionModel(BaseModel, BaseLookupModel):
+class FactionModel(DataModel, BaseLookupModel):
     table_name: ClassVar[str] = "faction"
 
     slug: str = Field(..., description="Unique ID of the faction")
@@ -2749,15 +3081,14 @@ class MissionStepModel(BaseModel):
     description: str = Field(
         ..., description="Describes what the step requires or represents"
     )
-    conditions: dict[str, Any] = Field(
-        default_factory=dict,
+    conditions: GameCondition = Field(
         description="Simple conditions on game_variables (all must be true)",
     )
-    any_of: list[dict[str, Any]] = Field(
+    any_of: list[GameCondition] = Field(
         default_factory=list,
         description="Alternative condition sets; step completes if any are satisfied",
     )
-    all_of: list[dict[str, Any]] = Field(
+    all_of: list[GameCondition] = Field(
         default_factory=list,
         description="Additional condition sets; all must be satisfied",
     )
@@ -2774,16 +3105,27 @@ class MissionStepModel(BaseModel):
         description="Monsters required to complete this step. Level is optional; None means any level.",
     )
     optional: bool = Field(False, description="Whether the step is optional")
+    auto_complete: bool = Field(
+        True,
+        description=(
+            "If true, the step is automatically marked as completed as soon as its "
+            "conditions (conditions, any_of, all_of, item and monster requirements) "
+            "are satisfied. If false, the step only becomes unlocked when conditions "
+            "are met, but must be completed manually through an explicit game event "
+            "such as interacting with an NPC, triggering a script, or performing a "
+            "player action."
+        ),
+    )
 
 
-class MissionModel(BaseModel, BaseLookupModel):
+class MissionModel(DataModel, BaseLookupModel):
     table_name: ClassVar[str] = "mission"
 
     slug: str = Field(..., description="Slug uniquely identifying the mission")
     description: str = Field(
         ..., description="Detailed description of the mission objectives"
     )
-    prerequisites: Sequence[dict[str, Any]] = Field(
+    prerequisites: Sequence[GameCondition] = Field(
         default_factory=list,
         description="List of game variables required to unlock the mission",
     )
@@ -2810,7 +3152,7 @@ class MissionModel(BaseModel, BaseLookupModel):
     repeatable: bool = Field(
         False, description="Whether the mission can be repeated"
     )
-    failure_conditions: Sequence[dict[str, Any]] = Field(
+    failure_conditions: Sequence[GameCondition] = Field(
         default_factory=list,
         description="List of game variables that, if met, cause the mission to fail",
     )
@@ -2854,7 +3196,7 @@ class MissionModel(BaseModel, BaseLookupModel):
         return v
 
 
-class MusicModel(BaseModel):
+class MusicModel(DataModel):
     slug: str = Field(..., description="Unique slug for the music")
     file: str = Field(..., description="File for the music")
 
@@ -2866,7 +3208,7 @@ class MusicModel(BaseModel):
         raise ValueError(f"the music {v} doesn't exist in the db")
 
 
-class SoundModel(BaseModel):
+class SoundModel(DataModel):
     slug: str = Field(..., description="Unique slug for the sound")
     file: str = Field(..., description="File for the sound")
 
@@ -2878,10 +3220,12 @@ class SoundModel(BaseModel):
         raise ValueError(f"the sound {v} doesn't exist in the db")
 
 
-class AnimationModel(BaseModel, BaseLookupModel):
+class AnimationModel(DataModel, BaseLookupModel):
     table_name: ClassVar[str] = "animation"
     slug: str = Field(..., description="Unique slug for the animation")
     file: str = Field(..., description="File of the animation")
+    frame_x: int = Field(..., description="Width of each frame in the sheet")
+    frame_y: int = Field(..., description="Height of each frame in the sheet")
     duration: float = Field(
         default=0.1,
         description="Duration (in seconds) for each frame of the animation.",
@@ -2914,10 +3258,12 @@ class AnimationModel(BaseModel, BaseLookupModel):
     @field_validator("file")
     def file_exists(cls, v: str, info: ValidationInfo) -> str:
         slug = info.data.get("slug")
-        file: str = f"animations/{v}/{slug}_00.png"
-        if has.file(file):
+        sheet_path = f"animations/{v}/{slug}.png"
+
+        if has.file(sheet_path):
             return v
-        raise ValueError(f"the animation {v} doesn't exist in the db")
+
+        raise ValueError(f"Animation sheet '{sheet_path}' does not exist")
 
     @field_validator("duration")
     def validate_duration(cls, v: float) -> float:
@@ -2926,7 +3272,7 @@ class AnimationModel(BaseModel, BaseLookupModel):
         return v
 
 
-class TerrainModel(BaseModel, BaseLookupModel):
+class TerrainModel(DataModel, BaseLookupModel):
     table_name: ClassVar[str] = "terrain"
     slug: str = Field(..., description="Slug of the terrain")
     name: str = Field(..., description="Name of the terrain condition")
@@ -2947,7 +3293,7 @@ class TerrainModel(BaseModel, BaseLookupModel):
         raise ValueError(f"no translation exists with msgid: {v}")
 
 
-class WeatherModel(BaseModel, BaseLookupModel):
+class WeatherModel(DataModel, BaseLookupModel):
     table_name: ClassVar[str] = "weather"
     slug: str = Field(..., description="Slug of the weather")
     name: str = Field(..., description="Name of the weather condition")
@@ -2974,31 +3320,6 @@ class WeatherModel(BaseModel, BaseLookupModel):
         if has.translation(v):
             return v
         raise ValueError(f"no translation exists with msgid: {v}")
-
-
-DataModel = Union[
-    EconomyModel,
-    ElementModel,
-    TasteModel,
-    ShapeModel,
-    TerrainModel,
-    WeatherModel,
-    TemplateModel,
-    MissionModel,
-    EncounterModel,
-    DialogueModel,
-    EnvironmentModel,
-    ItemModel,
-    MonsterModel,
-    FlairModel,
-    MusicModel,
-    AnimationModel,
-    NpcModel,
-    SoundModel,
-    StatusModel,
-    TechniqueModel,
-    FactionModel,
-]
 
 
 def load_model_map(

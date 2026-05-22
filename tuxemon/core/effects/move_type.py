@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 from tuxemon.core.core_effect import CoreEffect, TechEffectResult
 
 if TYPE_CHECKING:
-    from tuxemon.monster import Monster
+    from tuxemon.monster.monster import Monster
     from tuxemon.session import Session
     from tuxemon.technique.technique import Technique
 
@@ -46,12 +46,13 @@ class MoveTypeEffect(CoreEffect):
     ) -> TechEffectResult:
 
         if self.direction == "own_monster":
-            tech.types.set_types(user.types.current)
+            slugs = user.types.get_type_slugs()
         elif self.direction == "enemy_monster":
-            tech.types.set_types(target.types.current)
+            slugs = target.types.get_type_slugs()
         else:
             raise ValueError(
                 f"{self.direction} must be 'own_monster' or 'enemy_monster'"
             )
 
+        tech.types.set_types(slugs)
         return TechEffectResult(name=tech.name, success=True)

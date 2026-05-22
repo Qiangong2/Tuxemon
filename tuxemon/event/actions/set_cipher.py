@@ -4,11 +4,10 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Optional, final
-
-import yaml
+from typing import final
 
 from tuxemon.constants import paths
+from tuxemon.database.yaml_utils import load_yaml
 from tuxemon.event.eventaction import EventAction
 from tuxemon.session import Session
 from tuxemon.ui.cipher_processor import CipherProcessor
@@ -70,8 +69,8 @@ class SetCipherAction(EventAction):
     """
 
     name = "set_cipher"
-    option: Optional[str] = None
-    cipher_map: Optional[str] = None
+    option: str | None = None
+    cipher_map: str | None = None
 
     def start(self, session: Session) -> None:
         if self.cipher_map:
@@ -79,13 +78,10 @@ class SetCipherAction(EventAction):
             yaml_path = paths.mods_folder / filename
 
             try:
-                with yaml_path.open(encoding="utf-8") as f:
-                    cipher_data = yaml.safe_load(f)
-                    cipher_map = cipher_data.get("cipher_map")
-                    if not cipher_map:
-                        raise ValueError(
-                            f"'cipher_map' key missing in {filename}"
-                        )
+                cipher_data = load_yaml(yaml_path)
+                cipher_map = cipher_data.get("cipher_map")
+                if not cipher_map:
+                    raise ValueError(f"'cipher_map' key missing in {filename}")
             except Exception as e:
                 logger.error(
                     f"Failed to load cipher map from {yaml_path}: {e}"

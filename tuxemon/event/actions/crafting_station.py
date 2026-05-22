@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Optional, final
+from typing import final
 
 from tuxemon.event.eventaction import EventAction
 from tuxemon.session import Session
@@ -33,7 +33,7 @@ class CraftingStationAction(EventAction):
     name = "crafting_station"
     character_slug: str
     method: str
-    file_yaml: Optional[str] = None
+    file_yaml: str | None = None
 
     def start(self, session: Session) -> None:
         self.client = session.client
@@ -43,15 +43,17 @@ class CraftingStationAction(EventAction):
 
         if self.client.current_state.name == "CraftMenuState":
             logger.error(
-                f"The state 'CraftMenuState' is already active. No action taken."
+                "The state 'CraftMenuState' is already active. No action taken."
             )
+            self.stop()
             return
 
-        character = session.get_npc(self.character_slug)
+        character = session.client.get_npc(self.character_slug)
         if character is None:
             logger.error(
                 f"Character '{self.character_slug}' not found for CraftMenuState."
             )
+            self.stop()
             return
 
         file_yaml = self.file_yaml or "recipes.yaml"
@@ -63,7 +65,5 @@ class CraftingStationAction(EventAction):
         )
 
     def update(self, session: Session, dt: float) -> None:
-        try:
-            session.client.get_state_by_name("CraftMenuState")
-        except ValueError:
+        if "CraftMenuState" not in session.client.active_state_names:
             self.stop()

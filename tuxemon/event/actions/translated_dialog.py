@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Any, Optional, final
+from typing import Any, final
 
 from tuxemon.event.eventaction import EventAction
-from tuxemon.graphics import get_avatar, string_to_colorlike
-from tuxemon.locale import T
+from tuxemon.graphics import string_to_colorlike
+from tuxemon.locale.locale import T
+from tuxemon.monster.avatar import get_avatar
 from tuxemon.session import Session
 from tuxemon.tools import open_dialog, safe_enum_value
 from tuxemon.ui.dialogue import DialogueStyleCache
@@ -55,11 +56,11 @@ class TranslatedDialogAction(EventAction):
 
     name = "translated_dialog"
     raw_parameters: str
-    avatar: Optional[str] = None
-    position: Optional[str] = None
-    h_alignment: Optional[str] = None
-    v_alignment: Optional[str] = None
-    style: Optional[str] = None
+    avatar: str | None = None
+    position: str | None = None
+    h_alignment: str | None = None
+    v_alignment: str | None = None
+    style: str | None = None
 
     def start(self, session: Session) -> None:
         key = TextFormatter(session, T).paginate_translation(
@@ -106,7 +107,5 @@ class TranslatedDialogAction(EventAction):
         )
 
     def update(self, session: Session, dt: float) -> None:
-        try:
-            session.client.get_state_by_name("DialogState")
-        except ValueError:
+        if "DialogState" not in session.client.active_state_names:
             self.stop()

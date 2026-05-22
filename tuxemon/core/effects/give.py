@@ -7,12 +7,12 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from tuxemon.core.core_effect import CoreEffect, TechEffectResult
-from tuxemon.locale import T
-from tuxemon.monster_dir.status import BlockedReason
+from tuxemon.db import BlockedReason
+from tuxemon.locale.locale import T
 from tuxemon.status.status import Status
 
 if TYPE_CHECKING:
-    from tuxemon.monster import Monster
+    from tuxemon.monster.monster import Monster
     from tuxemon.session import Session
     from tuxemon.technique.technique import Technique
 

@@ -9,7 +9,8 @@ from typing import final
 from tuxemon.database.runtime import db
 from tuxemon.db import FlairModel
 from tuxemon.event.eventaction import EventAction
-from tuxemon.monster_dir.sprite import Flair
+from tuxemon.monster.renderer import MonsterRenderer
+from tuxemon.monster.sprite import Flair
 from tuxemon.session import Session
 from tuxemon.tools import get_valid_uuid
 
@@ -53,16 +54,20 @@ class SetMonsterFlairAction(EventAction):
             logger.info(
                 f"No valid monster selected for variable '{self.variable}'"
             )
-            return  # Exit early if no valid UUID
+            self.stop()
+            return
+
         monster = session.client.get_monster_by_iid(monster_id)
         if monster is None:
             logger.error("Monster not found")
+            self.stop()
             return
 
         try:
             flair_model = FlairModel.lookup(self.flair, db)
         except RuntimeError as e:
             logger.error(str(e))
+            self.stop()
             return
 
         sprite_types = (
@@ -86,14 +91,14 @@ class SetMonsterFlairAction(EventAction):
             color=flair_model.color,
         )
 
-        monster.sprite_handler.refresh_flairs(monster.flairs)
+        monster.flair_slugs.add(flair_model.slug)
+        scale = session.client.context.scale
+        renderer = MonsterRenderer(monster, scale)
+        renderer.sprite_handler.refresh_flairs(monster.flairs)
 
         if sprite_types:
             for sprite_type in sprite_types:
-                monster.sprite_handler.get_sprite(sprite_type)
-
-        if flair_model.slug not in monster.flair_slugs:
-            monster.flair_slugs.add(flair_model.slug)
+                renderer.get_sprite(sprite_type)
 
         if category in monster.flairs:
             logger.info(

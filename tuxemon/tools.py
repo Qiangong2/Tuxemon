@@ -7,6 +7,7 @@ Graphics/audio operations should go to their own modules.
 As the game library is developed and matures, move these into larger modules
 if more appropriate.  Ideally this should be kept small.
 """
+
 from __future__ import annotations
 
 import logging
@@ -16,7 +17,7 @@ from datetime import date, datetime, time, timedelta
 from decimal import Decimal
 from enum import Enum
 from fractions import Fraction
-from functools import lru_cache
+from functools import cache
 from operator import add, eq, ge, gt, le, lt, mul, ne, sub
 from types import UnionType
 from typing import (
@@ -24,10 +25,7 @@ from typing import (
     Any,
     Literal,
     NoReturn,
-    Optional,
-    Protocol,
     TypeVar,
-    Union,
     get_args,
     get_origin,
     get_type_hints,
@@ -37,9 +35,8 @@ from uuid import UUID
 from tuxemon.compat.rect import ReadOnlyRect
 from tuxemon.constants.asset_loader import fetch_asset
 from tuxemon.db import Comparison
-from tuxemon.locale import T
-from tuxemon.math import Vector2
-from tuxemon.prepare import SCALE, SCREEN_RECT
+from tuxemon.locale.locale import T
+from tuxemon.scaling import ScalingStrategy
 from tuxemon.ui.dialogue import calc_dialog_rect
 from tuxemon.ui.text_alignment import DialogPosition
 from tuxemon.ui.text_formatter import TextFormatter
@@ -65,13 +62,12 @@ logger = logging.getLogger(__name__)
 Never = NoReturn
 
 TVar = TypeVar("TVar")
-TVarSequence = TypeVar("TVarSequence", bound=tuple[int, ...])
 
-ValidParameterSingleType = Optional[type[Any]]
-ValidParameterTypes = Union[
-    ValidParameterSingleType,
-    Sequence[ValidParameterSingleType],
-]
+
+ValidParameterSingleType = type[Any] | None
+ValidParameterTypes = (
+    ValidParameterSingleType | Sequence[ValidParameterSingleType]
+)
 
 
 def safe_floordiv(a: float, b: float) -> int:
@@ -86,17 +82,6 @@ ops_dict: Mapping[str, Callable[[float, float], int]] = {
     "*": mul,
     "/": safe_floordiv,
 }
-
-
-class NamedTupleProtocol(Protocol):
-    """Protocol for arbitrary NamedTuple objects."""
-
-    @property
-    def _fields(self) -> tuple[str, ...]:
-        pass
-
-
-NamedTupleTypeVar = TypeVar("NamedTupleTypeVar", bound=NamedTupleProtocol)
 
 
 def get_cell_coordinates(
@@ -138,30 +123,14 @@ def get_screen_rect(sprite: Sprite, internal_rect: Rect) -> Rect:
     return internal_rect.move(sprite.rect.topleft)
 
 
-def scale_sequence(sequence: TVarSequence) -> TVarSequence:
-    """
-    Scale a sequence of integers by the configured scale factor.
+def scale(number: int, scaling: ScalingStrategy | None = None) -> int:
+    """Scale a number by the configured scale factor."""
+    if scaling is None:
+        from tuxemon.prepare import DISPLAY_CONTEXT
 
-    Parameters:
-        sequence: Sequence to scale.
+        scaling = DISPLAY_CONTEXT.scaling
 
-    Returns:
-        Scaled sequence.
-    """
-    return type(sequence)(i * SCALE for i in sequence)
-
-
-def scale(number: int) -> int:
-    """
-    Scale an integer by the configured scale factor.
-
-    Parameter:
-        number: Integer to scale.
-
-    Returns:
-        Scaled integer.
-    """
-    return SCALE * number
+    return scaling.scale_int(number)
 
 
 TEnum = TypeVar("TEnum", bound=Enum)
@@ -169,7 +138,7 @@ TEnum = TypeVar("TEnum", bound=Enum)
 
 def safe_enum_value(
     enum_class: type[TEnum],
-    value: Optional[str],
+    value: str | None,
     default: TEnum,
     raise_on_error: bool = False,
 ) -> TEnum:
@@ -192,9 +161,9 @@ def safe_enum_value(
 
 def get_valid_uuid(
     game_variables: ScopeVariablesManager, variable_name: str
-) -> Optional[UUID]:
+) -> UUID | None:
     """Safely retrieves a valid UUID from game variables."""
-    raw_value: Union[str, None] = game_variables.get(variable_name)
+    raw_value: str | None = game_variables.get(variable_name)
 
     if raw_value in ("no_choice", "no_options", None):
         logger.info(
@@ -219,13 +188,13 @@ def fix_measure(measure: int, percentage: float) -> int:
 def open_dialog(
     client: BaseClient,
     text: Sequence[str],
-    avatar: Optional[Sprite] = None,
-    box_style: Optional[dict[str, Any]] = None,
+    avatar: Sprite | None = None,
+    box_style: dict[str, Any] | None = None,
     position: DialogPosition = DialogPosition.BOTTOM,
-    target_coords: Optional[Union[tuple[int, int], Rect]] = None,
-    custom_rect: Optional[Rect] = None,
-    on_complete: Optional[Callable[[], None]] = None,
-    dialog_speed: Optional[str] = None,
+    target_coords: tuple[int, int] | Rect | None = None,
+    custom_rect: Rect | None = None,
+    on_complete: Callable[[], None] | None = None,
+    dialog_speed: str | None = None,
 ) -> State:
     """
     Open a dialog with the standard window size or a custom size/position.
@@ -257,14 +226,14 @@ def open_dialog(
         dialog_rect = custom_rect
     else:
         dialog_rect = calc_dialog_rect(
-            SCREEN_RECT, position, target_coords=target_coords
+            client.context.rect, position, target_coords=target_coords
         )
 
     return client.push_state(
         "DialogState",
+        rect=dialog_rect,
         text=text,
         avatar=avatar,
-        rect=dialog_rect,
         box_style=box_style,
         on_complete=on_complete,
         dialog_speed=dialog_speed,
@@ -275,7 +244,7 @@ def open_choice_dialog(
     client: BaseClient,
     menu: MenuOptions,
     escape_key_exits: bool = False,
-    config: Optional[MenuStateConfig] = None,
+    config: MenuStateConfig | None = None,
 ) -> State:
     """
     Opens a dialog choice using the standard window size.
@@ -296,10 +265,6 @@ def open_choice_dialog(
         escape_key_exits=escape_key_exits,
         config=config,
     )
-
-
-def vector2_to_tile_pos(vector: Vector2) -> tuple[int, int]:
-    return (int(vector[0]), int(vector[1]))
 
 
 def number_or_variable(variables: dict[str, Any], value: str) -> float:
@@ -368,7 +333,7 @@ def cast_value(
     for c in type_constructors:
         if c is None:
             expanded.append(type(None))
-        elif get_origin(c) in (Union, UnionType):
+        elif get_origin(c) == UnionType:
             expanded.extend(get_args(c))
         else:
             expanded.append(c)
@@ -530,7 +495,7 @@ def get_types_tuple(
     """
     origin = get_origin(param_type)
 
-    if origin is Union or origin is UnionType:
+    if origin is UnionType:
         return get_args(param_type)
 
     if param_type is type(None):
@@ -539,7 +504,7 @@ def get_types_tuple(
     return (param_type,)
 
 
-@lru_cache(maxsize=None)
+@cache
 def get_cached_type_info(cls: type) -> dict[str, tuple[type, ...]]:
     """
     Retrieve and cache type information for dataclass fields.
@@ -592,7 +557,7 @@ def cast_dataclass_parameters(obj: Any) -> None:
 
 def show_result_as_dialog(
     session: Session,
-    entity: Union[Item, Technique],
+    entity: Item | Technique,
     result: bool,
 ) -> None:
     """
@@ -658,9 +623,7 @@ def assert_never(value: Never) -> NoReturn:
     assert False, f"Unhandled value: {value} ({type(value).__name__})"
 
 
-def compare(
-    key: str, value1: Union[int, float], value2: Union[int, float]
-) -> bool:
+def compare(key: str, value1: int | float, value2: int | float) -> bool:
     """
     It compares and it returns a boleean whether is greater_than or not.
 
@@ -679,23 +642,49 @@ def compare(
     Returns:
         boolean: true / false
     """
-    if key == Comparison.less_than or key == "<":
+    if key == Comparison.LESS_THAN or key == "<":
         return bool(lt(value1, value2))
-    elif key == Comparison.less_or_equal or key == "<=":
+    elif key == Comparison.LESS_OR_EQUAL or key == "<=":
         return bool(le(value1, value2))
-    elif key == Comparison.greater_than or key == ">":
+    elif key == Comparison.GREATER_THAN or key == ">":
         return bool(gt(value1, value2))
-    elif key == Comparison.greater_or_equal or key == ">=":
+    elif key == Comparison.GREATER_OR_EQUAL or key == ">=":
         return bool(ge(value1, value2))
-    elif key == Comparison.equals or key == "==":
+    elif key == Comparison.EQUALS or key == "==":
         return bool(eq(value1, value2))
-    elif key == Comparison.not_equals or key == "!=":
+    elif key == Comparison.NOT_EQUALS or key == "!=":
         return bool(ne(value1, value2))
     else:
         raise ValueError(f"{key} isn't among {list(Comparison)}")
 
 
-def parse_flag(value: Optional[str]) -> bool:
+def compare_tuple(
+    key: str,
+    value1: tuple[int | float, int | float],
+    value2: tuple[int | float, int | float],
+) -> bool:
+    """
+    Tuple-based comparison using the same Comparison enum
+    and symbolic operators supported by compare().
+    """
+
+    if key == Comparison.LESS_THAN or key == "<":
+        return value1 < value2
+    elif key == Comparison.LESS_OR_EQUAL or key == "<=":
+        return value1 <= value2
+    elif key == Comparison.GREATER_THAN or key == ">":
+        return value1 > value2
+    elif key == Comparison.GREATER_OR_EQUAL or key == ">=":
+        return value1 >= value2
+    elif key == Comparison.EQUALS or key == "==":
+        return value1 == value2
+    elif key == Comparison.NOT_EQUALS or key == "!=":
+        return value1 != value2
+    else:
+        raise ValueError(f"{key} isn't among {list(Comparison)}")
+
+
+def parse_flag(value: str | None) -> bool:
     """
     Convert a string flag to a boolean.
 

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional, final
+from typing import final
 
 from tuxemon.event.eventaction import EventAction
 from tuxemon.graphics import string_to_colorlike
@@ -28,11 +28,10 @@ class SetLayerAction(EventAction):
     Note: this is not a separate state, so it's advisable
         to add a 4th value to the rgb, if not you're not
         going to see the character, ideally 128.
-
     """
 
     name = "set_layer"
-    rgb: Optional[str] = None
+    rgb: str | None = None
 
     def start(self, session: Session) -> None:
         rgb = string_to_colorlike(self.rgb) if self.rgb else None

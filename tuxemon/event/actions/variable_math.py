@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Optional, final
+from typing import final
 
 from tuxemon.event.eventaction import EventAction
 from tuxemon.session import Session
@@ -34,14 +34,13 @@ class VariableMathAction(EventAction):
         var2: Second operand.
         result: Variable where to store the result. If missing, it will be
             ``var1``.
-
     """
 
     name = "variable_math"
     var1: str
     operation: str
     var2: str
-    result: Optional[str] = None
+    result: str | None = None
 
     def start(self, session: Session) -> None:
         player = session.player

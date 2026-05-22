@@ -2,9 +2,8 @@
 # Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
-import time
 from collections import deque
-from typing import TYPE_CHECKING, NamedTuple, Optional
+from typing import TYPE_CHECKING, NamedTuple
 
 from tuxemon.event.eventmiddleware import InputTranslatorMiddleware
 
@@ -18,14 +17,19 @@ class ComboHint(NamedTuple):
     total_combo_length: int = 0
 
 
+class HistoryEntry(NamedTuple):
+    event: PlayerInput
+    age: float
+
+
 class InputHistory:
     def __init__(self, config: TuxemonConfig, max_size: int = 25):
-        self.history: deque[PlayerInput] = deque(maxlen=max_size)
-        self.last_history_event: Optional[PlayerInput] = None
+        self.history: deque[HistoryEntry] = deque(maxlen=max_size)
+        self.last_history_event: PlayerInput | None = None
         self.held_timers: dict[int, float] = {}
         self._click_counts: dict[int, int] = {}
         self._buttons_down: set[int] = set()
-        self._last_button_clicked: Optional[int] = None
+        self._last_button_clicked: int | None = None
         self._current_combo_hint: ComboHint = ComboHint()
         self.combo_window_seconds = config.controller.combo_window_seconds
         self.translator = InputTranslatorMiddleware()
@@ -38,53 +42,61 @@ class InputHistory:
         """
         Adds a new input event to the history.
         The history stores only distinct button presses (no consecutive
-        duplicates).
+        duplicates), *unless* repeated presses represent separate taps.
         """
         translated_event = self.translator.preprocess(event)
         if translated_event is None:
             return
 
+        button = translated_event.button
+
         if translated_event.pressed:
-            self.held_timers[translated_event.button] = 0.0
+            self.held_timers[button] = 0.0
         elif translated_event.released:
-            self.held_timers.pop(translated_event.button, None)
+            self.held_timers.pop(button, None)
+
+        if translated_event.released and button in self._buttons_down:
+            self._click_counts[button] = self._click_counts.get(button, 0) + 1
+            self._buttons_down.discard(button)
 
         if translated_event.pressed:
-            self._last_button_clicked = translated_event.button
-            if translated_event.button not in self._buttons_down:
-                self._buttons_down.add(translated_event.button)
-        elif (
-            translated_event.released
-            and translated_event.button in self._buttons_down
-        ):
-            self._click_counts[translated_event.button] = (
-                self._click_counts.get(translated_event.button, 0) + 1
-            )
-            self._buttons_down.discard(translated_event.button)
+            self._buttons_down.add(button)
+            self._last_button_clicked = button
 
-        if (
-            not self.last_history_event
-            or translated_event.button != self.last_history_event.button
-        ):
-            self.history.append(translated_event)
+            if (
+                self.last_history_event
+                and self.last_history_event.button == button
+                and self.last_history_event.pressed
+            ):
+                return
+
+            self.history.append(HistoryEntry(translated_event, 0.0))
             self.last_history_event = translated_event
 
-    def update(self, time_delta: float) -> None:
-        self.update_history(max_age_s=self.combo_window_seconds)
-        for button in list(self.held_timers.keys()):
-            self.held_timers[button] += time_delta
+    def update(self, dt: float) -> None:
+        self.update_history(dt, max_age_s=self.combo_window_seconds)
 
-    def update_history(self, max_age_s: Optional[float] = None) -> None:
+        for button in list(self.held_timers.keys()):
+            self.held_timers[button] += dt
+
+    def update_history(
+        self, dt: float, max_age_s: float | None = None
+    ) -> None:
         """
         Removes inputs from the history if they are older than max_age_s.
         This enforces a 'combo window'.
         """
         max_age_s = max_age_s or self.combo_window_seconds
-        cutoff_time = time.time() - max_age_s
 
-        while self.history and self.history[0].timestamp < cutoff_time:
+        # Age all events
+        self.history = deque(
+            (HistoryEntry(e.event, e.age + dt) for e in self.history),
+            maxlen=self.history.maxlen,
+        )
+
+        # Remove expired events
+        while self.history and self.history[0].age > max_age_s:
             self.history.popleft()
-
             if not self.history:
                 self.last_history_event = None
 
@@ -107,29 +119,27 @@ class InputHistory:
         the history and updates the partial match hint.
         """
         combo_len = len(buttons)
-        history_len = len(self.history)
-        match_count = 0
-
-        history_list = list(self.history)
+        history_buttons = [e.event.button for e in self.history]
+        history_len = len(history_buttons)
 
         if combo_len <= history_len:
-            history_buttons_suffix = [
-                e.button for e in history_list[-combo_len:]
-            ]
-            if history_buttons_suffix == buttons:
+            if history_buttons[-combo_len:] == buttons:
                 self._current_combo_hint = ComboHint(combo_len, combo_len)
                 return True
 
-            for length in range(combo_len - 1, 0, -1):
-                history_suffix = [e.button for e in history_list[-length:]]
-                combo_prefix = buttons[:length]
+        max_len = min(combo_len, history_len)
 
-                if history_suffix == combo_prefix:
+        match_count = 0
+        for length in range(max_len, 0, -1):
+            if history_buttons[:length] == buttons[:length]:
+                match_count = length
+                break
+
+        if match_count == 0:
+            for length in range(max_len, 0, -1):
+                if history_buttons[-length:] == buttons[:length]:
                     match_count = length
                     break
-
-        if history_len < combo_len:
-            match_count = history_len
 
         self._current_combo_hint = ComboHint(match_count, combo_len)
         return False
@@ -155,7 +165,7 @@ class InputHistory:
         """
         return dict(self._click_counts)
 
-    def get_last_button_clicked(self) -> Optional[int]:
+    def get_last_button_clicked(self) -> int | None:
         """Returns the ID of the last button pressed down."""
         return self._last_button_clicked
 

@@ -4,7 +4,7 @@ from uuid import uuid4
 
 import pytest
 
-from tuxemon.entity_dir.routing import RoutingPolicyRegistry
+from tuxemon.entity.routing import RoutingPolicyRegistry
 
 
 class FakeMoves:
@@ -48,6 +48,9 @@ class FakeBoxes:
         self.received.append((monster, kennel))
         return True
 
+    def remove_from_box(self, box_type, box_id, obj):
+        self.received = [(m, k) for m, k in self.received if m is not obj]
+
 
 class FakeNPC:
     pass
@@ -77,7 +80,7 @@ def default_policy():
 
 @pytest.fixture
 def handler(default_policy, setup_policies):
-    from tuxemon.entity_dir.party import PartyHandler
+    from tuxemon.entity.party import PartyHandler
 
     return PartyHandler(
         monster_boxes=FakeBoxes(),

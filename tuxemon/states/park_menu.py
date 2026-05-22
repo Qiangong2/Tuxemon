@@ -5,22 +5,22 @@ from __future__ import annotations
 import logging
 from collections.abc import Callable, Generator
 from enum import Enum, auto
-from typing import TYPE_CHECKING, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from pygame.rect import Rect
 
 from tuxemon.db import ItemCategory
 from tuxemon.item.filter import ItemFilter
 from tuxemon.item.item import Item
-from tuxemon.locale import T
+from tuxemon.locale.locale import T
 from tuxemon.menu.interface import MenuItem
 from tuxemon.menu.menu import PopUpMenu
-from tuxemon.prepare import SCREEN_RECT
 from tuxemon.states.item_menu import ItemMenuState
 
 if TYPE_CHECKING:
-    from tuxemon.monster import Monster
-    from tuxemon.npc import NPC
+    from tuxemon.base_client import BaseClient
+    from tuxemon.entity.npc import NPC
+    from tuxemon.monster.monster import Monster
     from tuxemon.session import Session
     from tuxemon.states.combat_state import CombatState
 
@@ -45,15 +45,17 @@ class MainParkMenuState(PopUpMenu[MenuGameObj]):
 
     def __init__(
         self,
+        client: BaseClient,
         session: Session,
-        cmb: CombatState,
+        combat: CombatState,
         character: NPC,
         monster: Monster,
+        **kwargs: Any,
     ) -> None:
-        super().__init__()
+        super().__init__(client=client, **kwargs)
         self.rect = self.calculate_menu_rectangle()
         self.session = session
-        self.combat = cmb
+        self.combat = combat
         self.character = character
         self.player = session.client.combat_session.left_player  # human
         self.enemy = session.client.combat_session.right_player  # ai
@@ -73,10 +75,10 @@ class MainParkMenuState(PopUpMenu[MenuGameObj]):
         self.itm_description: str | None = None
         params = {"player": self.character.name}
         message = T.format("combat_player_choice", params)
-        self.dialog.alert(message, self.combat.text_area)
+        self.event_bus.publish("combat_dialog", message=message)
 
     def calculate_menu_rectangle(self) -> Rect:
-        rect_screen = SCREEN_RECT.copy()
+        rect_screen = self.client.context.rect.copy()
         menu_width = rect_screen.w // 2.5
         menu_height = rect_screen.h // 4
         rect = Rect(0, 0, menu_width, menu_height)
@@ -84,8 +86,10 @@ class MainParkMenuState(PopUpMenu[MenuGameObj]):
         return rect
 
     def initialize_items(self) -> Generator[MenuItem[MenuGameObj], None, None]:
-        self.combat.hud_manager.delete_hud(self.monster)
-        self.combat.update_hud(self.player, False, True)
+        hud = self.combat.hud_manager.get_hud(self.monster)
+        if hud is None:
+            return
+        self.combat._update_hud_details(self.monster, hud, hud.player)
 
         menu_items_map = (
             (ParkMenuKeys.BALL, "menu_ball", self.throw_tuxeball),
@@ -125,7 +129,7 @@ class MainParkMenuState(PopUpMenu[MenuGameObj]):
             yield menu
 
     def run(self) -> None:
-        self.combat.clean_combat()
+        self.event_bus.publish("clean_combat")
         self.client.combat_session.reset()
 
     def check_category(self, cat_slug: str) -> int:
@@ -157,11 +161,16 @@ class MainParkMenuState(PopUpMenu[MenuGameObj]):
             items_filtered.set_filter_combat_targets(
                 self.session, self.player.monsters, self.opponents
             )
-            menu = self.client.push_state(
-                ItemMenuState(self.player, self.name, items_filtered)
+            self.client.push_state(
+                ItemMenuState(
+                    self.client,
+                    character=self.player,
+                    source=self.name,
+                    item_filter=items_filtered,
+                    on_selection=choose_target,
+                    is_valid_entry=validate,
+                )
             )
-            menu.is_valid_entry = validate  # type: ignore[method-assign]
-            menu.on_menu_selection = choose_target  # type: ignore[method-assign]
 
         def validate(item: Item | None) -> bool:
             """Validates if the selected item from the sub-menu is allowed."""
@@ -170,12 +179,12 @@ class MainParkMenuState(PopUpMenu[MenuGameObj]):
                 if self.itm_description == T.translate(
                     ParkMenuKeys.DOLL.name.lower()
                 ):
-                    if item.category == ItemCategory.doll:
+                    if item.category == ItemCategory.DOLL:
                         ret = True
                 elif self.itm_description == T.translate(
                     ParkMenuKeys.FOOD.name.lower()
                 ):
-                    if item.category == ItemCategory.food:
+                    if item.category == ItemCategory.FOOD:
                         ret = True
             return ret
 
@@ -189,9 +198,9 @@ class MainParkMenuState(PopUpMenu[MenuGameObj]):
     def deliver_action(self, item: Item) -> None:
         enemy = self.opponents[0]
 
-        if item.category == ItemCategory.food:
+        if item.category == ItemCategory.FOOD:
             self.encounter.apply_food_effect(item)
-        elif item.category == ItemCategory.doll:
+        elif item.category == ItemCategory.DOLL:
             self.encounter.apply_doll_effect(item)
 
         self.client.combat_session.enqueue_action(self.player, item, enemy)

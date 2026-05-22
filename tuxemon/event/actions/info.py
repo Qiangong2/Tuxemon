@@ -43,7 +43,6 @@ class InfoAction(EventAction):
         "info name_variable,owner_steps"
         -> if the owner walked 69 steps, then it'll create a variable called:
         "info_owner_steps:69"
-
     """
 
     name = "info"
@@ -58,17 +57,20 @@ class InfoAction(EventAction):
             logger.info(
                 f"No valid monster selected for variable '{self.variable}'"
             )
+            self.stop()
             return  # Exit early if no valid UUID
         monster = session.client.get_monster_by_iid(monster_id)
         if monster is None:
             monster = player.monster_boxes.get_monsters_by_iid(monster_id)
             if monster is None:
                 logger.error("Monster not found")
+                self.stop()
                 return
 
         character = session.client.get_monster_owner(monster)
         if character is None:
             logger.error(f"{monster.name}'s owner not found")
+            self.stop()
             return
 
         attr = None

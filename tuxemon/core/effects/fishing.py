@@ -6,14 +6,12 @@ import logging
 import random
 from dataclasses import dataclass, field
 from enum import Enum
-from pathlib import Path
-from typing import TYPE_CHECKING, Any
-
-import yaml
+from typing import TYPE_CHECKING
 
 from tuxemon.constants import paths
 from tuxemon.core.core_effect import CoreEffect, ItemEffectResult
 from tuxemon.database.runtime import db
+from tuxemon.database.yaml_utils import load_yaml
 from tuxemon.db import MonsterModel
 
 if TYPE_CHECKING:
@@ -21,8 +19,6 @@ if TYPE_CHECKING:
     from tuxemon.session import Session
 
 logger = logging.getLogger(__name__)
-
-lookup_cache: dict[str, MonsterModel] = {}
 
 
 @dataclass
@@ -54,18 +50,6 @@ class ActionConfig:
             raise ValueError("Bounds must be non-negative.")
         if self.level_bounds[0] > self.level_bounds[1]:
             raise ValueError("Lower bound cannot exceed upper bound.")
-
-
-def load_yaml(filepath: Path) -> Any:
-    try:
-        with filepath.open() as file:
-            return yaml.safe_load(file)
-    except FileNotFoundError:
-        logger.error(f"Config file not found: {filepath}")
-        raise
-    except yaml.YAMLError as exc:
-        logger.error(f"Error parsing YAML file: {exc}")
-        raise exc
 
 
 class Loader:
@@ -117,8 +101,8 @@ class FishingEffect(CoreEffect):
     _trigger_next_frame: bool = False
 
     def apply_item(self, session: Session, item: Item) -> ItemEffectResult:
-        if not lookup_cache:
-            _lookup_monsters()
+        MonsterModel.load_cache(db)
+        self.cache = MonsterModel.get_cache()
 
         fishing_configs = Loader.get_config_fishing(f"{self.name}.yaml")
 
@@ -173,12 +157,15 @@ class FishingEffect(CoreEffect):
             if self._trigger_next_frame and self._pending_encounter:
                 mon_slug, level = self._pending_encounter
                 exp_req_mod = self._fish.exp_req_mod
-                environment = (
+                env = (
                     self._fish.environment.get("night")
-                    if session.player.game_variables.get("stage_of_day")
+                    if session.time.get_time_variables().stage_of_day
                     == "night"
                     else self._fish.environment.get("default")
                 )
+                env = env or "ocean"
+                session.client.environment_manager.load_environment(env)
+                session.client.environment_manager.lock_environment()
                 rgb = ":".join(map(str, self._fish.animation_color))
                 held_item = None
                 if self._fish.held_items:
@@ -192,7 +179,6 @@ class FishingEffect(CoreEffect):
                         level,
                         exp_req_mod,
                         None,
-                        environment,
                         rgb,
                         held_item,
                     ],
@@ -229,7 +215,7 @@ class FishingEffect(CoreEffect):
                 )
             )
 
-        filtered = [mon for mon in lookup_cache.values() if matches(mon)]
+        filtered = [mon for mon in self.cache.values() if matches(mon)]
 
         if not filtered:
             logger.error(
@@ -261,12 +247,3 @@ class FishingEffect(CoreEffect):
         """Prepare a fishing encounter (store slug + level only)."""
         self._pending_encounter = (mon_slug, level)
         self._trigger_next_frame = True
-
-
-def _lookup_monsters() -> None:
-    global lookup_cache
-    lookup_cache = {
-        mon_name: result
-        for mon_name in db.database["monster"]
-        if (result := MonsterModel.lookup(mon_name, db)).txmn_id > 0
-    }

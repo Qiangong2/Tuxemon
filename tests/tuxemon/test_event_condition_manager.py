@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0
 # Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+from dataclasses import dataclass
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -10,17 +11,28 @@ from tuxemon.event.running import ConditionEvaluator
 
 
 @pytest.fixture
-def mock_load_plugins():
-    with patch("tuxemon.plugin.load_plugins") as mock:
+def mock_plugin_manager():
+    with patch("tuxemon.plugin.PluginManager.from_directory") as mock:
         yield mock
 
 
 @pytest.fixture
-def condition_manager(mock_load_plugins):
-    mock_condition_class = MagicMock()
-    mock_load_plugins.return_value = {"char_at": mock_condition_class}
+def condition_manager(mock_plugin_manager):
+
+    @dataclass
+    class DummyCondition(EventCondition):
+        name = "char_at"
+        a: str = ""
+        b: int = 0
+        c: str = ""
+
+        def test(self, session, condition_data):
+            return True
+
+    fake_manager = MagicMock()
+    fake_manager.get_class_map.return_value = {"char_at": DummyCondition}
+    mock_plugin_manager.return_value = fake_manager
     manager = ConditionManager()
-    manager._mock_condition_class = mock_condition_class
     return manager
 
 
@@ -28,6 +40,7 @@ def test_get_condition_found(condition_manager):
     mock_cond_data = MagicMock(spec=SpatialCondition)
     mock_cond_data.type = "char_at"
     mock_cond_data.operator = "is"
+    mock_cond_data.parameters = []
     condition = condition_manager.get_condition(mock_cond_data)
     assert condition is not None
     assert condition.is_expected is True
@@ -46,7 +59,6 @@ def test_get_condition_with_parameters(condition_manager):
     mock_cond_data.type = "char_at"
     mock_cond_data.operator = "is"
     mock_cond_data.parameters = ["hero", 0, "H"]
-    condition_manager._mock_condition_class.return_value = MagicMock()
     condition = condition_manager.get_condition(mock_cond_data)
     assert condition is not None
     assert condition.is_expected is True
@@ -79,9 +91,7 @@ def test_evaluate_condition_met(evaluator):
 
 
 def test_evaluate_condition_failed(evaluator):
-    evaluator.condition_manager.get_condition.return_value.test.return_value = (
-        False
-    )
+    evaluator.condition_manager.get_condition.return_value.test.return_value = False
     result = evaluator.evaluate(MagicMock())
     assert result is False
 

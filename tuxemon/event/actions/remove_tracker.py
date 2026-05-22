@@ -33,9 +33,10 @@ class RemoveTrackerAction(EventAction):
     location: str
 
     def start(self, session: Session) -> None:
-        character = session.get_npc(self.character)
+        character = session.client.get_npc(self.character)
         if character is None:
             logger.error(f"{self.character} not found")
+            self.stop()
             return
 
         character.tracker.remove_location(self.location)

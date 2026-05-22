@@ -4,13 +4,13 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Optional
+from typing import ClassVar
 
 from tuxemon.boundary import MapConditionBoundary
-from tuxemon.db import SpatialCondition
+from tuxemon.db import BoundingBox
+from tuxemon.entity.npc import NPC
 from tuxemon.event.eventcondition import EventCondition
 from tuxemon.event.eventpersist import EventPersist
-from tuxemon.npc import NPC
 from tuxemon.session import Session
 
 logger = logging.getLogger(__name__)
@@ -40,22 +40,28 @@ class CharMovedCondition(EventCondition):
         character: Either "player" or character slug name (e.g. "npc_maple")
     """
 
-    name = "char_moved"
+    name: ClassVar[str] = "char_moved"
+    character: str
 
-    def test(self, session: Session, condition: SpatialCondition) -> bool:
-        character = session.get_npc(condition.parameters[0])
+    def test(self, session: Session) -> bool:
+        character = session.client.get_npc(self.character)
         if character is None:
-            logger.error(f"{condition.parameters[0]} not found")
+            logger.error(f"{self.character} not found")
+            return False
+        if session.current_condition_box is None:
             return False
         return generic_test(
-            self.name, session.client.event_persist, condition, character
+            self.name,
+            session.client.event_persist,
+            session.current_condition_box,
+            character,
         )
 
 
 def generic_test(
     name: str,
     persist: EventPersist,
-    condition: SpatialCondition,
+    condition_box: BoundingBox,
     character: NPC,
 ) -> bool:
     """
@@ -64,18 +70,18 @@ def generic_test(
     Parameters:
         name: The unique identifier for the event condition.
         persist: The event persistence object used to track state changes.
-        condition: The event condition being evaluated.
+        condition_box: The spatial bounding box defining the event trigger area.
         character: The character whose movement is being assessed.
 
     Returns:
         True if the character has moved onto the event tile, False otherwise.
     """
-    map_boundary = MapConditionBoundary(condition)
+    map_boundary = MapConditionBoundary(condition_box)
     # Retrieve where the character is going (not where it currently is)
     move_destination = character.move_destination
 
     # Create a unique identifier for the condition (hash/id of sorts)
-    condition_str = str(condition)
+    condition_str = str(condition_box)
 
     stopped = move_destination is None
     collide_next = False
@@ -86,7 +92,7 @@ def generic_test(
     stored = persist.get_event_data(name)
 
     # Get the last recorded destination for this specific condition
-    last_destination: Optional[tuple[int, int]] = stored.get(condition_str)
+    last_destination: tuple[int, int] | None = stored.get(condition_str)
 
     # If no last destination is recorded, update storage when movement stops or collides
     if last_destination is None and (stopped or collide_next):

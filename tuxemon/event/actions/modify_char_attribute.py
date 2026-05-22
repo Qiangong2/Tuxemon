@@ -31,7 +31,6 @@ class ModifyCharAttributeAction(EventAction):
         character: Either "player" or character slug name (e.g. "npc_maple").
         attribute: Name of the attribute to modify.
         value: Value of the attribute modifier.
-
     """
 
     name = "modify_char_attribute"
@@ -40,9 +39,10 @@ class ModifyCharAttributeAction(EventAction):
     value: str
 
     def start(self, session: Session) -> None:
-        character = session.get_npc(self.character)
+        character = session.client.get_npc(self.character)
         if character is None:
             logger.error(f"{self.character} not found")
+            self.stop()
             return
         CommonAction.modify_entity_attribute(
             character, self.attribute, self.value

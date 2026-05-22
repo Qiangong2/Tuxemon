@@ -2,35 +2,32 @@
 # Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
-from collections.abc import Generator
-from typing import TYPE_CHECKING, ClassVar, Optional
+from collections.abc import Callable, Generator
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from pygame.rect import Rect
 
-from tuxemon.locale import T
+from tuxemon.locale.locale import T
 from tuxemon.menu.interface import MenuItem
 from tuxemon.menu.menu import Menu
+from tuxemon.monster.renderer import MonsterRenderer
 from tuxemon.platform.const.graphics import (
     BG_MOVES,
     DIMGRAY_COLOR,
     MISSING_IMAGE,
 )
-from tuxemon.prepare import SCREEN_RECT
 from tuxemon.session import local_session
 from tuxemon.sprite import Sprite
 from tuxemon.technique.controller import TechController
 from tuxemon.technique.filter import TechFilter
 from tuxemon.technique.sorter import TechSorter
 from tuxemon.technique.technique import Technique
-from tuxemon.tools import (
-    open_choice_dialog,
-    open_dialog,
-    scale,
-)
+from tuxemon.tools import open_choice_dialog, open_dialog
 from tuxemon.ui.text import TextArea
 
 if TYPE_CHECKING:
-    from tuxemon.npc import NPC
+    from tuxemon.base_client import BaseClient
+    from tuxemon.entity.npc import NPC
 
 
 class TechniqueMenuState(Menu[Technique]):
@@ -42,30 +39,41 @@ class TechniqueMenuState(Menu[Technique]):
 
     def __init__(
         self,
+        client: BaseClient,
         character: NPC,
         techniques: list[Technique],
-        tech_filter: Optional[TechFilter] = None,
-        tech_sorter: Optional[TechSorter] = None,
+        tech_filter: TechFilter | None = None,
+        tech_sorter: TechSorter | None = None,
+        on_selection: Callable[[MenuItem[Technique]], None] | None = None,
+        is_valid_entry: Callable[[Technique | None], bool] | None = None,
+        **kwargs: Any,
     ) -> None:
         self.char = character
         self.tech_filter = tech_filter or TechFilter(techniques)
         self.tech_sorter = tech_sorter or TechSorter()
+        self._external_on_selection = on_selection
+        self._external_is_valid_entry = is_valid_entry
 
-        super().__init__()
+        super().__init__(client=client, **kwargs)
 
         self.item_center = self.rect.width * 0.164, self.rect.height * 0.13
         self.technique_sprite = Sprite()
         self.sprites.add(self.technique_sprite)
-        self.menu_items.line_spacing = scale(7)
+        self.menu_items.line_spacing = self.client.context.scaling.scale_int(7)
 
         # this is the area where the technique description is displayed
-        rect = SCREEN_RECT.copy()
-        rect.top = scale(106)
-        rect.left = scale(3)
-        rect.width = scale(250)
-        rect.height = scale(32)
-        self.text_area = TextArea(self.font, self.font_color, (96, 96, 128))
-        self.text_area.rect = rect
+        rect = self.client.context.rect.copy()
+        rect.top = self.client.context.scaling.scale_int(106)
+        rect.left = self.client.context.scaling.scale_int(3)
+        rect.width = self.client.context.scaling.scale_int(250)
+        rect.height = self.client.context.scaling.scale_int(32)
+        self.text_area = TextArea(
+            font=self.font,
+            font_color=self.font_color,
+            rect=rect,
+            scaling=self.client.context.scaling,
+            font_shadow=(96, 96, 128),
+        )
         self.sprites.add(self.text_area, layer=100)
 
     def calc_internal_rect(self) -> Rect:
@@ -86,6 +94,9 @@ class TechniqueMenuState(Menu[Technique]):
         Parameters:
             menu_technique: Selected menu technique.
         """
+        if self._external_on_selection:
+            return self._external_on_selection(menu_technique)
+
         tech = menu_technique.game_object
 
         if not any(
@@ -123,15 +134,19 @@ class TechniqueMenuState(Menu[Technique]):
 
         for tech in self.tech_sorter.sort(output):
             mon = self.char.party.find_monster_by_tech_id(tech.instance_id)
+
             if mon:
-                sprite = mon.sprite_handler.front_path
+                renderer = MonsterRenderer(mon, scale=self.factor)
+                sprite = renderer.get_sprite("front")
+                sprite.rect.center = self.backpack_center
+                self.sprites.add(sprite, layer=100)
             else:
-                sprite = MISSING_IMAGE
-            self.load_sprite(
-                sprite,
-                center=self.backpack_center,
-                layer=100,
-            )
+                self.load_sprite(
+                    MISSING_IMAGE,
+                    center=self.backpack_center,
+                    layer=100,
+                )
+
             yield self.create_technique_menu_item(tech)
 
     def on_menu_selection_change(self) -> None:
@@ -144,10 +159,12 @@ class TechniqueMenuState(Menu[Technique]):
                     technique.description, self.text_area, dialog_speed="max"
                 )
 
-    def is_valid_entry(self, technique: Optional[Technique]) -> bool:
+    def is_valid_entry(self, technique: Technique | None) -> bool:
         """
         Used to determine if a given technique should be selectable.
         """
+        if self._external_is_valid_entry:
+            return self._external_is_valid_entry(technique)
         return technique is not None
 
     def create_technique_menu_item(

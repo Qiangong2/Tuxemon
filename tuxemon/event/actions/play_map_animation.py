@@ -6,7 +6,7 @@ import logging
 from dataclasses import dataclass
 from typing import final
 
-from tuxemon.animation_entity import setup_and_play_animation
+from tuxemon.db import LoopMode
 from tuxemon.event.eventaction import EventAction
 from tuxemon.session import Session
 
@@ -42,20 +42,25 @@ class PlayMapAnimationAction(EventAction):
     character: str
 
     def start(self, session: Session) -> None:
-        character = session.get_npc(self.character)
+        character = session.client.get_npc(self.character)
 
         if character is None:
             logger.error(f"Character '{self.character}' not found")
+            self.stop()
             return
 
-        position = character.tile_pos
-        animations = session.client.map_renderer.map_animations
+        if self.loop == "loop":
+            loop_mode = LoopMode.INFINITE
+        elif self.loop == "noloop":
+            loop_mode = LoopMode.NO_LOOP
+        else:
+            raise ValueError(f"{self.loop} value must be 'loop' or 'noloop'")
 
-        setup_and_play_animation(
-            animation_name=self.animation_name,
+        manager = session.client.map_renderer.map_animations
+        manager.setup_and_play(
+            slug=self.animation_name,
             duration=self.duration,
-            loop=self.loop,
-            position=position,
-            animations=animations,
+            loop=loop_mode,
+            position=character.tile_pos,
             layer=4,
         )

@@ -169,8 +169,7 @@ events:
     type: event
   Create Dante:
     actions:
-    - create_npc spyder_dante,11,6
-    - char_wander spyder_dante
+    - create_npc spyder_dante,11,6,wander
     conditions:
     - not char_exists spyder_dante
     - is variable_set intro_scoop:done
@@ -246,7 +245,7 @@ events:
     - pathfind spyder_dante,7,7
     - char_face spyder_dante,left
     - translated_dialog spyder_intro_question_name
-    - rename_player random
+    - rename_player player,random
     - set_variable choice_phase:yes
     - unlock_controls
     conditions:

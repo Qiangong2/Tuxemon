@@ -31,10 +31,11 @@ from tuxemon.event.eventmanager import EventManager
 from tuxemon.event.eventpersist import EventPersist
 from tuxemon.event.running import ConditionEvaluator
 from tuxemon.map.collision_manager import CollisionManager
-from tuxemon.map.map_loader import MapLoader
-from tuxemon.map.map_manager import MapManager
-from tuxemon.map.map_transition import MapTransition
-from tuxemon.map.map_view import AbstractRenderer, NullRenderer
+from tuxemon.map.loader import MapLoader
+from tuxemon.map.manager import MapManager
+from tuxemon.map.terrain import TerrainManager
+from tuxemon.map.transition import MapTransition
+from tuxemon.map.view import AbstractRenderer, NullRenderer
 from tuxemon.menu.alert import AlertManager
 from tuxemon.movement import MovementManager, Pathfinder
 from tuxemon.network.manager import NetworkManager
@@ -56,9 +57,10 @@ from tuxemon.world.weather import WorldWeatherManager
 
 if TYPE_CHECKING:
     from tuxemon.config import TuxemonConfig
-    from tuxemon.monster import Monster
-    from tuxemon.npc import NPC
+    from tuxemon.entity.npc import NPC
+    from tuxemon.monster.monster import Monster
     from tuxemon.platform.events import PlayerInput
+    from tuxemon.prepare import DisplayContext
     from tuxemon.state.queue import QueuedState
     from tuxemon.ui.cipher_processor import CipherProcessor
 
@@ -80,20 +82,20 @@ class BaseClient(ABC):
     Handles shared setup and lifecycle management for both graphical and headless clients.
     """
 
-    def __init__(self, config: TuxemonConfig) -> None:
+    def __init__(self, config: TuxemonConfig, context: DisplayContext) -> None:
         init_assets()
         self.config = config
+        self.context = context
+        self.screen = context.screen
         self.active_effect_manager = ActiveEffectManager()
 
         self.event_bus = get_event_bus()
-        self.state_repository = StateRepository()
-        loader = StateLoader(
-            base_package="tuxemon.states", lib_dir=paths.LIBDIR
+        self.state_repository = StateRepository.from_loader(
+            StateLoader("tuxemon.states", paths.LIBDIR)
         )
-        loader.auto_state_discovery(self.state_repository)
         self.state_manager = StateManager(
             package="tuxemon.states",
-            event=self.event_bus,
+            client=self,
             repository=self.state_repository,
             on_state_change=self.on_state_change,
         )
@@ -105,7 +107,10 @@ class BaseClient(ABC):
         self.afk_manager = AFKManager()
         self.input_cache = ScriptInputCache(self.event_bus)
         self.input_manager = InputManager(
-            config, self.afk_manager, self.input_recorder
+            config,
+            self.afk_manager,
+            self.input_recorder,
+            self.context.resolution,
         )
 
         # Set up our networking for multiplayer.
@@ -130,7 +135,7 @@ class BaseClient(ABC):
         self.event_persist = EventPersist()
 
         self.npc_manager = NPCManager()
-        self.map_loader = MapLoader()
+        self.map_loader = MapLoader(self.context)
         self.map_manager = MapManager()
         self.boundary = BoundaryChecker()
         self.camera_manager = CameraManager()
@@ -154,9 +159,8 @@ class BaseClient(ABC):
         self.movement_manager = MovementManager(
             self.event_manager, self.input_manager
         )
-        self.collision_manager = CollisionManager(
-            self.map_manager, self.npc_manager
-        )
+        self.terrain_manager = TerrainManager(self.map_manager)
+        self.collision_manager = CollisionManager(self.map_manager)
         self.pathfinder = Pathfinder(
             self.npc_manager,
             self.map_manager,
@@ -179,7 +183,7 @@ class BaseClient(ABC):
 
         # Various Sessions
         self.trade_manager = TradeManager(self.npc_manager)
-        self.environment_manager = EnvironmentManager()
+        self.environment_manager = EnvironmentManager(self.context)
         self.encounter_manager = EncounterManager()
         self.park_session = ParkSession()
         self.weather_manager = WorldWeatherManager()
@@ -278,7 +282,7 @@ class BaseClient(ABC):
         """
 
     @abstractmethod
-    def update(self, time_delta: float) -> None:
+    def update(self, dt: float) -> None:
         """
         Main loop for entire game.
 
@@ -330,6 +334,12 @@ class BaseClient(ABC):
         Query the state stack for a state by the name supplied.
         """
         return self.state_manager.get_queued_state_by_name(state_name)
+
+    def has_queued_state(self, state_name: str) -> bool:
+        return any(
+            s.name == state_name
+            for s in self.state_manager.state_queue.queued_states
+        )
 
     def queue_state(self, state_name: str, **kwargs: Any) -> None:
         """Queue a state"""
@@ -422,8 +432,14 @@ class BaseClient(ABC):
 
     def get_npc_pos(self, pos: tuple[int, int]) -> NPC | None:
         """Gets an NPC object by location (x,y)."""
+        if local_session.has_player():
+            player = local_session.player
+            if player.tile_pos == pos:
+                return player
         return self.npc_manager.get_entity_pos(pos)
 
     def get_npc(self, slug: str) -> NPC | None:
         """Gets an NPC object by slug."""
+        if slug == "player":
+            return local_session.player if local_session.has_player() else None
         return self.npc_manager.get_npc(slug)

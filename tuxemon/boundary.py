@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import math
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, NamedTuple, Optional
+from typing import TYPE_CHECKING, NamedTuple
 
 if TYPE_CHECKING:
-    from tuxemon.db import SpatialCondition
+    from tuxemon.db import BoundingBox
 
 
 class Dimensions(NamedTuple):
@@ -209,12 +209,11 @@ class CompositeBoundary(Boundary):
 
 
 class MapConditionBoundary(Boundary):
-    def __init__(self, condition: SpatialCondition):
-        self._condition = condition
-        self.x = float(condition.box.x)
-        self.y = float(condition.box.y)
-        self.width = condition.box.width
-        self.height = condition.box.height
+    def __init__(self, box: BoundingBox):
+        self.x = float(box.x)
+        self.y = float(box.y)
+        self.width = box.width
+        self.height = box.height
 
     def is_within(self, position: tuple[float, float]) -> bool:
         return (
@@ -254,7 +253,7 @@ class BoundaryChecker:
 
     def __init__(self) -> None:
         self.boundaries: dict[str, Boundary] = {}
-        self.active: Optional[str] = None
+        self.active: str | None = None
 
     def set_rectangular_boundary(
         self, name: str, x0: int, x1: int, y0: int, y1: int

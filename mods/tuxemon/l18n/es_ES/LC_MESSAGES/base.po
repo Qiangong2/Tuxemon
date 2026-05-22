@@ -1313,14 +1313,11 @@ msgstr "Caballero II"
 msgid "liela"
 msgstr "Liela"
 
-msgid "maple_girl"
+msgid "maple_wren"
 msgstr "Maple"
 
 msgid "misa"
 msgstr "Misa"
-
-msgid "npc_wife"
-msgstr "Esposa NPC"
 
 msgid "professor"
 msgstr "Profesor"
@@ -3879,7 +3876,10 @@ msgstr ""
 
 msgid "evolution_confirmation"
 msgstr ""
-"{name} está tratando de evolucionar en {evolve}. ¿Permitir la evolución?"
+"{name} está tratando de evolucionar en {evolve}."
+
+msgid "allow_evolution"
+msgstr "¿Permitir la evolución?"
 
 msgid "tuxemon_stat2"
 msgstr "{desc}"

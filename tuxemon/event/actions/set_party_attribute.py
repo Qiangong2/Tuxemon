@@ -28,7 +28,6 @@ class SetPartyAttributeAction(EventAction):
         character: Either "player" or character slug name (e.g. "npc_maple").
         attribute: Name of the attribute.
         value: Value of the attribute.
-
     """
 
     name = "set_party_attribute"
@@ -37,7 +36,7 @@ class SetPartyAttributeAction(EventAction):
     value: str
 
     def start(self, session: Session) -> None:
-        character = session.get_npc(self.character)
+        character = session.client.get_npc(self.character)
         assert character
         for monster in character.monsters:
             CommonAction.set_entity_attribute(

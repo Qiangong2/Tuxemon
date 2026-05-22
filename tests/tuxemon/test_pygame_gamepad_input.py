@@ -38,6 +38,8 @@ class MockMapping(InputMappingStrategy):
 def gamepad_input():
     pg.quit()
     pg.init()
+    mock_js = Mock()
+    mock_js.get_instance_id.return_value = 0
     event_map = {
         0: buttons.A,
         1: buttons.B,
@@ -49,7 +51,7 @@ def gamepad_input():
         7: buttons.START,
     }
     strategy = MockMapping(event_map)
-    gp = PygameGamepadInput(strategy)
+    gp = PygameGamepadInput(strategy, [mock_js])
     gp.press = Mock()
     gp.release = Mock()
     yield gp
@@ -73,45 +75,57 @@ def test_handle_button_release(gamepad_input):
 
 
 def test_check_button_press(gamepad_input):
-    event = Event(pg.JOYBUTTONDOWN, button=0)
+    event = Event(pg.JOYBUTTONDOWN, button=0, joy=0)
     gamepad_input.process_event(event)
     gamepad_input.press.assert_called_once_with(buttons.A, 0.0)
 
 
 def test_check_button_release(gamepad_input):
-    event = Event(pg.JOYBUTTONUP, button=0)
+    event = Event(pg.JOYBUTTONUP, button=0, joy=0)
     gamepad_input.process_event(event)
     gamepad_input.release.assert_called_once_with(buttons.A)
 
 
 @pytest.mark.parametrize(
-    "axis,value,expected",
+    "axis, value, expected",
     [
-        (HORIZONTAL_AXIS, 0.5, buttons.RIGHT),
-        (HORIZONTAL_AXIS, -0.5, buttons.LEFT),
-        (VERTICAL_AXIS, 0.5, buttons.DOWN),
-        (VERTICAL_AXIS, -0.5, buttons.UP),
+        pytest.param(
+            HORIZONTAL_AXIS, 0.5, buttons.RIGHT, id="horizontal_right"
+        ),
+        pytest.param(
+            HORIZONTAL_AXIS, -0.5, buttons.LEFT, id="horizontal_left"
+        ),
+        pytest.param(VERTICAL_AXIS, 0.5, buttons.DOWN, id="vertical_down"),
+        pytest.param(VERTICAL_AXIS, -0.5, buttons.UP, id="vertical_up"),
     ],
 )
 def test_axis_motion(gamepad_input, axis, value, expected):
-    event = Event(pg.JOYAXISMOTION, axis=axis, value=value)
+    event = Event(pg.JOYAXISMOTION, axis=axis, value=value, joy=0)
     gamepad_input.process_event(event)
     gamepad_input.press.assert_called_with(expected, abs(value))
 
 
 @pytest.mark.parametrize(
-    "axis,prev_state,value,expected_release",
+    "axis, prev_state, value, expected_release",
     [
-        (HORIZONTAL_AXIS, -1, 0.1, buttons.LEFT),
-        (VERTICAL_AXIS, -1, 0.1, buttons.UP),
-        (HORIZONTAL_AXIS, 1, 0.6, None),
+        pytest.param(
+            HORIZONTAL_AXIS,
+            -1,
+            0.1,
+            buttons.LEFT,
+            id="release_left_small_change",
+        ),
+        pytest.param(
+            VERTICAL_AXIS, -1, 0.1, buttons.UP, id="release_up_small_change"
+        ),
+        pytest.param(HORIZONTAL_AXIS, 1, 0.6, None, id="no_release_no_press"),
     ],
 )
 def test_axis_small_or_no_change(
     gamepad_input, axis, prev_state, value, expected_release
 ):
     gamepad_input.axis_state[axis] = prev_state
-    event = Event(pg.JOYAXISMOTION, axis=axis, value=value)
+    event = Event(pg.JOYAXISMOTION, axis=axis, value=value, joy=0)
     gamepad_input.process_event(event)
 
     if expected_release:
@@ -131,39 +145,39 @@ def test_ignores_unhandled_event_type(gamepad_input):
 def test_hat_motion_left_right(gamepad_input):
     gamepad_input.hat_state = (0, 0)
 
-    event = Event(pg.JOYHATMOTION, value=(-1, 0))
+    event = Event(pg.JOYHATMOTION, value=(-1, 0), joy=0)
     gamepad_input.process_event(event)
     gamepad_input.press.assert_any_call(buttons.LEFT, 0.0)
 
     gamepad_input.press.reset_mock()
     gamepad_input.release.reset_mock()
 
-    event = Event(pg.JOYHATMOTION, value=(1, 0))
+    event = Event(pg.JOYHATMOTION, value=(1, 0), joy=0)
     gamepad_input.process_event(event)
     gamepad_input.release.assert_any_call(buttons.LEFT)
     gamepad_input.press.assert_any_call(buttons.RIGHT, 0.0)
 
 
 def test_hat_motion_up_down(gamepad_input):
-    event = Event(pg.JOYHATMOTION, value=(0, -1))
+    event = Event(pg.JOYHATMOTION, value=(0, -1), joy=0)
     gamepad_input.process_event(event)
     gamepad_input.press.assert_any_call(buttons.UP, 0.0)
 
-    event = Event(pg.JOYHATMOTION, value=(0, 1))
+    event = Event(pg.JOYHATMOTION, value=(0, 1), joy=0)
     gamepad_input.process_event(event)
     gamepad_input.press.assert_any_call(buttons.DOWN, 0.0)
 
 
 def test_hat_release(gamepad_input):
     gamepad_input.hat_state = (-1, 0)
-    event = Event(pg.JOYHATMOTION, value=(0, 0))
+    event = Event(pg.JOYHATMOTION, value=(0, 0), joy=0)
     gamepad_input.process_event(event)
     gamepad_input.release.assert_any_call(buttons.LEFT)
 
 
 def test_axis_direction_change(gamepad_input):
     gamepad_input.axis_state[HORIZONTAL_AXIS] = 1
-    event = Event(pg.JOYAXISMOTION, axis=HORIZONTAL_AXIS, value=-0.6)
+    event = Event(pg.JOYAXISMOTION, axis=HORIZONTAL_AXIS, value=-0.6, joy=0)
     gamepad_input.process_event(event)
     gamepad_input.release.assert_any_call(buttons.RIGHT)
     gamepad_input.press.assert_any_call(buttons.LEFT, 0.6)
@@ -172,8 +186,13 @@ def test_axis_direction_change(gamepad_input):
 @pytest.mark.parametrize(
     "event",
     [
-        Event(pg.JOYBUTTONDOWN, button=99),
-        Event(pg.JOYAXISMOTION, axis=99, value=0.5),
+        pytest.param(
+            Event(pg.JOYBUTTONDOWN, button=99, joy=0), id="unknown_button"
+        ),
+        pytest.param(
+            Event(pg.JOYAXISMOTION, axis=99, value=0.5, joy=0),
+            id="unknown_axis",
+        ),
     ],
 )
 def test_unknown_inputs_are_ignored(gamepad_input, event):

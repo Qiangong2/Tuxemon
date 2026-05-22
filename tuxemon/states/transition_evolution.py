@@ -3,22 +3,21 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, ClassVar, Optional
+from typing import TYPE_CHECKING, Any, ClassVar
 
-import pygame
 from pygame.surface import Surface
 
-from tuxemon import tools
 from tuxemon.database.runtime import db
 from tuxemon.db import MonsterModel
-from tuxemon.graphics import load_sprite
-from tuxemon.locale import T
+from tuxemon.locale.locale import T
+from tuxemon.monster.sprite import MonsterSpriteHandler, SpriteLoader
 from tuxemon.platform.const import buttons
 from tuxemon.platform.const.graphics import BLACK_COLOR, WHITE_COLOR
-from tuxemon.prepare import SCREEN_SIZE
 from tuxemon.state.state import State
+from tuxemon.tools import open_dialog
 
 if TYPE_CHECKING:
+    from tuxemon.base_client import BaseClient
     from tuxemon.platform.events import PlayerInput
     from tuxemon.sprite import Sprite
 
@@ -41,10 +40,14 @@ class EvolutionTransition(State):
 
     def __init__(
         self,
+        client: BaseClient,
         original: str,
         evolved: str,
+        is_devolution: bool = False,
+        **kwargs: Any,
     ) -> None:
-        super().__init__()
+        self.is_devolution = is_devolution
+        super().__init__(client=client, **kwargs)
         self.original_monster = self._get_monster(original)
         self.evolved_monster = self._get_monster(evolved)
         if not self.original_monster or not self.evolved_monster:
@@ -52,12 +55,11 @@ class EvolutionTransition(State):
         self.original = original
         self.evolved = evolved
 
-        self.original_sprite = self._load_sprite(self.original_monster.slug)
-        self.evolved_sprite = self._load_sprite(self.evolved_monster.slug)
+        self.original_sprite = self._load_sprite(self.original_monster)
+        self.evolved_sprite = self._load_sprite(self.evolved_monster)
 
-        self.transition_start_time = pygame.time.get_ticks()
-        self.dialog_opened = False
         self.elapsed_time = 0.0
+        self.dialog_opened = False
         self.percentage = 0.0
         self.total_seconds = TOTAL_SECONDS
         self.original_sprite_copy = self.original_sprite.image.copy()
@@ -76,14 +78,13 @@ class EvolutionTransition(State):
             4: self.evolved_sprite,
         }
 
-        screen_width, screen_height = SCREEN_SIZE
+        screen_width, screen_height = self.client.context.resolution
         sprite_width, sprite_height = self.original_sprite.image.get_size()
         self.x = (screen_width - sprite_width) // 2
         self.y = (screen_height - sprite_height) // 2
 
-    def update(self, time_delta: float) -> None:
-        current_time = pygame.time.get_ticks()
-        self.elapsed_time = (current_time - self.transition_start_time) / 1000
+    def update(self, dt: float) -> None:
+        self.elapsed_time += dt
         self.percentage = (self.elapsed_time / self.total_seconds) * 100
 
         self.phase = 0
@@ -136,9 +137,10 @@ class EvolutionTransition(State):
 
         self.evolved_sprite.image.blit(self.evolved_sprite_copy, (0, 0))
         self.evolved_sprite.image.blit(self.evolved_sprite_white, (0, 0))
+        self.evolved_sprite.image.set_alpha(255)   
 
         if self.elapsed_time > self.total_seconds and not self.dialog_opened:
-            self.client.sound_manager.play_sound("sound_confirm")
+            self.client.sound_manager.play("sound_confirm")
             self.on_animation_complete()
 
     def draw(self, surface: Surface) -> None:
@@ -147,24 +149,34 @@ class EvolutionTransition(State):
         sprite_image = sprite.image
 
         if sprite_image is None or sprite_image.get_alpha() == 0:
-            sprite_image = (
-                self.evolved_sprite_copy
-            )  # fallback to visible image
+            if self.phase == 3:
+                sprite_image = self.evolved_sprite.image   
+            else:
+                sprite_image = self.evolved_sprite_copy    
 
         surface.blit(sprite_image, (self.x, self.y))
 
-    def _get_monster(self, slug: str) -> Optional[MonsterModel]:
+    def _get_monster(self, slug: str) -> MonsterModel | None:
         if slug not in db.database["monster"]:
             logger.error(f"{slug} doesn't exist.")
             return None
         results = MonsterModel.lookup(slug, db)
         return results
 
-    def _load_sprite(self, slug: str) -> Sprite:
-        path = tools.transform_resource_filename(
-            f"gfx/sprites/battle/{slug}-front.png"
+    def _load_sprite(self, model: MonsterModel) -> Sprite:
+        loader = SpriteLoader()
+        sprites = model.sprites
+        assert sprites
+        handler = MonsterSpriteHandler(
+            slug=model.slug,
+            sheet_path=loader.resolve_path(sprites.sheet),
+            front_rect=sprites.front_rect,
+            back_rect=sprites.back_rect,
+            menu1_rect=sprites.menu1_rect,
+            menu2_rect=sprites.menu2_rect,
         )
-        return load_sprite(path)
+        assert handler
+        return handler.get_sprite("front", self.factor)
 
     def _white_image(self, sprite: Surface) -> Surface:
         for x in range(sprite.get_width()):
@@ -185,19 +197,18 @@ class EvolutionTransition(State):
             "name": T.format(self.original),
             "evolve": T.format(self.evolved),
         }
-        msg = T.format("evolution_ended", param)
-        tools.open_dialog(self.client, [msg], dialog_speed="max")
+        msgid = "devolution_ended" if self.is_devolution else "evolution_ended"
+        msg = T.format(msgid, param)
+        open_dialog(self.client, [msg], dialog_speed="max")
         self.dialog_opened = True
 
-    def process_event(self, event: PlayerInput) -> Optional[PlayerInput]:
+    def process_event(self, event: PlayerInput) -> PlayerInput | None:
         if (
             event.button in (buttons.BACK, buttons.B, buttons.A)
             and event.pressed
         ):
             if self.percentage < 100:
-                self.transition_start_time = pygame.time.get_ticks() - (
-                    self.total_seconds * 1000
-                )
+                self.elapsed_time = self.total_seconds
             else:
                 self.client.current_music.unpause()
                 self.client.pop_state()

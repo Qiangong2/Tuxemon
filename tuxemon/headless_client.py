@@ -5,9 +5,13 @@ from __future__ import annotations
 import logging
 import time
 from collections.abc import Callable
+from typing import TYPE_CHECKING
 
 from tuxemon.base_client import BaseClient, ClientState
-from tuxemon.config import TuxemonConfig
+
+if TYPE_CHECKING:
+    from tuxemon.config import TuxemonConfig
+    from tuxemon.prepare import DisplayContext
 
 logger = logging.getLogger(__name__)
 
@@ -22,30 +26,31 @@ class HeadlessClient(BaseClient):
         config: The configuration for the game.
     """
 
-    def __init__(self, config: TuxemonConfig) -> None:
-        super().__init__(config)
+    def __init__(self, config: TuxemonConfig, context: DisplayContext) -> None:
+        super().__init__(config, context)
 
     def main(self) -> None:
-        """
-        Initiates the main game loop.
-
-        Since we are using Asteria networking to handle network events,
-        we pass this session.Client instance to networking which in turn
-        executes the "main_loop" method every frame.
-        This leaves the networking component responsible for the main loop.
-        """
-        update = self.update
-        clock = time.time
-        time_since_draw = 0.0
-        last_update = clock()
+        FIXED_DT = 1.0 / 60.0
+        accumulator = 0.0
+        last_time = time.time()
 
         while self.state != ClientState.DONE:
             if self.state == ClientState.RUNNING:
-                clock_tick = clock() - last_update
-                last_update = clock()
-                time_since_draw += clock_tick
-                update(clock_tick)
-                time.sleep(0.01)
+                now = time.time()
+                frame_time = now - last_time
+                last_time = now
+
+                if frame_time > 0.25:
+                    frame_time = 0.25
+
+                accumulator += frame_time
+
+                while accumulator >= FIXED_DT:
+                    self.update(FIXED_DT)
+                    accumulator -= FIXED_DT
+
+                time.sleep(0.001)
+
             elif self.state == ClientState.EXITING:
                 self.perform_cleanup()
                 self.state = ClientState.DONE
@@ -54,11 +59,6 @@ class HeadlessClient(BaseClient):
         self.command_queue.put(command)
         logger.debug("Queued command for execution in main thread.")
 
-    def update(self, time_delta: float) -> None:
-        """
-        Main loop for entire game.
-
-        Parameters:
-            time_delta: Elapsed time since last frame.
-        """
-        self.update_states(time_delta)
+    def update(self, dt: float) -> None:
+        """Main loop for entire game."""
+        self.update_states(dt)

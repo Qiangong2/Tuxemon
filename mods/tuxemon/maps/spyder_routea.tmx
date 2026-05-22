@@ -126,14 +126,14 @@
   <object id="66" name="Environment Day" type="event" x="96" y="0" width="16" height="16">
    <properties>
     <property name="act1" value="set_environment grass"/>
-    <property name="cond1" value="not variable_set stage_of_day:night"/>
+    <property name="cond1" value="not time_is stage_of_day,equals,night"/>
     <property name="cond2" value="not environment_is grass"/>
    </properties>
   </object>
   <object id="68" name="Environment Night" type="event" x="80" y="0" width="16" height="16">
    <properties>
     <property name="act1" value="set_environment night_grass"/>
-    <property name="cond1" value="is variable_set stage_of_day:night"/>
+    <property name="cond1" value="is time_is stage_of_day,equals,night"/>
     <property name="cond2" value="not environment_is night_grass"/>
    </properties>
   </object>
@@ -206,11 +206,11 @@
   <object id="74" name="Create Dagger" type="event" x="32" y="352" width="16" height="16">
    <properties>
     <property name="act1" value="create_npc spyder_routea_dagger,2,22"/>
-    <property name="act2" value="char_face spyder_routea_dagger,right"/>
+    <property name="act2" value="char_face spyder_routea_dagger,down"/>
     <property name="cond1" value="not char_exists spyder_routea_dagger"/>
    </properties>
   </object>
-  <object id="75" name="Talk Dagger" type="event" x="32" y="368" width="16" height="16">
+  <object id="75" name="Talk Dagger" type="event" x="32" y="368" width="16" height="48">
    <properties>
     <property name="act1" value="lock_controls"/>
     <property name="act2" value="pathfind_to_char player,spyder_routea_dagger"/>
@@ -239,20 +239,6 @@
     <property name="cond3" value="not char_defeated player"/>
    </properties>
   </object>
-  <object id="77" name="Talk Dagger" type="event" x="48" y="352" width="16" height="16">
-   <properties>
-    <property name="act1" value="lock_controls"/>
-    <property name="act2" value="pathfind_to_char player,spyder_routea_dagger"/>
-    <property name="act3" value="char_talk spyder_routea_dagger,pre_battle"/>
-    <property name="act4" value="unlock_controls"/>
-    <property name="act5" value="add_monster cardiwing,16,spyder_routea_dagger,5,10"/>
-    <property name="act6" value="start_battle player,spyder_routea_dagger"/>
-    <property name="act7" value="char_talk spyder_routea_dagger,post_battle_lose"/>
-    <property name="cond1" value="not battle_outcome player,won,spyder_routea_dagger"/>
-    <property name="cond2" value="is char_at player"/>
-    <property name="cond3" value="not char_defeated player"/>
-   </properties>
-  </object>
   <object id="78" name="Create Koan" type="event" x="32" y="592" width="16" height="16">
    <properties>
     <property name="act1" value="create_npc spyder_routea_koan,2,37"/>
@@ -260,7 +246,7 @@
     <property name="cond1" value="not char_exists spyder_routea_koan"/>
    </properties>
   </object>
-  <object id="79" name="Talk Koan" type="event" x="80" y="592" width="16" height="16">
+  <object id="79" name="Talk Koan" type="event" x="48" y="592" width="48" height="16">
    <properties>
     <property name="act1" value="lock_controls"/>
     <property name="act2" value="pathfind_to_char player,spyder_routea_koan"/>
@@ -281,7 +267,7 @@
     <property name="cond1" value="not char_exists spyder_routea_lexi"/>
    </properties>
   </object>
-  <object id="81" name="Talk Lexi" type="event" x="32" y="512" width="16" height="16">
+  <object id="81" name="Talk Lexi" type="event" x="32" y="496" width="16" height="32">
    <properties>
     <property name="act1" value="lock_controls"/>
     <property name="act2" value="pathfind_to_char player,spyder_routea_lexi"/>
@@ -342,24 +328,11 @@
   <object id="86" name="Create Joe" type="event" x="192" y="544" width="16" height="16">
    <properties>
     <property name="act1" value="create_npc spyder_routea_joe,12,34"/>
+    <property name="act2" value="char_face spyder_routea_joe,left"/>
     <property name="cond1" value="not char_exists spyder_routea_joe"/>
    </properties>
   </object>
-  <object id="87" name="Talk Joe1" type="event" x="160" y="544" width="16" height="32">
-   <properties>
-    <property name="act1" value="lock_controls"/>
-    <property name="act2" value="pathfind_to_char player,spyder_routea_joe"/>
-    <property name="act3" value="char_talk spyder_routea_joe,pre_battle"/>
-    <property name="act4" value="unlock_controls"/>
-    <property name="act5" value="add_monster katapill,16,spyder_routea_joe,5,10"/>
-    <property name="act6" value="start_battle player,spyder_routea_joe"/>
-    <property name="act7" value="char_talk spyder_routea_joe,post_battle_lose"/>
-    <property name="cond1" value="not battle_outcome player,won,spyder_routea_joe"/>
-    <property name="cond2" value="is char_at player"/>
-    <property name="cond3" value="not char_defeated player"/>
-   </properties>
-  </object>
-  <object id="88" name="Talk Joe2" type="event" x="224" y="544" width="16" height="32">
+  <object id="87" name="Talk Joe1" type="event" x="144" y="544" width="48" height="16">
    <properties>
     <property name="act1" value="lock_controls"/>
     <property name="act2" value="pathfind_to_char player,spyder_routea_joe"/>
@@ -573,9 +546,14 @@
   <object id="129" name="Talk Nurse" type="event" x="64" y="432" width="16" height="16">
    <properties>
     <property name="act1" value="translated_dialog spyder_generic_nurse"/>
-    <property name="act2" value="set_monster_health"/>
-    <property name="act3" value="set_monster_status"/>
-    <property name="act4" value="translated_dialog spyder_output_nurse4"/>
+    <property name="act11" value="char_stop player"/>
+    <property name="act12" value="lock_controls"/>
+    <property name="act13" value="screen_transition 1"/>
+    <property name="act14" value="wait 0.5"/>
+    <property name="act15" value="unlock_controls"/>
+    <property name="act20" value="set_monster_health"/>
+    <property name="act30" value="set_monster_status"/>
+    <property name="act40" value="translated_dialog spyder_output_nurse4"/>
     <property name="behav1" value="talk spyder_routea_nurse"/>
    </properties>
   </object>

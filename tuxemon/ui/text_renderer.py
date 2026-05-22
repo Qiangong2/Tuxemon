@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import math
-from collections.abc import Callable, Sequence
-from typing import Optional
+from functools import lru_cache
+from typing import TYPE_CHECKING
 
 from pygame import SRCALPHA
 from pygame.font import Font
@@ -12,67 +12,87 @@ from pygame.surface import Surface
 
 from tuxemon.graphics import ColorLike
 from tuxemon.platform.const.graphics import FONT_SHADOW_COLOR, FONT_SIZE
-from tuxemon.prepare import SCALE
-from tuxemon.tools import scale
 
-
-def create_layout(
-    scale: float,
-) -> Callable[[Sequence[float]], Sequence[float]]:
-    def func(area: Sequence[float]) -> Sequence[float]:
-        return [scale * i for i in area]
-
-    return func
-
-
-layout = create_layout(SCALE)
+if TYPE_CHECKING:
+    from tuxemon.scaling import ScalingStrategy
 
 
 class TextRenderer:
     def __init__(
         self,
+        scaling: ScalingStrategy,
         font_color: ColorLike,
-        font_shadow_color: Optional[ColorLike] = None,
-        font_filename: Optional[str] = None,
-        font: Optional[Font] = None,
+        font_shadow_color: ColorLike | None = None,
+        font_filename: str | None = None,
+        font: Font | None = None,
     ) -> None:
+        self.scaling = scaling
         self.font_color = font_color
-        if font_shadow_color is None:
-            font_shadow_color = FONT_SHADOW_COLOR
-        self.font_shadow_color = font_shadow_color
-        self.font = font or Font(font_filename, scale(FONT_SIZE))
+        self.font_shadow_color = font_shadow_color or FONT_SHADOW_COLOR
+        self.font = font or Font(
+            font_filename, self.scaling.scale_int(FONT_SIZE)
+        )
+
+        ox, oy = self.scaling.scale_sequence((0.5, 0.5))
+        self._shadow_offset: tuple[float, ...] = (float(ox), float(oy))
+
+    @lru_cache(maxsize=256)
+    def _render_glyph(
+        self,
+        char: str,
+        fg: tuple[int, ...],
+        bg: tuple[int, ...],
+    ) -> Surface:
+        fg_surf = self.font.render(char, True, fg)
+        bg_surf = self.font.render(char, True, bg)
+
+        ox, oy = self._shadow_offset
+        w, h = fg_surf.get_size()
+
+        surf = Surface((int(w + ox), int(h + oy)), SRCALPHA)
+        surf.blit(bg_surf, (ox, oy))
+        surf.blit(fg_surf, (0, 0))
+        return surf
+
+    def get_glyph(
+        self,
+        char: str,
+        fg: ColorLike | None = None,
+        bg: ColorLike | None = None,
+    ) -> Surface:
+        fg_color: ColorLike = fg or self.font_color
+        bg_color: ColorLike = bg or self.font_shadow_color
+
+        fg_key = tuple(fg_color)
+        bg_key = tuple(bg_color)
+
+        return self._render_glyph(char, fg_key, bg_key)
 
     def shadow_text(
         self,
         text: str,
-        bg: Optional[ColorLike] = None,
-        fg: Optional[ColorLike] = None,
-        offset: tuple[float, float] = (0.5, 0.5),
+        bg: ColorLike | None = None,
+        fg: ColorLike | None = None,
+        offset: tuple[float, ...] | None = None,
     ) -> Surface:
-        """
-        Render shadowed text using the current font and shadow color settings.
+        fg = fg or self.font_color
+        bg = bg or self.font_shadow_color
 
-        Parameters:
-            text: The text string to render.
-            bg: Shadow color. If None, uses the default font shadow color.
-            fg: Foreground font color. If None, uses the default font color.
-            offset: Tuple representing the x and y shadow offset in pixels.
+        if offset is None:
+            offset = self._shadow_offset
+        else:
+            if not (isinstance(offset, (tuple, list)) and len(offset) == 2):
+                raise TypeError("offset must be a tuple of two numbers")
+            offset = tuple(self.scaling.scale_sequence(offset))
 
-        Returns:
-            A Surface containing the rendered text with its shadow applied.
-        """
-        if not fg:
-            fg = self.font_color
-        if not bg:
-            bg = self.font_shadow_color
         font_color = self.font.render(text, True, fg)
         shadow_color = self.font.render(text, True, bg)
-        _offset = layout(offset)
+
         size = [
             int(math.ceil(a + b))
-            for a, b in zip(_offset, font_color.get_size())
+            for a, b in zip(offset, font_color.get_size())
         ]
         image = Surface(size, SRCALPHA)
-        image.blit(shadow_color, tuple(_offset))
+        image.blit(shadow_color, tuple(offset))
         image.blit(font_color, (0, 0))
         return image

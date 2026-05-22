@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Optional, final
+from typing import final
 
 from tuxemon.event.eventaction import EventAction
 from tuxemon.platform.const.sizes import (
@@ -45,9 +45,9 @@ class AddTechAction(EventAction):
     name = "add_tech"
     variable: str
     technique: str
-    power: Optional[float] = None
-    potency: Optional[float] = None
-    accuracy: Optional[float] = None
+    power: float | None = None
+    potency: float | None = None
+    accuracy: float | None = None
 
     def start(self, session: Session) -> None:
         player = session.player
@@ -57,11 +57,13 @@ class AddTechAction(EventAction):
             logger.info(
                 f"No valid monster selected for variable '{self.variable}'"
             )
+            self.stop()
             return  # Exit early if no valid UUID
 
         monster = session.client.get_monster_by_iid(monster_id)
         if monster is None:
             logger.error("Monster not found")
+            self.stop()
             return
 
         tech = Technique.create(self.technique)

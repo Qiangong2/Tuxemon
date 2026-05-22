@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Optional, final
+from typing import final
 
 from tuxemon.event.eventaction import EventAction
 from tuxemon.session import Session
@@ -45,7 +45,7 @@ class TuneRadioAction(EventAction):
 
     name = "tune_radio"
     character_slug: str
-    frequency: Optional[float] = None
+    frequency: float | None = None
 
     def start(self, session: Session) -> None:
         self.session = session
@@ -61,13 +61,15 @@ class TuneRadioAction(EventAction):
             logger.error(
                 f"The state '{self.client.current_state.name}' is already active. No action taken."
             )
+            self.stop()
             return
 
-        character = self.session.get_npc(self.character_slug)
+        character = self.session.client.get_npc(self.character_slug)
         if character is None:
             logger.error(
                 f"Character '{self.character_slug}' not found for radio tuning."
             )
+            self.stop()
             return
 
         if self.frequency is not None:
@@ -75,6 +77,7 @@ class TuneRadioAction(EventAction):
                 logger.error(
                     f"Frequency {self.frequency} is out of FM range {MIN_FREQ}-{MAX_FREQ}."
                 )
+                self.stop()
                 return
 
             self.client.push_state(

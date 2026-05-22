@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Optional, final
+from typing import final
 
 from tuxemon.event.eventaction import EventAction
 from tuxemon.session import Session
@@ -31,7 +31,7 @@ class RemoveFlairAction(EventAction):
 
     name = "remove_flair"
     variable: str
-    category: Optional[str] = None
+    category: str | None = None
 
     def start(self, session: Session) -> None:
         player = session.player
@@ -40,10 +40,12 @@ class RemoveFlairAction(EventAction):
             logger.info(
                 f"No valid monster selected for variable '{self.variable}'"
             )
+            self.stop()
             return  # Exit early if no valid UUID
         monster = session.client.get_monster_by_iid(monster_id)
         if monster is None:
             logger.error("Monster not found")
+            self.stop()
             return
 
         category = self.category.strip().lower() if self.category else None

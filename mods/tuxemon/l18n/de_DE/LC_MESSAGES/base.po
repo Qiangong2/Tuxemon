@@ -1792,14 +1792,11 @@ msgstr "Ritter II"
 msgid "liela"
 msgstr "Liela"
 
-msgid "maple_girl"
+msgid "maple_wren"
 msgstr "Maple"
 
 msgid "misa"
 msgstr "Misa"
-
-msgid "npc_wife"
-msgstr "Ehefrau NPC"
 
 msgid "professor"
 msgstr "Professor"
@@ -2272,7 +2269,10 @@ msgid "here_to_south"
 msgstr "Von ${{map_name}} nach ${{south}}"
 
 msgid "evolution_confirmation"
-msgstr "{name} versucht, sich zu {evolve} zu entwickeln. Evolution zulassen?"
+msgstr "{name} versucht, sich zu {evolve} zu entwickeln."
+
+msgid "allow_evolution"
+msgstr "Evolution zulassen?"
 
 msgid "tuxemon_stat1"
 msgstr ""
@@ -3766,9 +3766,6 @@ msgstr ""
 "Willkommen in der Cotton Town Art Gallery. Ah - ich meine Art Shop!\n"
 "Seit sie unsere Finanzierung gekürzt haben, mussten wir die Kunstwerke verkaufen, anstatt sie nur auszustellen.\n"
 "Der Eintrag ist ${{currency}}50. Er fließt in die jährliche Dividende des Unternehmens."
-
-msgid "cotton_breeder5"
-msgstr "Hey ${{name}}, komm, um deinen Tuxemon zu überprüfen?"
 
 msgid "taba_greeting1"
 msgstr ""

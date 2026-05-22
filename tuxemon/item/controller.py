@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING
 
 from tuxemon.core.core_effect import ItemEffectResult
 from tuxemon.item.item import Item
-from tuxemon.locale import T
+from tuxemon.locale.locale import T
 from tuxemon.menu.interface import MenuItem
 from tuxemon.session import Session
 from tuxemon.states.monster_menu import MonsterMenuState
@@ -18,8 +18,8 @@ from tuxemon.tools import open_dialog, show_result_as_dialog
 from tuxemon.ui.menu_options import ChoiceOption, MenuOptions
 
 if TYPE_CHECKING:
-    from tuxemon.monster import Monster
-    from tuxemon.npc import NPC
+    from tuxemon.entity.npc import NPC
+    from tuxemon.monster.monster import Monster
 
 logger = logging.getLogger(__name__)
 
@@ -60,10 +60,19 @@ class ItemController:
             def action_use() -> None:
                 self.session.client.remove_state_by_name("ChoiceState")
                 if self.item.behaviors.requires_monster_menu:
-                    monster_menu = MonsterMenuState(self.char.monsters)
+                    monster_menu = MonsterMenuState(
+                        self.session.client, self.char.monsters
+                    )
                     self.session.client.push_state(monster_menu)
-                    monster_menu.is_valid_entry = partial(self.item.validate_monster, self.session)  # type: ignore[method-assign]
-                    monster_menu.on_menu_selection = self.get_monster_targeted_action(key)  # type: ignore[assignment]
+                    monster_menu = MonsterMenuState(
+                        self.session.client,
+                        self.char.monsters,
+                        on_selection=self.get_monster_targeted_action(key),
+                        is_valid_entry=partial(
+                            self.item.validate_monster, self.session
+                        ),
+                    )
+                    self.session.client.push_state(monster_menu)
                 else:
                     result = self.item.use(self.session, self.char, None)
                     self.session.client.remove_state_by_name("ItemMenuState")
@@ -94,8 +103,12 @@ class ItemController:
 
     def get_monster_targeted_action(
         self, key: str
-    ) -> Callable[[MenuItem[Monster]], None]:
-        def action(menu_item: MenuItem[Monster]) -> None:
+    ) -> Callable[[MenuItem[Monster | None]], None]:
+        def action(menu_item: MenuItem[Monster | None]) -> None:
+            monster = menu_item.game_object
+            if monster is None:
+                return
+
             monster = menu_item.game_object
             result = self.item.use(self.session, self.char, monster)
             self.session.client.remove_state_by_name("MonsterMenuState")

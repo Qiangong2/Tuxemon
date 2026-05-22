@@ -5,23 +5,22 @@ from __future__ import annotations
 import logging
 from abc import ABC, abstractmethod
 from functools import partial
-from pathlib import Path
-from typing import TYPE_CHECKING, Any, ClassVar, Optional
+from typing import TYPE_CHECKING, Any, ClassVar
 
-import pygame_menu
-import yaml
 from pygame_menu.locals import ALIGN_CENTER, POSITION_EAST
+from pygame_menu.menu import Menu
 
 from tuxemon.constants import paths
-from tuxemon.locale import T
+from tuxemon.database.yaml_utils import load_yaml
+from tuxemon.locale.locale import T
 from tuxemon.menu.menu import PygameMenuState
 from tuxemon.platform.const.graphics import BG_PHONE_CONTACTS
 from tuxemon.platform.const.sizes import UNKNOWN_MAP_SLUG
-from tuxemon.prepare import SCREEN_SIZE
 from tuxemon.tools import open_dialog
 
 if TYPE_CHECKING:
-    from tuxemon.npc import NPC
+    from tuxemon.base_client import BaseClient
+    from tuxemon.entity.npc import NPC
 
 logger = logging.getLogger(__name__)
 
@@ -31,21 +30,9 @@ INITIAL_FREQ = 98.0
 TUNING_TOLERANCE = 0.2
 
 
-def load_yaml(filepath: Path) -> Any:
-    try:
-        with filepath.open() as file:
-            return yaml.safe_load(file)
-    except FileNotFoundError:
-        logger.error(f"Config file not found: {filepath}")
-        raise
-    except yaml.YAMLError as exc:
-        logger.error(f"Error parsing YAML file: {exc}")
-        raise exc
-
-
 class Loader:
-    _radio_map_lists: Optional[dict[str, Any]] = None
-    _radio_data: Optional[dict[str, Any]] = None
+    _radio_map_lists: dict[str, Any] | None = None
+    _radio_data: dict[str, Any] | None = None
 
     @classmethod
     def get_radio_map_lists(
@@ -101,7 +88,7 @@ def _check_conditions(
 
 def _get_broadcast_content(
     radio_state: NuPhoneRadioBase, station_slug: str
-) -> tuple[list[str], Optional[dict[str, Any]]]:
+) -> tuple[list[str], dict[str, Any] | None]:
     """Finds the correct dialogue and variables to set for a given station slug."""
     station_content = RADIO_DATA.get(station_slug, {})
     ULTIMATE_FALLBACK_DIALOGUE = ["radio_static_msgid"]
@@ -113,7 +100,7 @@ def _get_broadcast_content(
     dialogue_msgids: list[str] = default_broadcast.get(
         "dialogue", ULTIMATE_FALLBACK_DIALOGUE
     )
-    set_variables: Optional[dict[str, Any]] = None
+    set_variables: dict[str, Any] | None = None
 
     conditional_broadcasts = station_content.get("conditional_broadcasts", [])
 
@@ -130,20 +117,25 @@ def _get_broadcast_content(
 class NuPhoneRadioBase(PygameMenuState, ABC):
     name: ClassVar[str] = "NuPhoneRadioBase"
 
-    def __init__(self, character: NPC) -> None:
-        width, height = SCREEN_SIZE
-        theme = self._setup_theme(BG_PHONE_CONTACTS)
-        theme.scrollarea_position = POSITION_EAST
-        theme.widget_alignment = ALIGN_CENTER
-        theme.title = True
-
+    def __init__(
+        self, client: BaseClient, character: NPC, **kwargs: Any
+    ) -> None:
         self.char = character
         if self.char.current_map:
             self.current_map = self.char.current_map.split(".")[0]
         else:
             self.current_map = UNKNOWN_MAP_SLUG
 
-        super().__init__(height=height, width=width)
+        width, height = client.context.resolution
+
+        super().__init__(client=client, height=height, width=width, **kwargs)
+
+        theme = self._setup_theme(BG_PHONE_CONTACTS)
+        theme.scrollarea_position = POSITION_EAST
+        theme.widget_alignment = ALIGN_CENTER
+        theme.title = True
+        self._menu_config["theme"] = theme
+
         self.reset_theme()
 
     def _apply_variable_changes(self, set_variables: dict[str, Any]) -> None:
@@ -173,22 +165,24 @@ class NuPhoneRadioBase(PygameMenuState, ABC):
         )
 
     @abstractmethod
-    def add_menu_items(self, menu: pygame_menu.Menu) -> None:
+    def add_menu_items(self, menu: Menu) -> None:
         pass
 
 
 class NuPhoneRadioMenu(NuPhoneRadioBase):
     name: ClassVar[str] = "NuPhoneRadioMenu"
 
-    def __init__(self, character: NPC) -> None:
-        super().__init__(character)
+    def __init__(
+        self, client: BaseClient, character: NPC, **kwargs: Any
+    ) -> None:
+        super().__init__(client=client, character=character, **kwargs)
         self.add_menu_items(self.menu)
 
     def _start_radio_button(self, station_slug: str) -> None:
         """Starts the broadcast when a button is clicked."""
         self._start_broadcast(station_slug)
 
-    def add_menu_items(self, menu: pygame_menu.Menu) -> None:
+    def add_menu_items(self, menu: Menu) -> None:
         """Builds the menu with clickable station buttons based on map location."""
         available_stations = RADIO_MAP_LISTS.get(
             self.current_map, RADIO_MAP_LISTS.get("all_maps", [])
@@ -223,13 +217,17 @@ class NuPhoneRadioTuner(NuPhoneRadioBase):
     current_station_slug: str = "station_scrambled_frequency"
 
     def __init__(
-        self, character: NPC, frequency: Optional[float] = None
+        self,
+        client: BaseClient,
+        character: NPC,
+        frequency: float | None = None,
+        **kwargs: Any,
     ) -> None:
         self.initial_freq = (
             frequency if frequency is not None else INITIAL_FREQ
         )
         self.selected_freq = self.initial_freq
-        super().__init__(character)
+        super().__init__(client=client, character=character, **kwargs)
         self.current_station_slug = "station_scrambled_frequency"
         self.add_menu_items(self.menu)
 
@@ -335,7 +333,7 @@ class NuPhoneRadioTuner(NuPhoneRadioBase):
 
         return best_match_slug
 
-    def add_menu_items(self, menu: pygame_menu.Menu) -> None:
+    def add_menu_items(self, menu: Menu) -> None:
         """Builds the menu with the frequency tuner slider."""
 
         menu.add.label(

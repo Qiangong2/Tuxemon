@@ -9,7 +9,7 @@ from tuxemon.economy.price_policy import (
     PricePolicyData,
     StaticYamlPolicy,
 )
-from tuxemon.monster import Monster
+from tuxemon.monster.monster import Monster
 
 
 @pytest.fixture
@@ -28,9 +28,9 @@ def policy():
 @pytest.mark.parametrize(
     "base, qty, expected_final, expected_discount",
     [
-        (100, 1, 93, 20),  # Base=100, taxed=110, discounted=88, +fee=93
-        (50, 3, 137, 20),  # Base=50, taxed=55, discounted=44, *3=132, +fee=137
-        (100, -1, 93, 20),  # Negative qty behaves like -1
+        pytest.param(100, 1, 93, 20, id="base100_qty1"),
+        pytest.param(50, 3, 137, 20, id="base50_qty3"),
+        pytest.param(100, -1, 93, 20, id="base100_qty_minus1"),
     ],
 )
 def test_apply_modifiers(policy, base, qty, expected_final, expected_discount):
@@ -42,9 +42,9 @@ def test_apply_modifiers(policy, base, qty, expected_final, expected_discount):
 @pytest.mark.parametrize(
     "base, qty, expected_final, expected_change",
     [
-        (50, 1, 54, 5),  # Base=50, bonus=55, tax=52.25, +fee=54.25 → 54
-        (20, 2, 44, 4),  # Base=20, bonus=22, tax=20.9, *2=41.8, +fee=43.8 → 44
-        (100, -1, 107, 5),  # Negative qty behaves like -1
+        pytest.param(50, 1, 54, 5, id="resell_base50_qty1"),
+        pytest.param(20, 2, 44, 4, id="resell_base20_qty2"),
+        pytest.param(100, -1, 107, 5, id="resell_base100_qty_minus1"),
     ],
 )
 def test_apply_resell_modifiers(
@@ -94,14 +94,16 @@ def test_base_class_defaults():
 @pytest.mark.parametrize(
     "slug, base, qty, expected_final, expected_discount",
     [
-        ("rockitten", 100, 1, 93, 20),  # Buying monster
+        pytest.param("rockitten", 100, 1, 93, 20, id="buy_rockitten_qty1"),
     ],
 )
 def test_buy_monster_with_policy(
     policy, slug, base, qty, expected_final, expected_discount
 ):
     mock_monster = MagicMock(spec=Monster, slug=slug, name=slug, hp=100)
+
     final, discount = policy.apply_modifiers(base, qty, mock_monster.slug)
+
     assert final == expected_final
     assert discount == expected_discount
 
@@ -109,14 +111,38 @@ def test_buy_monster_with_policy(
 @pytest.mark.parametrize(
     "slug, base, qty, expected_final, expected_change",
     [
-        ("rockitten", 50, 1, 54, 5),  # Selling monster
-        ("pairagrin", 20, -1, 23, 4),  # Selling monster with qty=-1
+        pytest.param("rockitten", 50, 1, 54, 5, id="sell_rockitten_qty1"),
+        pytest.param(
+            "pairagrin", 20, -1, 23, 4, id="sell_pairagrin_qty_minus1"
+        ),
     ],
 )
 def test_sell_monster_with_policy(
     policy, slug, base, qty, expected_final, expected_change
 ):
     mock_monster = MagicMock(spec=Monster, slug=slug, name=slug, hp=20)
+
     final, change = policy.apply_resell_modifiers(base, qty, mock_monster.slug)
+
     assert final == expected_final
     assert change == expected_change
+
+
+def test_boundary_conditions(policy):
+    # Test 1: Free Item (Base 0)
+    # (0 * 1.1 tax) * 0.8 discount + 5 fee = 5
+    final_free, _ = policy.apply_modifiers(0, 1, "free-item")
+    assert final_free == 5
+
+    # Test 2: 100% Discount (Price should only be the fee)
+    data_free = PricePolicyData(
+        discount=1.0,
+        tax=0.1,
+        fee=5,
+        resell_bonus=0,
+        resell_tax=0,
+        seller_fee=0,
+    )
+    policy_free = StaticYamlPolicy(data_free)
+    final_discounted, _ = policy_free.apply_modifiers(100, 1, "gift")
+    assert final_discounted == 5

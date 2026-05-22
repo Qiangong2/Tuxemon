@@ -9,7 +9,7 @@ from tuxemon import formula
 from tuxemon.core.core_effect import CoreEffect, TechEffectResult
 
 if TYPE_CHECKING:
-    from tuxemon.monster import Monster
+    from tuxemon.monster.monster import Monster
     from tuxemon.session import Session
     from tuxemon.technique.technique import Technique
 
@@ -53,14 +53,17 @@ class PhotogenesisEffect(CoreEffect):
 
         hit = session.client.combat_session.get_tech_hit(user)
         extra: list[str] = []
-        done: bool = False
 
         tech.hit = tech.accuracy >= hit
 
         if not tech.hit:
             return TechEffectResult(name=tech.name)
 
-        hour = int(session.player.game_variables.get("hour", 0))
+        if user.hp_ratio >= 1.0:
+            extra = ["combat_full_health"]
+            return TechEffectResult(name=tech.name, success=True, extras=extra)
+
+        hour = session.time.get_time_variables().hour
         hp = user.shape.attributes.hp
         max_multiplier = hp / 2
 
@@ -76,13 +79,8 @@ class PhotogenesisEffect(CoreEffect):
 
         heal = formula.simple_heal(tech, user, factors)
         if heal == 0:
-            extra = [tech.use_failure]
-            return TechEffectResult(name=tech.name, extras=extra)
+            return TechEffectResult(name=tech.name)
 
-        if user.hp_ratio < 1.0:
-            heal_amount = min(heal, user.missing_hp)
-            user.current_hp += heal_amount
-            return TechEffectResult(name=tech.name, success=True)
-
-        extra = ["combat_full_health"]
-        return TechEffectResult(name=tech.name, extras=extra)
+        heal_amount = min(heal, user.missing_hp)
+        user.current_hp += heal_amount
+        return TechEffectResult(name=tech.name, success=True)

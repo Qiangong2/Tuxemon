@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, Optional, Union
+from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from tuxemon.core.core_condition import CoreCondition
 from tuxemon.core.core_effect import (
@@ -18,12 +19,19 @@ from tuxemon.plugin import PluginObject
 
 if TYPE_CHECKING:
     from tuxemon.item.item import Item
-    from tuxemon.monster import Monster
+    from tuxemon.monster.monster import Monster
     from tuxemon.session import Session
     from tuxemon.status.status import Status
     from tuxemon.technique.technique import Technique
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class ConditionValidationResult:
+    passed: bool
+    missing_methods: list[str]
+    errors: list[str]
 
 
 class EffectProcessor:
@@ -64,50 +72,88 @@ class EffectProcessor:
         meta_result = EffectResult()
         if not self.effects:
             return meta_result
+
         for effect in self.effects:
             if isinstance(effect, CoreEffect):
-                result = effect.apply_globally(session)
-                self._merge_results_global(meta_result, result)
+                if effect.should_run_global(session):
+                    result = effect.apply_globally(session)
+                    self._merge_results_global(meta_result, result)
+                else:
+                    logger.debug(
+                        f"Global effect {effect.name} skipped by should_run()"
+                    )
+
         return meta_result
 
     def process_tech(
         self,
         session: Session,
         source: Technique,
-        user: Optional[Monster],
-        target: Optional[Monster],
+        user: Monster | None,
+        target: Monster | None,
     ) -> TechEffectResult:
         meta_result = TechEffectResult(name=source.name)
         if not self.effects:
             return meta_result
+
         for effect in self.effects:
             if isinstance(effect, CoreEffect):
+                # Technique with target
                 if user and target:
-                    result = effect.apply_tech_target(
-                        session, source, user, target
-                    )
-                    self._merge_results_technique(meta_result, result)
-                if user is None and target is None:
-                    result = effect.apply_tech(session, source)
-                    self._merge_results_technique(meta_result, result)
+                    if effect.should_run_tech(session, source, user, target):
+                        result = effect.apply_tech_target(
+                            session, source, user, target
+                        )
+                        self._merge_results_technique(meta_result, result)
+                    else:
+                        logger.debug(
+                            f"Tech effect {effect.name} skipped by should_run()"
+                        )
+
+                # Technique without target
+                elif user is None and target is None:
+                    if effect.should_run_tech(session, source, None, None):
+                        result = effect.apply_tech(session, source)
+                        self._merge_results_technique(meta_result, result)
+                    else:
+                        logger.debug(
+                            f"Tech effect {effect.name} (no target) skipped by should_run()"
+                        )
+
         return meta_result
 
     def process_item(
         self,
         session: Session,
         source: Item,
-        target: Optional[Monster],
+        target: Monster | None,
     ) -> ItemEffectResult:
         meta_result = ItemEffectResult(name=source.name)
         if not self.effects:
             return meta_result
+
         for effect in self.effects:
             if isinstance(effect, CoreEffect):
                 if target:
-                    result = effect.apply_item_target(session, source, target)
+                    if effect.should_run_item(session, source, target, target):
+                        result = effect.apply_item_target(
+                            session, source, target
+                        )
+                        self._merge_results_item(meta_result, result)
+                    else:
+                        logger.debug(
+                            f"Item effect {effect.name} skipped by should_run()"
+                        )
+
                 else:
-                    result = effect.apply_item(session, source)
-                self._merge_results_item(meta_result, result)
+                    if effect.should_run_item(session, source, None, None):
+                        result = effect.apply_item(session, source)
+                        self._merge_results_item(meta_result, result)
+                    else:
+                        logger.debug(
+                            f"Item effect {effect.name} (no target) skipped by should_run()"
+                        )
+
         return meta_result
 
     def process_status(
@@ -118,10 +164,17 @@ class EffectProcessor:
         meta_result = StatusEffectResult(name=source.name)
         if not self.effects:
             return meta_result
+
         for effect in self.effects:
             if isinstance(effect, CoreEffect):
-                result = effect.apply_status(session, source)
-                self._merge_results_status(meta_result, result)
+                if effect.should_run_status(session, source):
+                    result = effect.apply_status(session, source)
+                    self._merge_results_status(meta_result, result)
+                else:
+                    logger.debug(
+                        f"Status effect {effect.name} skipped by should_run()"
+                    )
+
         return meta_result
 
     @staticmethod
@@ -166,41 +219,72 @@ class ConditionProcessor:
     def __init__(self, conditions: Sequence[PluginObject]) -> None:
         self.conditions = conditions
 
-    def _validate_condition(
+    def _call(
         self,
         session: Session,
-        condition: PluginObject,
-        target: Union[Monster, Item, Status, Technique],
+        condition: CoreCondition,
+        method_name: str,
+        target: object,
     ) -> bool:
-        """
-        Validate conditions dynamically based on the target's attributes.
-        """
-        if not isinstance(condition, CoreCondition):
-            return False
-
-        target_type = target.__class__.__name__.lower()
-        test_method_name = f"test_with_{target_type}"
-
-        try:
-            test_method = getattr(condition, test_method_name)
-            return condition.is_expected == bool(test_method(session, target))
-        except AttributeError:
+        method = getattr(condition, method_name, None)
+        if method is None:
             logger.error(
-                f"Missing required method: {test_method_name} for {target_type}"
+                f"Missing required method: {method_name} in {condition}"
             )
             return False
+        return condition.is_expected == bool(method(session, target))
 
-    def validate(
+    def _validate(
         self,
         session: Session,
-        target: Optional[Union[Monster, Item, Status, Technique]],
-    ) -> bool:
-        if not self.conditions:
-            return True
-        if target is None:
-            return False
+        target: object,
+        method_name: str,
+    ) -> ConditionValidationResult:
+        result = ConditionValidationResult(True, [], [])
 
-        return all(
-            self._validate_condition(session, condition, target)
-            for condition in self.conditions
-        )
+        for cond in self.conditions:
+            if not isinstance(cond, CoreCondition):
+                result.passed = False
+                result.errors.append("Condition is not a CoreCondition")
+                continue
+
+            method = getattr(cond, method_name, None)
+            if method is None:
+                result.passed = False
+                result.missing_methods.append(method_name)
+                continue
+
+            try:
+                ok = bool(method(session, target))
+            except Exception as e:
+                result.passed = False
+                result.errors.append(str(e))
+                continue
+
+            if cond.is_expected != ok:
+                result.passed = False
+
+        return result
+
+    def validate(self, session: Session) -> ConditionValidationResult:
+        return self._validate(session, None, "test")
+
+    def validate_monster(
+        self, session: Session, target: Monster | None
+    ) -> ConditionValidationResult:
+        return self._validate(session, target, "test_with_monster")
+
+    def validate_item(
+        self, session: Session, target: Item | None
+    ) -> ConditionValidationResult:
+        return self._validate(session, target, "test_with_item")
+
+    def validate_tech(
+        self, session: Session, target: Technique | None
+    ) -> ConditionValidationResult:
+        return self._validate(session, target, "test_with_tech")
+
+    def validate_status(
+        self, session: Session, target: Status | None
+    ) -> ConditionValidationResult:
+        return self._validate(session, target, "test_with_status")

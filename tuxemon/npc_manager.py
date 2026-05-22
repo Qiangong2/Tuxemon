@@ -7,14 +7,14 @@ from collections.abc import Iterable, Sequence
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
+from tuxemon.entity.npc import NPC
 from tuxemon.network.networking import CharData, update_client
-from tuxemon.npc import NPC
 
 if TYPE_CHECKING:
     from tuxemon.base_client import BaseClient
-    from tuxemon.monster import Monster
+    from tuxemon.monster.monster import Monster
     from tuxemon.network.manager import NetworkManager
-    from tuxemon.save_state import NPCState
+    from tuxemon.save_system.save_state import NPCState
     from tuxemon.session import Session
 
 logger = logging.getLogger(__name__)
@@ -132,7 +132,7 @@ class NPCManager:
                 continue
 
             char_dict = CharData(
-                tile_pos=entity.final_move_dest,
+                tile_pos=entity._last_tile_pos,
                 name=entity.name,
                 facing=entity.facing,
                 monsters=[],
@@ -227,8 +227,7 @@ class NPCManager:
             if not state.player_slug:
                 continue
 
-            npc = NPC(npc_slug=state.player_slug, session=session)
-            npc.set_state(session, state)
+            npc = NPC.from_save(session, state)
 
             if state.current_map == current_map:
                 self.add_npc(npc)
@@ -257,5 +256,5 @@ class NPCManager:
     ) -> None:
         npc.set_current_map(map_name)
         npc.cancel_path()
-        npc.set_position((x, y))
+        npc.complete_tile_entry((x, y))
         self.add_npc(npc)

@@ -7,25 +7,28 @@ monsters:
   - 14
   monster: elofly
   variables:
-  - daytime: 'true'
+    - key: daytime
+      value: "true"
 - encounter_rate: 1
   exp_req_mod: 3
   held_items: []
   level_range:
   - 12
   - 15
-  monster: sapsnap
+  monster: trapsnap
   variables:
-  - daytime: 'true'
+    - key: daytime
+      value: "true"
 - encounter_rate: 3
   exp_req_mod: 3
   held_items: []
   level_range:
   - 11
   - 14
-  monster: aardorn
+  monster: caper
   variables:
-  - daytime: 'true'
+    - key: daytime
+      value: "true"
 - encounter_rate: 3
   exp_req_mod: 3
   held_items: []
@@ -34,7 +37,8 @@ monsters:
   - 14
   monster: katapill
   variables:
-  - daytime: 'true'
+    - key: daytime
+      value: "true"
 - encounter_rate: 3
   exp_req_mod: 3
   held_items: []
@@ -43,25 +47,28 @@ monsters:
   - 16
   monster: elofly
   variables:
-  - daytime: 'false'
+    - key: daytime
+      value: "false"
 - encounter_rate: 1
   exp_req_mod: 3
   held_items: []
   level_range:
   - 13
   - 16
-  monster: sapsnap
+  monster: trapsnap
   variables:
-  - daytime: 'false'
+    - key: daytime
+      value: "false"
 - encounter_rate: 3
   exp_req_mod: 3
   held_items: []
   level_range:
   - 13
   - 16
-  monster: aardorn
+  monster: caper
   variables:
-  - daytime: 'false'
+    - key: daytime
+      value: "false"
 - encounter_rate: 3
   exp_req_mod: 3
   held_items: []
@@ -70,5 +77,6 @@ monsters:
   - 16
   monster: katapill
   variables:
-  - daytime: 'false'
+    - key: daytime
+      value: "false"
 slug: spyder_route4

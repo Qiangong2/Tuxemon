@@ -1,25 +1,25 @@
 # SPDX-License-Identifier: GPL-3.0
 # Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 """This module contains the Tuxemon server and client."""
+
 from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field, replace
 from enum import Enum
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any
 
 from tuxemon.db import Direction
 from tuxemon.item.item import decode_items, encode_items
-from tuxemon.monster import decode_monsters, encode_monsters
-from tuxemon.prepare import TILE_SIZE
+from tuxemon.monster.monster import decode_monsters, encode_monsters
 from tuxemon.session import local_session
 from tuxemon.states import world_state as world
 
 if TYPE_CHECKING:
     from tuxemon.base_client import BaseClient
+    from tuxemon.entity.npc import NPC
     from tuxemon.item.item import Item
-    from tuxemon.monster import Monster
-    from tuxemon.npc import NPC
+    from tuxemon.monster.monster import Monster
 
 logger = logging.getLogger(__name__)
 
@@ -88,26 +88,26 @@ class EventData:
 
     type: EventType  # The type of event (e.g., CLIENT_KEYDOWN, PUSH_SELF)
     event_number: int  # Sequence number for tracking event order
-    cuuid: Optional[str] = (
+    cuuid: str | None = (
         None  # Unique client identifier (who sent or triggered the event)
     )
-    direction: Optional[str] = (
+    direction: str | None = (
         None  # Intended movement direction (e.g., "up", "left") — used in movement events
     )
-    interaction: Optional[str] = (
+    interaction: str | None = (
         None  # Type of interaction (e.g., "talk", "battle") — used in interaction events
     )
-    map_name: Optional[str] = None  # Name of the map where the event occurred
-    char_dict: Optional[CharData] = (
+    map_name: str | None = None  # Name of the map where the event occurred
+    char_dict: CharData | None = (
         None  # Snapshot of character state (position, facing, inventory, etc.)
     )
-    kb_key: Optional[str] = (
+    kb_key: str | None = (
         None  # Key pressed or released (e.g., "SHIFT", "up") — used in input events
     )
-    target: Optional[str] = (
+    target: str | None = (
         None  # Target client or entity for interactions or combat
     )
-    response: Optional[Any] = (
+    response: Any | None = (
         None  # Optional response payload (e.g., dialogue result, battle outcome)
     )
 
@@ -178,12 +178,12 @@ def populate_client(
     game.event_engine.execute_action(
         "create_npc", [char_name, tile_pos_x, tile_pos_y]
     )
-    char = local_session.get_npc(char_name)
+    char = local_session.client.get_npc(char_name)
     if char is None:
         raise RuntimeError(f"Failed to create or retrieve NPC for {char_name}")
 
     char.is_player = True
-    char.final_move_dest = char.tile_pos
+    char._last_tile_pos = char.tile_pos
     char.interactions = ["TRADE", "DUEL"]
 
     # Update the registry with the client sprite and map name
@@ -194,7 +194,7 @@ def populate_client(
 
 
 def update_client(
-    sprite: NPC, char_data: Optional[CharData], game: BaseClient
+    sprite: NPC, char_data: CharData | None, game: BaseClient
 ) -> None:
     """Corrects character location when it changes map or loses sync.
 
@@ -224,7 +224,7 @@ def update_client(
 
         # Handle tile position updates
         if item == "tile_pos":
-            tile_size = TILE_SIZE
+            tile_size = game.context.tile_size
             position = [
                 value[0] * tile_size[0],
                 value[1] * tile_size[1],

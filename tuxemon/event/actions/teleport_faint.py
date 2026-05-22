@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Optional, final
+from typing import final
 
 from tuxemon.event.eventaction import EventAction
 from tuxemon.session import Session
@@ -40,13 +40,14 @@ class TeleportFaintAction(EventAction):
     name = "teleport_faint"
     character: str
     healing: str
-    trans_time: Optional[float] = None
-    rgb: Optional[str] = None
+    trans_time: float | None = None
+    rgb: str | None = None
 
     def start(self, session: Session) -> None:
-        character = session.get_npc(self.character)
+        character = session.client.get_npc(self.character)
         if character is None:
             logger.error(f"{self.character} not found")
+            self.stop()
             return
 
         healing = parse_flag(self.healing)
@@ -60,6 +61,7 @@ class TeleportFaintAction(EventAction):
             logger.error(
                 "The teleport_faint variable has not been set, use 'set_teleport_faint'."
             )
+            self.stop()
             return
         else:
             teleport = character.teleport_faint

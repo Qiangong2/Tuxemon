@@ -31,22 +31,22 @@ class SetPartyStatusAction(EventAction):
     character: str
 
     def start(self, session: Session) -> None:
-        char = session.get_npc(self.character)
+        char = session.client.get_npc(self.character)
         if char is None:
             logger.error(f"{self.character} not found")
+            self.stop()
             return
         if not char.monsters:
             logger.error(f"{char.name} has no monsters!")
+            self.stop()
             return
 
         _healthy = sum(
             1 for monster in char.monsters if monster.hp_ratio == 1.0
         )
         _lost_hp = sum(monster.missing_hp for monster in char.monsters)
-        party_healthy = "yes" if _healthy == len(char.monsters) else "no"
 
         variable_updates = {
-            "party_healthy": party_healthy,
             "party_lost_hp": _lost_hp,
         }
         variables = [

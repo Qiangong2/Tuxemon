@@ -4,76 +4,22 @@ from __future__ import annotations
 
 import random
 from functools import partial
-from typing import ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar
 
-import pygame_menu
-from pygame_menu import locals
+from pygame_menu.locals import ALIGN_CENTER, POSITION_EAST
+from pygame_menu.menu import Menu
 from pygame_menu.widgets.selection.highlight import HighlightSelection
 
 from tuxemon.database.runtime import db
 from tuxemon.db import MonsterModel
-from tuxemon.locale import T
+from tuxemon.locale.locale import T
 from tuxemon.menu.menu import PygameMenuState
+from tuxemon.monster.sprite import MonsterSpriteHandler, SpriteLoader
 from tuxemon.platform.const.graphics import BG_MINIGAME, MISSING_IMAGE
-from tuxemon.prepare import SCALE, SCREEN_SIZE
 from tuxemon.tools import fix_measure, open_dialog
 
-lookup_cache: dict[str, MonsterModel] = {}
-
-
-def _lookup_monsters() -> None:
-    global lookup_cache
-    lookup_cache = {
-        mon_name: result
-        for mon_name in db.database["monster"]
-        if (result := MonsterModel.lookup(mon_name, db)).txmn_id > 0
-    }
-
-
-DIFFICULTIES = ["easy", "normal", "hard"]
-
-
-class DifficultySelectState(PygameMenuState):
-    """
-    A state that allows players to choose the difficulty level before entering the minigame.
-    """
-
-    name: ClassVar[str] = "DifficultySelectState"
-
-    def __init__(self) -> None:
-        width, height = SCREEN_SIZE
-        super().__init__(height=height, width=width)
-
-        self._build_menu()
-        self.reset_theme()
-
-    def _build_menu(self) -> None:
-        """
-        Constructs the difficulty selection menu with a title label and difficulty buttons.
-        """
-        title = T.translate("choose_difficulty")
-        self.menu.add.label(
-            title=title,
-            font_size=self.font_type.big,
-            align=locals.ALIGN_CENTER,
-            underline=True,
-        )
-
-        for level in DIFFICULTIES:
-            self.menu.add.button(
-                title=T.translate(f"level_{level}"),
-                action=partial(self.start_minigame, level),
-                button_id=f"diff_{level}",
-                font_size=self.font_type.medium,
-                selection_effect=HighlightSelection(),
-                align=locals.ALIGN_CENTER,
-            )
-
-    def start_minigame(self, difficulty: str) -> None:
-        """
-        Transitions to the minigame with the selected difficulty.
-        """
-        self.client.replace_state("MinigameState", difficulty=difficulty)
+if TYPE_CHECKING:
+    from tuxemon.base_client import BaseClient
 
 
 class MinigameState(PygameMenuState):
@@ -82,48 +28,67 @@ class MinigameState(PygameMenuState):
     name: ClassVar[str] = "MinigameState"
 
     def __init__(
-        self, difficulty: str = "easy", streak: int = 0, score: int = 0
+        self,
+        client: BaseClient,
+        difficulty: str = "easy",
+        streak: int = 0,
+        score: int = 0,
+        **kwargs: Any,
     ) -> None:
-        if not lookup_cache:
-            _lookup_monsters()
+        MonsterModel.load_cache(db)
+        self.cache = MonsterModel.get_cache()
 
-        width, height = SCREEN_SIZE
+        width, height = client.context.resolution
         self.difficulty = difficulty
         self.streak = streak
         self.score = score
 
-        theme = self._setup_theme(BG_MINIGAME)
-        theme.scrollarea_position = locals.POSITION_EAST
-        theme.widget_alignment = locals.ALIGN_CENTER
+        super().__init__(client=client, height=height, width=width, **kwargs)
 
-        super().__init__(height=height, width=width)
+        theme = self._setup_theme(BG_MINIGAME)
+        theme.scrollarea_position = POSITION_EAST
+        theme.widget_alignment = ALIGN_CENTER
+        self._menu_config["theme"] = theme
+
         self.add_menu_items(self.menu)
         self.reset_theme()
 
-    def add_menu_items(self, menu: pygame_menu.Menu) -> None:
+    def add_menu_items(self, menu: Menu) -> None:
         name = T.translate("who_is_that")
         menu.add.label(
             title=name,
             label_id="question",
             font_size=self.font_type.big,
-            align=locals.ALIGN_CENTER,
+            align=ALIGN_CENTER,
             underline=True,
         )
 
-        data = list(lookup_cache.values())
+        data = list(self.cache.values())
         tuxemon = random.choice(data)
         self.tuxemon = tuxemon
 
         # Image Display Based on Difficulty
-        image_path = f"gfx/sprites/battle/{tuxemon.slug}-front.png"
+        loader = SpriteLoader()
+        sprites = tuxemon.sprites
+        assert sprites
+        handler = MonsterSpriteHandler(
+            slug=tuxemon.slug,
+            sheet_path=loader.resolve_path(sprites.sheet),
+            front_rect=sprites.front_rect,
+            back_rect=sprites.back_rect,
+            menu1_rect=sprites.menu1_rect,
+            menu2_rect=sprites.menu2_rect,
+        )
+        if handler is None:
+            return
+        sprite = handler.get_sprite("front", scale=self.factor)
         if self.difficulty in ["easy", "normal"]:
             try:
-                image = self._create_image(image_path)
-                image.scale(SCALE, SCALE)
+                image = self._create_image_from_surface(sprite.image)
                 menu.add.image(image_path=image.copy())
             except Exception:
                 image = self._create_image(MISSING_IMAGE)
-                image.scale(SCALE, SCALE)
+                image.scale(self.factor, self.factor)
                 menu.add.image(image_path=image.copy())
 
         if self.difficulty == "hard":
@@ -132,7 +97,7 @@ class MinigameState(PygameMenuState):
                 title=description,
                 font_size=self.font_type.small,
                 label_id="description_label",
-                align=locals.ALIGN_CENTER,
+                align=ALIGN_CENTER,
                 max_char=-1,
                 wordwrap=True,
             )
@@ -148,7 +113,7 @@ class MinigameState(PygameMenuState):
             width=fix_measure(menu._width, 0.95),
             height=fix_measure(menu._width, 0.05),
             frame_id="options",
-            align=locals.ALIGN_CENTER,
+            align=ALIGN_CENTER,
         )
         frame._relax = True
 
@@ -160,20 +125,20 @@ class MinigameState(PygameMenuState):
                 button_id=mon.slug,
                 selection_effect=HighlightSelection(),
             )
-            frame.pack(label, align=locals.ALIGN_CENTER)
+            frame.pack(label, align=ALIGN_CENTER)
 
         # Score and Streak
         menu.add.label(
             title=f"{T.translate('score_label')}: {self.score}",
             label_id="score_label",
             font_size=self.font_type.medium,
-            align=locals.ALIGN_CENTER,
+            align=ALIGN_CENTER,
         )
         menu.add.label(
             title=f"{T.translate('streak_label')}: {self.streak}",
             label_id="streak_label",
             font_size=self.font_type.medium,
-            align=locals.ALIGN_CENTER,
+            align=ALIGN_CENTER,
         )
 
         if self.streak >= 10:
@@ -182,7 +147,7 @@ class MinigameState(PygameMenuState):
                 font_size=self.font_type.medium,
                 font_color=(255, 215, 0),
                 label_id="streak_bonus_label",
-                align=locals.ALIGN_CENTER,
+                align=ALIGN_CENTER,
             )
 
     def check_answer(self, mon: MonsterModel) -> None:

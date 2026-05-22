@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Optional, final
+from typing import final
 
 from tuxemon.event.eventaction import EventAction
 from tuxemon.platform.const.sizes import MUSIC_FADEIN, MUSIC_LOOP, MUSIC_RANGE
@@ -37,14 +37,13 @@ class PlayMusicAction(EventAction):
         The volume will be based on the main value in the options menu.
         e.g. if you set volume = 0.5 here, but the player has 0.5 among
         its options, then it'll result into 0.25 (0.5*0.5)
-
     """
 
     name = "play_music"
     filename: str
-    volume: Optional[float] = None
-    loop: Optional[int] = None
-    fade_ms: Optional[int] = None
+    volume: float | None = None
+    loop: int | None = None
+    fade_ms: int | None = None
 
     def start(self, session: Session) -> None:
         client = session.client
@@ -63,4 +62,10 @@ class PlayMusicAction(EventAction):
                 )
 
         # Keep track of what song we're currently playing
-        client.current_music.play(self.filename, volume, loop, fade_ms)
+        client.current_music.play(
+            self.filename,
+            volume,
+            loop,
+            fade_ms,
+            fade_previous=True,
+        )

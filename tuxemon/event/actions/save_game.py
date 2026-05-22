@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Optional, final
+from typing import final
 
 from tuxemon.event.eventaction import EventAction
-from tuxemon.locale import T
+from tuxemon.locale.locale import T
+from tuxemon.save_system.save_manager import SaveManager
+from tuxemon.save_system.save_slots import resolve_save_index
 from tuxemon.session import Session
 from tuxemon.tools import open_dialog
 
@@ -18,40 +20,32 @@ logger = logging.getLogger(__name__)
 @dataclass
 class SaveGameAction(EventAction):
     """
-    Saves the game.
+    Saves the game to a specific save slot.
 
-    If the index parameter is absent, then it'll create
-    slot4.save
-
-    index = 0 > slot 1
-    index = 1 > slot 2
-    index = 2 > slot 3
+    The `index` parameter refers to the UI slot index (0-2).
+    Slot resolution is handled by `resolve_save_index()`, which converts
+    the UI index (0-based) into a save slot number (1-based).
 
     Script usage:
         .. code-block::
 
-            save_game [index]
+            save_game <index>
 
     Script parameters:
-        index: Selected index.
-
-    eg: "save_game" (slot4.save)
-    eg: "save_game 1"
-
+        index: UI slot index (0-2). Must always be provided.
     """
 
     name = "save_game"
-    index: Optional[int] = None
+    index: int
 
     def start(self, session: Session) -> None:
-        index = 4 if self.index is None else self.index + 1
-        slot = 0 if self.index is None else self.index
+        slot = resolve_save_index(self.index)
 
         logger.info("Saving!")
         try:
-            session.save_state(index=index, slot=slot)
+            SaveManager.save(session, slot)
         except Exception as e:
-            logger.error("Unable to save game!!")
+            logger.error("Unable to save game!")
             logger.exception(e)
             open_dialog(
                 session.client,
@@ -59,11 +53,8 @@ class SaveGameAction(EventAction):
                 dialog_speed="max",
             )
         else:
-            if self.index is not None:
-                open_dialog(
-                    session.client,
-                    [T.translate("save_success")],
-                    dialog_speed="max",
-                )
-            else:
-                logger.info(T.translate("save_success"))
+            open_dialog(
+                session.client,
+                [T.translate("save_success")],
+                dialog_speed="max",
+            )

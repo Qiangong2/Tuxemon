@@ -20,7 +20,7 @@ from tuxemon.combat.reward_system import (
 from tuxemon.combat.utils import battlefield
 from tuxemon.db import EffectPhase, TargetType
 from tuxemon.event import get_event_bus
-from tuxemon.locale import T
+from tuxemon.locale.locale import T
 from tuxemon.technique.technique import Technique
 from tuxemon.ui.combat_swap import SwapTracker
 
@@ -30,9 +30,9 @@ if TYPE_CHECKING:
         StatusEffectResult,
         TechEffectResult,
     )
+    from tuxemon.entity.npc import NPC
     from tuxemon.item.item import Item
-    from tuxemon.monster import Monster
-    from tuxemon.npc import NPC
+    from tuxemon.monster.monster import Monster
     from tuxemon.session import Session
     from tuxemon.status.status import Status
 
@@ -305,10 +305,10 @@ class CombatSession:
     def get_start_message(self) -> str:
         """Determines and returns the appropriate alert message for combat start."""
         if self.combat_type is CombatType.TRAINER:
-            params = {"name": self.right_player.name.upper()}
+            params = {"name": self.right_player.name}
             return T.format("combat_trainer_appeared", params)
         elif self.combat_type is CombatType.MONSTER:
-            params = {"name": self.right_player.monsters[0].name.upper()}
+            params = {"name": self.right_player.monsters[0].name}
             return T.format("combat_wild_appeared", params)
         elif self.combat_type is CombatType.HORDE:
             horde = self.right_player.party.party_size
@@ -318,9 +318,9 @@ class CombatSession:
 
     def get_message_swap(self, character: NPC, monster: Monster) -> str:
         """Determines and returns the appropriate alert message for combat start."""
-        params = {"target": monster.name.upper()}
+        params = {"target": monster.name}
         if self.combat_type in (CombatType.TRAINER, CombatType.MONSTER):
-            params["user"] = character.name.upper()
+            params["user"] = character.name
             return T.format("combat_swap", params)
         elif self.combat_type is CombatType.HORDE:
             return T.format("combat_horde_swap", params)
@@ -431,7 +431,7 @@ class CombatSession:
             if other_player.is_player and other_player != player:
                 var = self.get_variable(monster.slug)
                 if var is None:
-                    other_player.tuxepedia.add_entry(monster.slug)
+                    other_player.tuxepedia.register_seen(monster.slug)
                     self.set_variable(monster.slug, True)
 
     def initialize_hit_chances(self) -> None:

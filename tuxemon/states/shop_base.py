@@ -2,6 +2,7 @@
 # Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
+import math
 from abc import ABC, abstractmethod
 from collections.abc import Generator
 from typing import (
@@ -9,7 +10,6 @@ from typing import (
     Any,
     ClassVar,
     Generic,
-    Optional,
     Protocol,
     TypeVar,
 )
@@ -17,23 +17,20 @@ from typing import (
 from pygame.rect import Rect
 from pygame.surface import Surface
 
-from tuxemon import tools
 from tuxemon.economy.applier import EconomyApplier
 from tuxemon.economy.transaction import TransactionManager
+from tuxemon.entity.npc import NPC
 from tuxemon.item.shop_utils import calc_internal_rect
 from tuxemon.menu.interface import MenuItem
 from tuxemon.menu.menu import Menu
-from tuxemon.menu.quantity import QuantityAndCostMenu
-from tuxemon.npc import NPC
 from tuxemon.platform.const import buttons
 from tuxemon.platform.const.sizes import MAX_MENU_ITEMS
 from tuxemon.platform.events import PlayerInput
-from tuxemon.prepare import SCREEN_RECT
 from tuxemon.sprite import Sprite
-from tuxemon.ui.paginator import Paginator
 from tuxemon.ui.text import TextArea
 
 if TYPE_CHECKING:
+    from tuxemon.base_client import BaseClient
     from tuxemon.economy.economy import Economy
 
 
@@ -59,30 +56,37 @@ class ShopMenuState(Menu[T], Generic[T], ABC):
 
     def __init__(
         self,
+        client: BaseClient,
         buyer: NPC,
         seller: NPC,
         economy: Economy,
+        **kwargs: Any,
     ) -> None:
-        super().__init__()
+        super().__init__(client=client, **kwargs)
 
         # This sprite is used to display the selected asset.
         self.item_center = self.rect.width * 0.164, self.rect.height * 0.13
         self.asset_sprite = Sprite()
         self.sprites.add(self.asset_sprite)
 
-        self.menu_items.line_spacing = tools.scale(7)
+        self.menu_items.line_spacing = self.scale_int(7)
+        self.page_size = MAX_MENU_ITEMS
         self.current_page = 0
         self.total_pages = 0
         self.inventory: list[T] = []
 
         # This is the area where the asset's description is displayed.
-        rect = SCREEN_RECT.copy()
-        rect.top = tools.scale(106)
-        rect.left = tools.scale(3)
-        rect.width = tools.scale(250)
-        rect.height = tools.scale(32)
-        self.text_area = TextArea(self.font, self.font_color)
-        self.text_area.rect = rect
+        rect = self.client.context.rect.copy()
+        rect.top = self.scale_int(106)
+        rect.left = self.scale_int(3)
+        rect.width = self.scale_int(250)
+        rect.height = self.scale_int(32)
+        self.text_area = TextArea(
+            font=self.font,
+            font_color=self.font_color,
+            rect=rect,
+            scaling=self.client.context.scaling,
+        )
         self.sprites.add(self.text_area, layer=100)
 
         self.image_center = self.rect.width * 0.16, self.rect.height * 0.45
@@ -90,13 +94,11 @@ class ShopMenuState(Menu[T], Generic[T], ABC):
         self.seller = seller
         self.economy = economy
         self.applier = EconomyApplier()
-        self.update_background(self.economy.model.background)
         self.buyer_manager = self.buyer.money_controller.money_manager
         self.seller_manager = self.seller.money_controller.money_manager
         self.transaction_manager = TransactionManager(
             self.buyer_manager, self.seller_manager, self.client.shop_manager
         )
-        self.paginator = Paginator(self.inventory, MAX_MENU_ITEMS)
 
     def calc_internal_rect(self) -> Rect:
         return calc_internal_rect(self.rect)
@@ -130,7 +132,7 @@ class ShopMenuState(Menu[T], Generic[T], ABC):
         self.add(menu_item)
 
     @abstractmethod
-    def _get_asset_image(self, asset: MenuItem[T]) -> Optional[Surface]:
+    def _get_asset_image(self, asset: MenuItem[T]) -> Surface | None:
         """Returns the visual representation for the asset."""
 
     @abstractmethod
@@ -156,20 +158,49 @@ class ShopMenuState(Menu[T], Generic[T], ABC):
         if not self.inventory:
             return
 
-        self.paginator.update_items(self.inventory)
-        self.total_pages = self.paginator.total_pages()
+        # Compute total pages
+        if self.page_size:
+            self.total_pages = max(
+                1, math.ceil(len(self.inventory) / self.page_size)
+            )
+        else:
+            self.total_pages = 1
+
+        # Clamp current page
         self.current_page = max(
             0, min(self.current_page, self.total_pages - 1)
         )
 
-        paged_inventory = self.paginator.paginate(self.current_page)
+        # Slice items for this page
+        start = self.current_page * self.page_size
+        end = start + self.page_size
+        paged_inventory = self.inventory[start:end]
+
         self._populate_menu(paged_inventory)
         yield from self.menu_items
 
     def reload_shop(self) -> None:
         self.clear()
         self.inventory = self._filter_inventory()
-        paged_inventory = self.paginator.paginate(self.current_page)
+
+        # Recompute total pages
+        if self.page_size:
+            self.total_pages = max(
+                1, math.ceil(len(self.inventory) / self.page_size)
+            )
+        else:
+            self.total_pages = 1
+
+        # Clamp current page
+        self.current_page = max(
+            0, min(self.current_page, self.total_pages - 1)
+        )
+
+        # Slice items for this page
+        start = self.current_page * self.page_size
+        end = start + self.page_size
+        paged_inventory = self.inventory[start:end]
+
         self._populate_menu(paged_inventory)
         self.selected_index = (
             min(self.selected_index, len(self.menu_items) - 1)
@@ -178,29 +209,34 @@ class ShopMenuState(Menu[T], Generic[T], ABC):
         )
         self.on_menu_selection_change()
 
-    def process_event(self, event: PlayerInput) -> Optional[PlayerInput]:
-        total_pages = self.paginator.total_pages()
+    def process_event(self, event: PlayerInput) -> PlayerInput | None:
+        total_pages = self.total_pages
+
         if event.button == buttons.RIGHT and event.pressed:
             if self.current_page < total_pages - 1:
                 self.current_page += 1
                 self.reload_shop()
+            return None
         elif event.button == buttons.LEFT and event.pressed:
             if self.current_page > 0:
                 self.current_page -= 1
                 self.reload_shop()
-        else:
-            return super().process_event(event)
-        return None
+            return None
+
+        return super().process_event(event)
 
     def on_menu_selection(self, menu_item: MenuItem[T]) -> None:
         """Handles the common logic for pushing the quantity menu."""
         params = self._get_selection_menu_params(menu_item)
+
         self.client.state_manager.push_state(
-            QuantityAndCostMenu(
-                callback=params["callback"],
-                max_quantity=params["max_quantity"],
-                quantity=1,
-                shrink_to_items=True,
-                cost=params["cost"],
-            )
+            "QuantityPickerState",
+            client=self.client,
+            min_value=1,
+            max_value=params["max_quantity"],
+            start_value=1,
+            step=1,
+            callback=params["callback"],
+            cost=params["cost"],
+            wallet_money=params.get("wallet_money"),
         )

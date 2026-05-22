@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from tuxemon.core.core_effect import CoreEffect, StatusEffectResult
-from tuxemon.locale import T
+from tuxemon.locale.locale import T
 from tuxemon.modifiers import parse_modifier_mode
 
 if TYPE_CHECKING:
@@ -70,10 +70,9 @@ class PoisonedEffect(CoreEffect):
                 status.use_failure = T.format("combat_state_immune", params)
                 host.status.clear_status(session)
         if status.has_phase(EffectPhase.ON_STEP_INTERVAL):
-            if status._step_hp_change != 0:
-                host.current_hp = max(
-                    0, host.current_hp + status._step_hp_change
-                )
+            hp_change = status.step_engine.compute_hp_change(host, ticks=1)
+            if hp_change != 0:
+                host.current_hp = max(0, host.current_hp + hp_change)
                 return StatusEffectResult(name=status.name, success=True)
 
         return StatusEffectResult(name=status.name, success=poisoned)

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Optional, final
+from typing import final
 
 from tuxemon.event.eventaction import EventAction
 from tuxemon.session import Session
@@ -35,7 +35,7 @@ class RemoveStateAction(EventAction):
     """
 
     name = "remove_state"
-    state_name: Optional[str] = None
+    state_name: str | None = None
 
     def start(self, session: Session) -> None:
         client = session.client
@@ -54,6 +54,7 @@ class RemoveStateAction(EventAction):
         else:
             if state_name not in client.active_state_names:
                 logger.error(f"{state_name} isn't active.")
+                self.stop()
                 return
             client.remove_state_by_name(state_name)
             logger.info(f"{state_name} is removed.")

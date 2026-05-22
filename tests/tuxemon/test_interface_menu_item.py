@@ -1,75 +1,93 @@
 # SPDX-License-Identifier: GPL-3.0
 # Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
-import unittest
 from unittest.mock import MagicMock
 
+import pytest
 from pygame import Surface
 
 from tuxemon.menu.interface import MenuItem
 
 
-class TestMenuItem(unittest.TestCase):
+@pytest.fixture
+def image():
+    return Surface((10, 10))
 
-    def setUp(self):
-        self.image = Surface((10, 10))
-        self.game_object = MagicMock()
 
-    def test_init_default(self):
-        menu_item = MenuItem(
-            self.image, "Test Label", "Test Description", self.game_object
-        )
-        self.assertEqual(menu_item.label, "Test Label")
-        self.assertEqual(menu_item.description, "Test Description")
-        self.assertEqual(menu_item.enabled, True)
+@pytest.fixture
+def game_object():
+    return MagicMock()
 
-    def test_init_custom(self):
-        menu_item = MenuItem(
-            self.image,
-            "Test Label",
-            "Test Description",
-            self.game_object,
-            enabled=False,
-            position=(100, 100),
-        )
-        self.assertEqual(menu_item.label, "Test Label")
-        self.assertEqual(menu_item.description, "Test Description")
-        self.assertEqual(menu_item.enabled, False)
 
-    def test_update_image_focus(self):
-        menu_item = MenuItem(
-            self.image, "Test Label", "Test Description", self.game_object
-        )
-        menu_item._in_focus = True
-        menu_item.update_image = MagicMock()
-        menu_item.update_image()
+def test_init_default(image, game_object):
+    item = MenuItem(image, "Label", "Desc", game_object)
+    assert item.label == "Label"
+    assert item.description == "Desc"
+    assert item.enabled is True
+    assert item.in_focus is False
+    assert isinstance(item.metadata, dict)
 
-    def test_update_image_enabled(self):
-        menu_item = MenuItem(
-            self.image, "Test Label", "Test Description", self.game_object
-        )
-        menu_item.enabled = False
-        menu_item.update_image = MagicMock()
-        menu_item.update_image()
 
-    def test_enabled_property(self):
-        menu_item = MenuItem(
-            self.image, "Test Label", "Test Description", self.game_object
-        )
-        self.assertTrue(menu_item.enabled)
-        menu_item.enabled = False
-        self.assertFalse(menu_item.enabled)
+def test_init_custom(image, game_object):
+    item = MenuItem(
+        image,
+        "Label",
+        "Desc",
+        game_object,
+        enabled=False,
+        position=(50, 60),
+    )
+    assert item.enabled is False
+    assert item.rect.topleft == (50, 60)
 
-    def test_in_focus_property(self):
-        menu_item = MenuItem(
-            self.image, "Test Label", "Test Description", self.game_object
-        )
-        self.assertFalse(menu_item.in_focus)
-        menu_item.in_focus = True
-        self.assertTrue(menu_item.in_focus)
 
-    def test_repr(self):
-        menu_item = MenuItem(
-            self.image, "Test Label", "Test Description", self.game_object
-        )
-        self.assertIn("Test Label", str(menu_item))
-        self.assertIn("enabled=True", str(menu_item))
+def test_trigger_calls_game_object(image, game_object):
+    item = MenuItem(image, "Label", "Desc", game_object)
+    item.trigger()
+    game_object.assert_called_once()
+
+
+def test_trigger_does_not_call_when_disabled(image, game_object):
+    item = MenuItem(image, "Label", "Desc", game_object, enabled=False)
+    item.trigger()
+    game_object.assert_not_called()
+
+
+def test_enabled_property(image, game_object):
+    item = MenuItem(image, "Label", "Desc", game_object)
+    assert item.enabled is True
+    item.enabled = False
+    assert item.enabled is False
+
+
+def test_in_focus_property(image, game_object):
+    item = MenuItem(image, "Label", "Desc", game_object)
+    assert item.in_focus is False
+    item.in_focus = True
+    assert item.in_focus is True
+
+
+def test_update_image_runs_without_error(image, game_object):
+    item = MenuItem(image, "Label", "Desc", game_object)
+    item.update_image()  # Should not raise
+
+
+def test_repr_contains_label_and_enabled(image, game_object):
+    item = MenuItem(image, "Label", "Desc", game_object)
+    rep = repr(item)
+    assert "Label" in rep
+    assert "enabled=True" in rep
+
+
+def test_trigger_ignores_non_callable_non_command(image):
+    data_object = {"foo": "bar"}  # no execute(), not callable
+    item = MenuItem(image, "Label", "Desc", data_object)
+    item.trigger()  # Should not raise
+
+
+def test_trigger_calls_callable_if_not_command(image):
+    fn = MagicMock()
+    item = MenuItem(image, "Label", "Desc", fn)
+
+    item.trigger()
+
+    fn.assert_called_once()

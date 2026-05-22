@@ -5,16 +5,14 @@ from __future__ import annotations
 import logging
 import random
 from dataclasses import dataclass
-from typing import Optional, final
+from typing import final
 
 from tuxemon.database.runtime import db
-from tuxemon.db import EvolutionStage, MonsterModel
+from tuxemon.db import MonsterModel
 from tuxemon.event.eventaction import EventAction
 from tuxemon.session import Session
 
 logger = logging.getLogger(__name__)
-
-lookup_cache: dict[str, MonsterModel] = {}
 
 
 @final
@@ -26,7 +24,7 @@ class RandomMonsterAction(EventAction):
     Script usage:
         .. code-block::
 
-            random_monster <level>[,npc_slug][,exp][,mon][,shape][,evo]
+            random_monster <level>[,npc_slug][,exp][,mon]
 
     Script parameters:
         level: The level of the added monster.
@@ -34,42 +32,38 @@ class RandomMonsterAction(EventAction):
             Defaults to the current player.
         exp: A modifier for the monster's experience.
         mon: A modifier for the monster's money yield.
-        shape: The monster's shape (e.g., 'varmint', 'brute').
-        evo: The monster's evolution stage (e.g., 'basic', 'stage1').
+
+    Additional selection rules:
+        - Only monsters with ``randomly = True`` are considered.
+        - Monsters that would evolve at or before the given level
+          (``monster.can_evolve_at_level(level)``) are excluded.
+        - Monsters whose current form requires a higher level than the one
+          provided (``monster.is_underleveled_for_form(level)``) are excluded.
+        - Monsters with ``txmn_id <= 0`` are ignored.
     """
 
     name = "random_monster"
     monster_level: int
-    trainer_slug: Optional[str] = None
-    exp: Optional[float] = None
-    money: Optional[float] = None
-    shape: Optional[str] = None
-    evo: Optional[str] = None
+    trainer_slug: str | None = None
+    exp: float | None = None
+    money: float | None = None
 
     def start(self, session: Session) -> None:
-        if not lookup_cache:
-            _lookup_monsters()
-
-        try:
-            evo_stage = EvolutionStage(self.evo) if self.evo else None
-        except ValueError:
-            logger.error(f"'{self.evo}' is not a valid evolution stage.")
-            return
+        MonsterModel.load_cache(db)
+        cache = MonsterModel.get_cache()
 
         filters = [
             monster.slug
-            for monster in lookup_cache.values()
+            for monster in cache.values()
             if monster.txmn_id > 0
             and monster.randomly
-            and (not self.shape or monster.shape == self.shape)
-            and (not self.evo or monster.stage == evo_stage)
+            and not monster.can_evolve_at_level(self.monster_level)
+            and not monster.is_underleveled_for_form(self.monster_level, db)
         ]
 
         if not filters:
-            logger.error(
-                f"No valid monsters found for the given criteria "
-                f"(shape: {self.shape}, evo: {self.evo})."
-            )
+            logger.error("No valid monsters found for the given criteria.")
+            self.stop()
             return
 
         monster_slug = random.choice(filters)
@@ -85,12 +79,3 @@ class RandomMonsterAction(EventAction):
             ],
             True,
         )
-
-
-def _lookup_monsters() -> None:
-    global lookup_cache
-    lookup_cache = {
-        mon_name: result
-        for mon_name in db.database["monster"]
-        if (result := MonsterModel.lookup(mon_name, db)).txmn_id > 0
-    }

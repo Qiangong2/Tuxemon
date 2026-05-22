@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Optional, Protocol
+from typing import TYPE_CHECKING, Any, Protocol
 
+from tuxemon.platform.joystick_detector import JoystickDetector
 from tuxemon.platform.platform_pygame.events import (
     InputMappingStrategy,
     PlayStationMapping,
@@ -25,10 +26,10 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class CoreDevices:
-    keyboard: Optional[PygameKeyboardInput] = None
-    gamepad: Optional[PygameGamepadInput] = None
-    overlay: Optional[PygameTouchOverlayInput] = None
-    mouse: Optional[PygameMouseInput] = None
+    keyboard: PygameKeyboardInput | None = None
+    gamepad: PygameGamepadInput | None = None
+    overlay: PygameTouchOverlayInput | None = None
+    mouse: PygameMouseInput | None = None
 
 
 class InputDeviceSetup(Protocol):
@@ -37,8 +38,11 @@ class InputDeviceSetup(Protocol):
     """
 
     def setup(
-        self, event_queue: PygameEventQueueHandler, config: TuxemonConfig
-    ) -> Optional[Any]:
+        self,
+        event_queue: PygameEventQueueHandler,
+        config: TuxemonConfig,
+        resolution: tuple[int, int],
+    ) -> Any | None:
         """
         Configures and adds the input device to the event queue, returns the
         instance.
@@ -48,8 +52,11 @@ class InputDeviceSetup(Protocol):
 
 class KeyboardSetup:
     def setup(
-        self, event_queue: PygameEventQueueHandler, config: TuxemonConfig
-    ) -> Optional[PygameKeyboardInput]:
+        self,
+        event_queue: PygameEventQueueHandler,
+        config: TuxemonConfig,
+        resolution: tuple[int, int],
+    ) -> PygameKeyboardInput | None:
         if config.input.keyboard_button_map:
             keyboard = PygameKeyboardInput(config.input.keyboard_button_map)
             event_queue.set_input(0, 10, keyboard)
@@ -70,26 +77,46 @@ class GamepadSetup:
             raise ValueError(f"Unsupported controller type: {controller_type}")
 
     def setup(
-        self, event_queue: PygameEventQueueHandler, config: TuxemonConfig
-    ) -> Optional[PygameGamepadInput]:
+        self,
+        event_queue: PygameEventQueueHandler,
+        config: TuxemonConfig,
+        resolution: tuple[int, int],
+    ) -> PygameGamepadInput | None:
+
+        detector = JoystickDetector()
+        joysticks = detector.detect()
+
+        if not joysticks:
+            logger.info("No usable joysticks found")
+            return None
+
         controller_type = config.controller.type
-        if controller_type:
-            strategy = self._get_mapping_strategy(controller_type)
-            gamepad = PygameGamepadInput(strategy)
-            event_queue.set_input(0, 20, gamepad)
-            logger.info(
-                f"{controller_type.capitalize()} gamepad set up successfully"
-            )
-            return gamepad
-        return None
+
+        if controller_type is None:
+            return None
+
+        strategy = self._get_mapping_strategy(controller_type)
+
+        gamepad = PygameGamepadInput(strategy, joysticks)
+        event_queue.set_input(0, 20, gamepad)
+
+        logger.info(
+            f"{controller_type.capitalize()} gamepad set up successfully"
+        )
+        return gamepad
 
 
 class ControllerOverlaySetup:
     def setup(
-        self, event_queue: PygameEventQueueHandler, config: TuxemonConfig
-    ) -> Optional[PygameTouchOverlayInput]:
+        self,
+        event_queue: PygameEventQueueHandler,
+        config: TuxemonConfig,
+        resolution: tuple[int, int],
+    ) -> PygameTouchOverlayInput | None:
         if config.controller.overlay:
-            overlay = PygameTouchOverlayInput(config.controller.transparency)
+            overlay = PygameTouchOverlayInput(
+                config.controller.transparency, resolution
+            )
             overlay.load()
             event_queue.set_input(0, 30, overlay)
             logger.info("Controller overlay set up successfully")
@@ -99,8 +126,11 @@ class ControllerOverlaySetup:
 
 class MouseSetup:
     def setup(
-        self, event_queue: PygameEventQueueHandler, config: TuxemonConfig
-    ) -> Optional[PygameMouseInput]:
+        self,
+        event_queue: PygameEventQueueHandler,
+        config: TuxemonConfig,
+        resolution: tuple[int, int],
+    ) -> PygameMouseInput | None:
         if not config.controller.hide_mouse:
             mouse = PygameMouseInput()
             event_queue.set_input(0, 40, mouse)

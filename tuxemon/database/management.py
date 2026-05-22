@@ -4,12 +4,12 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
-import yaml
 from pydantic import ValidationError
 
 from tuxemon.database.config import ModMetadata
+from tuxemon.database.yaml_utils import load_yaml
 
 logger = logging.getLogger(__name__)
 
@@ -20,9 +20,7 @@ class DependencyResolver:
     def __init__(self, mod_dependencies: dict[str, list[str]]) -> None:
         self.mod_dependencies = mod_dependencies
 
-    def resolve(
-        self, mod: str, visited: Optional[set[str]] = None
-    ) -> list[str]:
+    def resolve(self, mod: str, visited: set[str] | None = None) -> list[str]:
         """Recursively resolves dependencies for a single mod."""
         if visited is None:
             visited = set()
@@ -52,16 +50,16 @@ class ModMetadataLoader:
     def load_metadata(self) -> dict[str, ModMetadata]:
         """Loads and returns metadata for all active mods."""
         metadata: dict[str, ModMetadata] = {}
+
         for mod_directory in self.active_mods:
             mod_path = self.base_path / mod_directory / "mod.yaml"
+
             if not mod_path.exists():
                 logger.error(f"Metadata file missing: '{mod_path}'")
                 continue
 
             try:
-                with mod_path.open() as f:
-                    raw_data = yaml.safe_load(f)
-
+                raw_data = load_yaml(mod_path)
                 validated_meta = ModMetadata(**raw_data)
 
                 if validated_meta.slug != mod_directory:
@@ -76,10 +74,6 @@ class ModMetadataLoader:
                     f"Loaded mod '{mod_directory}' version {validated_meta.version}"
                 )
 
-            except yaml.YAMLError as e:
-                logger.error(
-                    f"Error loading YAML data for '{mod_directory}' mod.yaml: {e}"
-                )
             except ValidationError as e:
                 logger.error(
                     f"Metadata validation failed for '{mod_directory}' mod.yaml. {e}"
@@ -100,7 +94,7 @@ class ModMetadataManager:
 
     def get_mod_attribute(
         self, mod_name: str, attribute_name: str
-    ) -> Optional[Any]:
+    ) -> Any | None:
         """Retrieves a specific attribute (field) from a mod's metadata."""
         mod_meta = self._mod_metadata.get(mod_name)
         if mod_meta:

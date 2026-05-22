@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Optional, final
+from typing import final
 
 from tuxemon.camera.camera import Camera
 from tuxemon.event.eventaction import EventAction
@@ -26,17 +26,17 @@ class CameraPositionAction(EventAction):
 
     Script parameters:
         x,y: the coordinates where the camera needs to be centered.
-
     """
 
     name = "camera_position"
-    x: Optional[int] = None
-    y: Optional[int] = None
+    x: int | None = None
+    y: int | None = None
 
     def start(self, session: Session) -> None:
         camera = session.client.camera_manager.get_active_camera()
         if camera is None:
             logger.error("No active camera found.")
+            self.stop()
             return
         if self.x is not None and self.y is not None:
             map_size = session.client.map_manager.map_size
@@ -46,6 +46,7 @@ class CameraPositionAction(EventAction):
                 logger.error(
                     f"({self.x, self.y}) is outside the map bounds {map_size}"
                 )
+                self.stop()
                 return
             self._move_camera(camera, self.x, self.y)
         else:

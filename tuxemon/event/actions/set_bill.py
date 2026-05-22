@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Optional, final
+from typing import final
 
 from tuxemon.event.eventaction import EventAction
-from tuxemon.locale import T
+from tuxemon.locale.locale import T
 from tuxemon.session import Session
 
 logger = logging.getLogger(__name__)
@@ -47,16 +47,17 @@ class SetBillAction(EventAction):
     name = "set_bill"
     character: str
     bill_slug: str
-    amount: Optional[int] = None
-    interest_rate: Optional[float] = None
-    late_fee: Optional[int] = None
-    share_rate: Optional[float] = None
+    amount: int | None = None
+    interest_rate: float | None = None
+    late_fee: int | None = None
+    share_rate: float | None = None
 
     def start(self, session: Session) -> None:
-        character = session.get_npc(self.character)
+        character = session.client.get_npc(self.character)
 
         if character is None:
             logger.error(f"Character '{self.character}' not found.")
+            self.stop()
             return
 
         if not T.has_translation("en_US", self.bill_slug):

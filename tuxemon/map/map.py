@@ -3,20 +3,21 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Generator, Mapping, Sequence
+from collections.abc import Generator, Iterable, Mapping, Sequence
 from itertools import product
-from math import atan2, pi
-from typing import TYPE_CHECKING, Optional, TypeVar, Union
+from math import atan2, hypot, pi
+from typing import TYPE_CHECKING, TypeVar
 
 from tuxemon.camera.camera import project
 from tuxemon.compat.rect import ReadOnlyRect
 from tuxemon.db import Direction, Orientation
 from tuxemon.math import Vector2, Vector3
+from tuxemon.prepare import DisplayContext
 from tuxemon.tools import round_to_divisible
 
 if TYPE_CHECKING:
-    from tuxemon.map.map_region import RegionProperties
-    from tuxemon.map.map_tuxemon import AbstractMap
+    from tuxemon.map.region import RegionProperties
+    from tuxemon.map.tuxemon import AbstractMap
 
 logger = logging.getLogger(__name__)
 
@@ -25,19 +26,37 @@ RectTypeVar = TypeVar("RectTypeVar", bound=ReadOnlyRect)
 
 # direction => vector
 dirs3: Mapping[Direction, Vector3] = {
-    Direction.up: Vector3(0, -1, 0),
-    Direction.down: Vector3(0, 1, 0),
-    Direction.left: Vector3(-1, 0, 0),
-    Direction.right: Vector3(1, 0, 0),
+    Direction.UP: Vector3(0, -1, 0),
+    Direction.DOWN: Vector3(0, 1, 0),
+    Direction.LEFT: Vector3(-1, 0, 0),
+    Direction.RIGHT: Vector3(1, 0, 0),
 }
 dirs2: Mapping[Direction, Vector2] = {
-    Direction.up: Vector2(0, -1),
-    Direction.down: Vector2(0, 1),
-    Direction.left: Vector2(-1, 0),
-    Direction.right: Vector2(1, 0),
+    Direction.UP: Vector2(0, -1),
+    Direction.DOWN: Vector2(0, 1),
+    Direction.LEFT: Vector2(-1, 0),
+    Direction.RIGHT: Vector2(1, 0),
 }
 # just the first letter of the direction => vector
 short_dirs = {d[0]: dirs2[d] for d in dirs2}
+
+
+def tile_distance(tile0: Iterable[float], tile1: Iterable[float]) -> float:
+    x0, y0 = tile0
+    x1, y1 = tile1
+    return hypot(x1 - x0, y1 - y0)
+
+
+def vector2_to_tile_pos(vector: Vector2) -> tuple[int, int]:
+    return (int(vector[0]), int(vector[1]))
+
+
+def get_next_tile_pos(
+    origin: tuple[int, int], direction: Direction
+) -> tuple[int, int]:
+    """Calculates the target tile position one step away from the origin."""
+    target_vec = Vector2(origin) + dirs2[direction]
+    return vector2_to_tile_pos(target_vec)
 
 
 def translate_short_path(
@@ -216,8 +235,8 @@ def get_adjacent_position(
 
 
 def get_direction(
-    base: Union[Vector2, tuple[int, int]],
-    target: Union[Vector2, tuple[int, int]],
+    base: Vector2 | tuple[int, int],
+    target: Vector2 | tuple[int, int],
 ) -> Direction:
     """
     Return the direction based on the coordinates position.
@@ -237,9 +256,9 @@ def get_direction(
     look_on_y_axis = abs(y_offset) >= abs(x_offset)
 
     if look_on_y_axis:
-        return Direction.up if y_offset > 0 else Direction.down
+        return Direction.UP if y_offset > 0 else Direction.DOWN
     else:
-        return Direction.left if x_offset > 0 else Direction.right
+        return Direction.LEFT if x_offset > 0 else Direction.RIGHT
 
 
 def pairs(direction: Direction) -> Direction:
@@ -253,10 +272,10 @@ def pairs(direction: Direction) -> Direction:
         Complimentary direction.
     """
     opposites = {
-        Direction.up: Direction.down,
-        Direction.down: Direction.up,
-        Direction.left: Direction.right,
-        Direction.right: Direction.left,
+        Direction.UP: Direction.DOWN,
+        Direction.DOWN: Direction.UP,
+        Direction.LEFT: Direction.RIGHT,
+        Direction.RIGHT: Direction.LEFT,
     }
     opposite = opposites.get(direction)
     if opposite is None:
@@ -404,9 +423,9 @@ def orientation_by_angle(angle: float) -> Orientation:
         Whether the orientation is horizontal or vertical.
     """
     if angle in {0.0, 2 * pi}:
-        return Orientation.horizontal
+        return Orientation.HORIZONTAL
     elif angle in {pi / 2, 3 * pi / 2}:
-        return Orientation.vertical
+        return Orientation.VERTICAL
     else:
         raise ValueError("A collision line must be aligned to an axis")
 
@@ -459,7 +478,7 @@ def get_explicit_tile_exits(
     position: tuple[int, int],
     tile: RegionProperties,
     facing: Direction,
-    skip_nodes: Optional[set[tuple[int, int]]] = None,
+    skip_nodes: set[tuple[int, int]] | None = None,
 ) -> list[tuple[float, ...]]:
     """
     Check for exits from tile which are defined in the map.
@@ -502,27 +521,34 @@ def get_explicit_tile_exits(
 
 
 def get_pos_from_tilepos(
-    current_map: AbstractMap, tile_position: Vector2
+    current_map: AbstractMap, context: DisplayContext, tile_position: Vector2
 ) -> tuple[int, int]:
     """
-    Returns the map pixel coordinates based on the tile position.
+    Convert a tile-space position into on-screen pixel coordinates.
 
-    This method calculates the pixel coordinates on the map corresponding
-    to the specified tile position, accounting for the map's center offset.
-    Use this method for drawing elements on the screen.
+    This function projects a tile position (in map tile units) into pixel
+    coordinates using the provided DisplayContext, then applies the map
+    renderer's center offset so that the returned coordinates correspond to
+    the correct on-screen location for drawing.
 
     Parameters:
-        current_map: The map object (`AbstractMap`) containing the renderer
-            and relevant positional data.
-        tile_position: A [x, y] tile position represented as a `Vector2`.
+        current_map:
+            The map whose renderer provides the center offset used to align
+            the projected coordinates on screen.
+        context:
+            The DisplayContext containing tile size and projection settings.
+        tile_position:
+            A Vector2 representing the tile-space position to convert.
 
     Returns:
-        A tuple representing the pixel coordinates (x, y) to draw at the
-        given tile position, adjusted for the map's center offset.
+        (x, y):
+            The pixel coordinates on screen where an element at the given
+            tile position should be drawn, after applying projection and
+            the map renderer's center offset.
     """
     assert current_map.renderer
     cx, cy = current_map.renderer.get_center_offset()
-    px, py = project(tile_position)
+    px, py = project(context, tile_position)
     x = px + cx
     y = py + cy
     return x, y

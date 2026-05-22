@@ -37,24 +37,24 @@ class TransferMoneyAction(EventAction):
     slug2: str
 
     def start(self, session: Session) -> None:
-        character1 = session.get_npc(self.slug1)
-        character2 = session.get_npc(self.slug2)
+        character1 = session.client.get_npc(self.slug1)
+        character2 = session.client.get_npc(self.slug2)
 
         if not character1 or not character2:
             _char = self.slug1 if not character1 else self.slug2
             logger.error(f"Character not found in map: {_char}")
+            self.stop()
             return
 
-        money_manager = character1.money_controller.money_manager
-
-        if self.amount < 0:
-            raise AttributeError(f"Value {self.amount} must be >= 0")
-        if self.amount > money_manager.get_money():
-            raise AttributeError(
-                f"{self.slug1}'s wallet doesn't have {self.amount}"
+        try:
+            character1.money_controller.transfer_money_to(
+                self.amount, character2
             )
+        except ValueError as e:
+            logger.error(str(e))
+            self.stop()
+            return
 
-        character1.money_controller.transfer_money_to(self.amount, character2)
-        logger.info(
+        logger.debug(
             f"{character1.name} transfer {self.amount} to {character2.name}"
         )

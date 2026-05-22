@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Optional, final
+from typing import final
 
 from tuxemon.event.eventaction import EventAction
-from tuxemon.monster import Monster
+from tuxemon.monster.monster import Monster
 from tuxemon.session import Session
 from tuxemon.tools import get_valid_uuid
 
@@ -44,25 +44,25 @@ class ShowMonsterAction(EventAction):
 
         if self.client.current_state.name == "MonsterInfoState":
             logger.error(
-                f"The state 'MonsterInfoState' is already active. No action taken."
+                "The state 'MonsterInfoState' is already active. No action taken."
             )
+            self.stop()
             return
 
         monster = self._retrieve_monster(session)
         if monster is None:
             logger.error("Monster not found for MonsterInfoState.")
+            self.stop()
             return
 
         params = {"monster": monster, "source": self.name}
-        self.client.push_state("MonsterInfoState", kwargs=params)
+        self.client.push_state("MonsterInfoState", **params)
 
     def update(self, session: Session, dt: float) -> None:
-        try:
-            session.client.get_state_by_name("MonsterInfoState")
-        except ValueError:
+        if "MonsterInfoState" not in session.client.active_state_names:
             self.stop()
 
-    def _retrieve_monster(self, session: Session) -> Optional[Monster]:
+    def _retrieve_monster(self, session: Session) -> Monster | None:
         """Retrieve a monster from the game database."""
         player = session.player
         monster_id = get_valid_uuid(

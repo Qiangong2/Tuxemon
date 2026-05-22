@@ -9,7 +9,7 @@ from typing import final
 from tuxemon.database.runtime import db
 from tuxemon.db import SeenStatus
 from tuxemon.event.eventaction import EventAction
-from tuxemon.locale import T
+from tuxemon.locale.locale import T
 from tuxemon.session import Session
 
 logger = logging.getLogger(__name__)
@@ -30,7 +30,6 @@ class SetTuxepediaAction(EventAction):
         character: Either "player" or npc slug name (e.g. "npc_maple").
         monster_slug: Monster slug name (e.g. "rockitten").
         label: seen / caught
-
     """
 
     name = "set_tuxepedia"
@@ -39,9 +38,10 @@ class SetTuxepediaAction(EventAction):
     label: str
 
     def start(self, session: Session) -> None:
-        character = session.get_npc(self.character)
+        character = session.client.get_npc(self.character)
         if character is None:
             logger.error(f"{self.character} not found")
+            self.stop()
             return
         # start tuxepedia operations
         if self.label not in list(SeenStatus):
@@ -52,5 +52,10 @@ class SetTuxepediaAction(EventAction):
             raise ValueError(f"{self.monster_slug} isn't a monster")
 
         monster_name = T.translate(self.monster_slug)
-        character.tuxepedia.add_entry(self.monster_slug, label)
+
+        if label == SeenStatus.SEEN:
+            character.tuxepedia.register_seen(self.monster_slug)
+        elif label == SeenStatus.CAUGHT:
+            character.tuxepedia.register_caught(self.monster_slug)
+
         logger.info(f"Tuxepedia: {monster_name} is registered as {label}!")

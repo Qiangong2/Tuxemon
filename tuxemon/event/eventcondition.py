@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import ClassVar, Optional
+from typing import ClassVar
 
 from tuxemon.constants.paths import (
     CONDITIONS_PATH,
@@ -13,8 +14,9 @@ from tuxemon.constants.paths import (
     get_plugin_paths,
 )
 from tuxemon.db import Operator, SpatialCondition
-from tuxemon.plugin import load_plugins
+from tuxemon.plugin import PluginManager
 from tuxemon.session import Session
+from tuxemon.tools import cast_dataclass_parameters
 
 logger = logging.getLogger(__name__)
 
@@ -25,28 +27,15 @@ class EventCondition:
     is_expected: bool = field(default=False, init=False)
 
     def __post_init__(self) -> None:
-        pass
+        cast_dataclass_parameters(self)
 
-    def test(self, session: Session, condition: SpatialCondition) -> bool:
-        """
-        Return ``True`` if the condition is satisfied, or ``False`` if not.
-
-        Parameters:
-            session: Object containing the session information.
-            condition: Condition defined in the map.
-
-        Returns:
-            Value of the condition.
-        """
-        return True
-
-    @property
-    def done(self) -> bool:
+    def test(self, session: Session) -> bool:
+        """Evaluate the condition and return True if it is satisfied."""
         return True
 
 
 class ConditionManager:
-    def __init__(self, root_path: Optional[Path] = None) -> None:
+    def __init__(self, root_path: Path | None = None) -> None:
         if root_path is None:
             root_path = LIBDIR.parent
 
@@ -54,30 +43,19 @@ class ConditionManager:
             CONDITIONS_PATH, "conditions", subfolder="event"
         )
 
-        self.conditions = load_plugins(
-            paths=plugin_folders,
+        manager = PluginManager.from_directory(
+            plugin_folders=plugin_folders,
             root_path=root_path,
-            category="conditions",
-            interface=EventCondition,
+        )
+
+        self.conditions: Mapping[str, type[EventCondition]] = (
+            manager.get_class_map(interface=EventCondition)
         )
 
     def get_condition(
         self, cond_data: SpatialCondition
-    ) -> Optional[EventCondition]:
-        """
-        Get a condition that is loaded into the engine.
-
-        A new instance will be returned each time.
-
-        Return ``None`` if condition is not loaded.
-
-        Parameters:
-            name: Name of the condition.
-
-        Returns:
-            New instance of the condition if that condition is loaded.
-            ``None`` otherwise.
-        """
+    ) -> EventCondition | None:
+        """Instantiate a condition from map data, or return None if unavailable."""
         try:
             condition_class = self.conditions[cond_data.type]
         except KeyError:
@@ -86,13 +64,13 @@ class ConditionManager:
             )
             return None
 
-        instance = condition_class()
-        # Instantiate with parameters (positional unpacking)
-        # try:
-        #    instance = condition_class(*cond_data.parameters)
-        # except TypeError as e:
-        #    logger.error(f"Failed to instantiate {cond_data.type} with parameters {cond_data.parameters}: {e}")
-        #    return None
+        try:
+            instance = condition_class(*cond_data.parameters)
+        except TypeError as e:
+            logger.error(
+                f"Failed to instantiate {cond_data.type} with parameters {cond_data.parameters}: {e}"
+            )
+            return None
 
         # Set expected state
         instance.is_expected = cond_data.operator == Operator.IS

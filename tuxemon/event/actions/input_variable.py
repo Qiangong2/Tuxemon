@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Optional, final
+from typing import TYPE_CHECKING, final
 
 from tuxemon.event.eventaction import EventAction
-from tuxemon.locale import T
+from tuxemon.locale.locale import T
 from tuxemon.tools import parse_flag
 
 if TYPE_CHECKING:
@@ -54,7 +54,7 @@ class InputVariableAction(EventAction):
     name = "input_variable"
     question: str
     variable: str
-    escape: Optional[str] = None
+    escape: str | None = None
 
     def check_setcode(self, name: str) -> None:
         client = self.client.event_engine
@@ -72,7 +72,5 @@ class InputVariableAction(EventAction):
         )
 
     def update(self, session: Session, dt: float) -> None:
-        try:
-            session.client.get_state_by_name("InputMenu")
-        except ValueError:
+        if "InputMenu" not in session.client.active_state_names:
             self.stop()

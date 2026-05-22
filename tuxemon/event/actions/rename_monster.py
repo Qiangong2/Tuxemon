@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from typing import final
 
 from tuxemon.event.eventaction import EventAction
-from tuxemon.locale import T
+from tuxemon.locale.locale import T
 from tuxemon.platform.const.sizes import PLAYER_NAME_LIMIT
 from tuxemon.session import Session
 from tuxemon.tools import get_valid_uuid
@@ -44,10 +44,12 @@ class RenameMonsterAction(EventAction):
             logger.info(
                 f"No valid monster selected for variable '{self.variable}'"
             )
+            self.stop()
             return  # Exit early if no valid UUID
         monster = session.client.get_monster_by_iid(monster_id)
         if monster is None:
             logger.error("Monster not found")
+            self.stop()
             return
 
         self.monster = monster
@@ -62,7 +64,5 @@ class RenameMonsterAction(EventAction):
         )
 
     def update(self, session: Session, dt: float) -> None:
-        try:
-            session.client.get_state_by_name("InputMenu")
-        except ValueError:
+        if "InputMenu" not in session.client.active_state_names:
             self.stop()

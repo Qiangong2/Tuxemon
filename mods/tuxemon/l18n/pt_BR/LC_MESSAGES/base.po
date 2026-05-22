@@ -1367,9 +1367,6 @@ msgstr "Aliado"
 msgid "misa"
 msgstr "Massa"
 
-msgid "npc_wife"
-msgstr "Esposa NPC"
-
 msgid "tuxemart_aide"
 msgstr "Funcionário do Tuxemart"
 
@@ -1911,7 +1908,10 @@ msgstr ""
 "Norte: ${{north}} / Sul: ${{south}} / Oeste: ${{west}} / Leste: ${{east}}"
 
 msgid "evolution_confirmation"
-msgstr "{name} está tentando evoluir para {evolve}. Permitir a evolução?"
+msgstr "{name} está tentando evoluir para {evolve}."
+
+msgid "allow_evolution"
+msgstr "Permitir a evolução?"
 
 msgid "tuxemon_stat1"
 msgstr ""
@@ -2853,9 +2853,6 @@ msgid "spyder_flower_muse2"
 msgstr ""
 "Que? Você tem uma pintura. Oooh - você me deixaria comprá-lo? Eu tenho "
 "${{currency}}2.000."
-
-msgid "cotton_breeder5"
-msgstr "Hey ${{name}}, vem verificar o seu Tuxemon?"
 
 msgid "taba_greeting2b"
 msgstr ""

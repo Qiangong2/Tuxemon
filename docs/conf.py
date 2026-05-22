@@ -10,6 +10,7 @@ HANDCRAFTED_DIR = CONF_DIR / "handcrafted"
 EXCLUDE_CLASSES = {
     "EventAction",
     "EventCondition",
+    "EventBehavior",
     "CommonAction",
     "CommonCondition",
     "SpatialCondition",
@@ -74,11 +75,18 @@ def generate_script_lists(_: object) -> None:
         outfile.write_text("\n".join(sorted(lines)))
         print(f"Generated {outfile} with {len(lines)} entries")
 
-    write_list("tuxemon.event.actions", "Action", HANDCRAFTED_DIR / "action_list.rst")
+    write_list(
+        "tuxemon.event.actions", "Action", HANDCRAFTED_DIR / "action_list.rst"
+    )
     write_list(
         "tuxemon.event.conditions",
         "Condition",
         HANDCRAFTED_DIR / "condition_list.rst",
+    )
+    write_list(
+        "tuxemon.event.behaviors",
+        "Behavior",
+        HANDCRAFTED_DIR / "behavior_list.rst",
     )
     write_list(
         "tuxemon.core.effects",

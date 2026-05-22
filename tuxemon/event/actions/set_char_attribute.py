@@ -25,7 +25,6 @@ class SetCharAttributeAction(EventAction):
         character: Either "player" or character slug name (e.g. "npc_maple").
         attribute: Name of the attribute.
         value: Value of the attribute.
-
     """
 
     name = "set_char_attribute"
@@ -34,7 +33,7 @@ class SetCharAttributeAction(EventAction):
     value: str
 
     def start(self, session: Session) -> None:
-        character = session.get_npc(self.character)
+        character = session.client.get_npc(self.character)
         assert character
         CommonAction.set_entity_attribute(
             character, self.attribute, self.value

@@ -33,13 +33,15 @@ class RemoveStepTrackerAction(EventAction):
     tracker_id: str
 
     def start(self, session: Session) -> None:
-        character = session.get_npc(self.character)
+        character = session.client.get_npc(self.character)
         if character is None:
             logger.error(f"{self.character} not found")
+            self.stop()
             return
 
         if not character.step_tracker.get_tracker(self.tracker_id):
             logger.warning(f"StepTracker '{self.tracker_id}' doesn't exist.")
+            self.stop()
             return
 
         character.step_tracker.remove_tracker(self.tracker_id)

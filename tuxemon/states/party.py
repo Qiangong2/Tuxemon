@@ -2,23 +2,24 @@
 # Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 from __future__ import annotations
 
-from collections.abc import Callable
-from typing import Any, ClassVar, Optional
+from typing import TYPE_CHECKING, Any, ClassVar
 
-import pygame_menu
-from pygame_menu import locals
+from pygame_menu.locals import ALIGN_CENTER, ALIGN_LEFT, POSITION_EAST
+from pygame_menu.menu import Menu
 
 from tuxemon import formula
-from tuxemon.entity_dir.party import PartyHandler
-from tuxemon.locale import T
+from tuxemon.entity.party import PartyHandler
+from tuxemon.locale.locale import T
 from tuxemon.menu.menu import PygameMenuState
-from tuxemon.monster import Monster
+from tuxemon.monster.monster import Monster
 from tuxemon.platform.const import buttons
 from tuxemon.platform.const.graphics import BG_PARTY
 from tuxemon.platform.const.sizes import U_KM, U_MI
-from tuxemon.platform.events import PlayerInput
-from tuxemon.prepare import SCREEN_SIZE
 from tuxemon.tools import fix_measure
+
+if TYPE_CHECKING:
+    from tuxemon.base_client import BaseClient
+    from tuxemon.platform.events import PlayerInput
 
 
 class PartyState(PygameMenuState):
@@ -33,32 +34,39 @@ class PartyState(PygameMenuState):
 
     name: ClassVar[str] = "PartyState"
 
-    def __init__(self, party: PartyHandler) -> None:
+    def __init__(
+        self, client: BaseClient, party: PartyHandler, **kwargs: Any
+    ) -> None:
         self.party = party
         self.char = party.owner
-        width, height = SCREEN_SIZE
+        width, height = client.context.resolution
+        super().__init__(client=client, height=height, width=width, **kwargs)
 
         theme = self._setup_theme(BG_PARTY)
-        theme.scrollarea_position = locals.POSITION_EAST
-        theme.widget_alignment = locals.ALIGN_CENTER
+        theme.scrollarea_position = POSITION_EAST
+        theme.widget_alignment = ALIGN_CENTER
+        self._menu_config["theme"] = theme
 
-        super().__init__(height=height, width=width)
         self.initialize_items(self.menu, self.party.monsters)
         self.reset_theme()
 
     def initialize_items(
         self,
-        menu: pygame_menu.Menu,
+        menu: Menu,
         monsters: list[Monster],
     ) -> None:
-        fxw: Callable[[float], int] = lambda r: fix_measure(menu._width, r)
-        fxh: Callable[[float], int] = lambda r: fix_measure(menu._height, r)
+        def fxw(r: float) -> int:
+            return fix_measure(menu._width, r)
+
+        def fxh(r: float) -> int:
+            return fix_measure(menu._height, r)
+
         menu._auto_centering = False
         # party
         lab1: Any = menu.add.label(
             title=T.translate("menu_party"),
             font_size=self.font_type.big,
-            align=locals.ALIGN_LEFT,
+            align=ALIGN_LEFT,
             underline=True,
             float=True,
         )
@@ -73,7 +81,7 @@ class PartyState(PygameMenuState):
         lab2: Any = menu.add.label(
             title=f"{highest}: {level_highest or 0}",
             font_size=self.font_type.smaller,
-            align=locals.ALIGN_LEFT,
+            align=ALIGN_LEFT,
             float=True,
         )
         lab2.translate(fxw(0.05), fxh(0.25))
@@ -82,7 +90,7 @@ class PartyState(PygameMenuState):
         lab3: Any = menu.add.label(
             title=f"{average}: {level_average or 0}",
             font_size=self.font_type.smaller,
-            align=locals.ALIGN_LEFT,
+            align=ALIGN_LEFT,
             float=True,
         )
         lab3.translate(fxw(0.05), fxh(0.30))
@@ -91,7 +99,7 @@ class PartyState(PygameMenuState):
         lab4: Any = menu.add.label(
             title=f"{lowest}: {level_lowest or 0}",
             font_size=self.font_type.smaller,
-            align=locals.ALIGN_LEFT,
+            align=ALIGN_LEFT,
             float=True,
         )
         lab4.translate(fxw(0.05), fxh(0.35))
@@ -101,7 +109,7 @@ class PartyState(PygameMenuState):
             lab7: Any = menu.add.label(
                 title=f"{alignment}: {T.translate(party_alignment)}",
                 font_size=self.font_type.smaller,
-                align=locals.ALIGN_LEFT,
+                align=ALIGN_LEFT,
                 float=True,
             )
             lab7.translate(fxw(0.05), fxh(0.40))
@@ -112,7 +120,7 @@ class PartyState(PygameMenuState):
             lab5: Any = menu.add.label(
                 title=T.translate("menu_bond"),
                 font_size=self.font_type.big,
-                align=locals.ALIGN_LEFT,
+                align=ALIGN_LEFT,
                 underline=True,
                 float=True,
             )
@@ -127,7 +135,7 @@ class PartyState(PygameMenuState):
                         f"{_label:<10}",
                         default=monster.bond_handler.bond,
                         font_size=self.font_type.smaller,
-                        align=locals.ALIGN_LEFT,
+                        align=ALIGN_LEFT,
                         progress_text_enabled=False,
                         float=True,
                     )
@@ -153,14 +161,14 @@ class PartyState(PygameMenuState):
                 lab6: Any = menu.add.label(
                     title=T.format("menu_party_traveled", params),
                     font_size=self.font_type.smaller,
-                    align=locals.ALIGN_LEFT,
+                    align=ALIGN_LEFT,
                 )
                 lab6.translate(fxw(0.35), fxh(0.25))
 
-    def process_event(self, event: PlayerInput) -> Optional[PlayerInput]:
+    def process_event(self, event: PlayerInput) -> PlayerInput | None:
         params = {"character": self.char}
         if event.button == buttons.LEFT and event.pressed:
-            self.client.replace_state("CharacterState", kwargs=params)
+            self.client.replace_state("CharacterState", **params)
         if (
             event.button in (buttons.BACK, buttons.B, buttons.A)
             and event.pressed

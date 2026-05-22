@@ -2,7 +2,7 @@
 # Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
 import logging
 from abc import ABC, abstractmethod
-from ctypes import *
+from ctypes import Structure, Union, c_int, cdll, pointer
 from threading import Lock
 from typing import Any
 
@@ -75,7 +75,6 @@ class Shake_Effect(Structure):
 
 
 class Rumble(ABC):
-
     @abstractmethod
     def rumble(self, params: RumbleParams) -> None:
         """Start or simulate a rumble effect on the controller."""
@@ -92,7 +91,6 @@ class Rumble(ABC):
 
 
 class DummyRumble(Rumble):
-
     def __init__(self) -> None:
         logger.info(
             "DummyRumble initialized. No hardware effects will be played."

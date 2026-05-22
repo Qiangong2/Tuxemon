@@ -3,19 +3,11 @@
 import logging
 import sys
 from pathlib import Path
-from typing import Optional
 
-from tuxemon.platform import get_system_storage_dirs, get_user_storage_dir
+from tuxemon.platform import platform
 
 logger = logging.getLogger(__name__)
 
-PLUGIN_INCLUDE_PATTERNS = [
-    "event.actions",
-    "event.conditions",
-    "event.behaviors",
-    "core.effects",
-    "core.conditions",
-]
 
 # --- Core Game Paths ---
 
@@ -45,19 +37,29 @@ logger.debug(f"mods: {mods_folder}")
 mods_subfolders = [f.name for f in mods_folder.iterdir() if f.is_dir()]
 logger.debug(f"Mods subfolders: {mods_subfolders}")
 
-# action/condition plugins (eventually move out of lib folder)
-CONDITIONS_PATH = LIBDIR / "event" / "conditions"
-ACTIONS_PATH = LIBDIR / "event" / "actions"
-BEHAVS_PATH = LIBDIR / "event" / "behaviors"
+PLUGIN_CATEGORY_MAP = {
+    "event_actions": ("event", "actions"),
+    "event_conditions": ("event", "conditions"),
+    "event_behaviors": ("event", "behaviors"),
+    "core_effects": ("core", "effects"),
+    "core_conditions": ("core", "conditions"),
+}
+PLUGIN_INCLUDE_PATTERNS = [
+    ".".join(parts) for parts in PLUGIN_CATEGORY_MAP.values()
+]
 
-CORE_EFFECT_PATH = LIBDIR / "core" / "effects"
-CORE_CONDITION_PATH = LIBDIR / "core" / "conditions"
+CONDITIONS_PATH = LIBDIR.joinpath(*PLUGIN_CATEGORY_MAP["event_conditions"])
+ACTIONS_PATH = LIBDIR.joinpath(*PLUGIN_CATEGORY_MAP["event_actions"])
+BEHAVS_PATH = LIBDIR.joinpath(*PLUGIN_CATEGORY_MAP["event_behaviors"])
+
+CORE_EFFECT_PATH = LIBDIR.joinpath(*PLUGIN_CATEGORY_MAP["core_effects"])
+CORE_CONDITION_PATH = LIBDIR.joinpath(*PLUGIN_CATEGORY_MAP["core_conditions"])
 
 # --- User Data Paths ---
 
 # main game and config dir
 # Ensure this doesn't depend on pygame
-USER_STORAGE_DIR = get_user_storage_dir()
+USER_STORAGE_DIR = platform.user_storage.user_dir()
 logger.debug(f"userdir: {USER_STORAGE_DIR}")
 
 # config file paths
@@ -89,7 +91,7 @@ logger.debug(f"l18: {L18N_MO_FILES}")
 
 # shared locations
 system_installed_folders = [
-    path.resolve() for path in get_system_storage_dirs()
+    h.path for h in platform.system_storage.system_dirs() if h.path is not None
 ]
 logger.debug(f"system folders: {system_installed_folders}")
 
@@ -111,7 +113,7 @@ def get_active_mod_paths() -> list[Path]:
 
 
 def get_plugin_paths(
-    base_path: Path, category: str, subfolder: Optional[str] = None
+    base_path: Path, category: str, subfolder: str | None = None
 ) -> list[Path]:
     """
     Return a list of plugin directories from core and active mods for the given category and optional subfolder.
@@ -124,7 +126,7 @@ def get_plugin_paths(
     return plugin_paths
 
 
-def get_mod_name_from_path(file_path: Path) -> Optional[str]:
+def get_mod_name_from_path(file_path: Path) -> str | None:
     """
     Extracts the mod name from a given file path.
 

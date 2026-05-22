@@ -3,16 +3,16 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Union
+from typing import TYPE_CHECKING
 
 from tuxemon.core.core_effect import CoreEffect, ItemEffectResult
 from tuxemon.db import ItemCategory
 from tuxemon.formula import set_health
-from tuxemon.locale import T
+from tuxemon.locale.locale import T
 
 if TYPE_CHECKING:
     from tuxemon.item.item import Item
-    from tuxemon.monster import Monster
+    from tuxemon.monster.monster import Monster
     from tuxemon.session import Session
 
 
@@ -44,23 +44,24 @@ class HealEffect(CoreEffect):
     """
 
     name = "heal"
-    amount: Union[int, float]
+    amount: int | float
     heal_type: str
 
     def apply_item_target(
         self, session: Session, item: Item, target: Monster
     ) -> ItemEffectResult:
-        category = ItemCategory.potion
+        category = ItemCategory.POTION
         if target.status.has_status("festering") and item.category == category:
             return ItemEffectResult(
                 name=item.name,
                 extras=[T.translate("combat_state_festering_item")],
             )
 
+        value: int | float
         if self.heal_type == "fixed":
-            value = self.amount / target.hp
+            value = int(self.amount)
         elif self.heal_type == "percentage":
-            value = self.amount
+            value = float(self.amount)
         else:
             raise ValueError(
                 f"Invalid heal type '{self.heal_type}'. Must be either 'fixed' or 'percentage'."

@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Optional, final
+from typing import TYPE_CHECKING, Any, final
 
 from tuxemon.database.runtime import db
 from tuxemon.db import (
@@ -13,13 +13,16 @@ from tuxemon.db import (
     DialogueProfile,
     NpcModel,
 )
+from tuxemon.entity.appearance import RuntimeAppearance
+from tuxemon.entity.behavior.registry import create_behavior
+from tuxemon.entity.npc import NPC
 from tuxemon.event.eventaction import EventAction
 from tuxemon.item.item import Item
-from tuxemon.monster import Monster
-from tuxemon.npc import NPC
+from tuxemon.monster.monster import Monster
 
 if TYPE_CHECKING:
     from tuxemon.db import PartyMemberModel
+    from tuxemon.game_variables import GameVariablesManager
     from tuxemon.session import Session
 
 logger = logging.getLogger(__name__)
@@ -47,53 +50,65 @@ class CreateNpcAction(EventAction):
     npc_slug: str
     tile_pos_x: int
     tile_pos_y: int
-    behavior: Optional[str] = None
+    behavior: str | None = None
 
     def start(self, session: Session) -> None:
         slug = self.npc_slug
 
         if session.client.npc_manager.npc_exists(slug):
+            self.stop()
             return
 
-        npc = NPC(slug, session=session)
+        npc = NPC.create(session, slug)
         session.client.npc_manager.place_npc_on_map(
             npc, slug, self.tile_pos_x, self.tile_pos_y
         )
 
-        npc.behavior = self.behavior
+        if self.behavior:
+            npc.behavior_policy = create_behavior(self.behavior)
         npc_details = load_party(slug)
+
         npc.template = npc_details.template
         npc.combat = npc_details.combat
         npc.audio = npc_details.audio
-        game_variables = session.player.game_variables.get_state()
+
+        npc.appearance_manager.state = RuntimeAppearance.from_template(
+            npc.template
+        )
+        npc.sprite_controller.update_appearance(npc.appearance_manager.state)
+
+        variable_manager = session.player.variable_manager
+
         if npc_details.monsters:
-            load_party_monsters(npc, npc_details, game_variables)
+            load_party_monsters(npc, npc_details, variable_manager)
+
         if npc_details.items:
-            load_party_items(npc, npc_details, game_variables)
-        npc.sprite_controller.load_sprites(npc.template)
+            load_party_items(npc, npc_details, variable_manager)
+
         npc.dialogue = merge_dialogue(npc_details.speech.profile, None)
 
 
-lookup_cache: dict[str, NpcModel] = {}
-
-
 def load_party(slug: str) -> NpcModel:
-    if slug in lookup_cache:
-        return lookup_cache[slug]
-    else:
-        npc_details = NpcModel.lookup(slug, db)
-        lookup_cache[slug] = npc_details
-        return npc_details
+    NpcModel.load_cache(db)
+    cache = NpcModel.get_cache()
+
+    try:
+        return cache[slug]
+    except KeyError:
+        # fallback to direct lookup (should not happen if DB is consistent)
+        npc = NpcModel.lookup(slug, db)
+        cache[slug] = npc
+        return npc
 
 
 def load_party_monsters(
-    npc: NPC, party: NpcModel, game_variables: dict[str, Any]
+    npc: NPC, party: NpcModel, variable_manager: GameVariablesManager
 ) -> None:
     """Loads the NPC's party monsters from the database."""
     npc.party.clear_party()
     for npc_monster in party.monsters:
-        if npc_monster.variables and check_variables(
-            npc_monster.variables, game_variables
+        if npc_monster.variables and variable_manager.check_conditions(
+            npc_monster.variables
         ):
             monster = party_monster(npc_monster)
             npc.party.insert_monster_to_party(monster, len(npc.monsters))
@@ -109,15 +124,15 @@ def party_monster(npc_monster: PartyMemberModel) -> Monster:
 
 
 def load_party_items(
-    npc: NPC, bag: NpcModel, game_variables: dict[str, Any]
+    npc: NPC, bag: NpcModel, variable_manager: GameVariablesManager
 ) -> None:
     """Loads the NPC's items from the database."""
     npc.bag.clear_items()
     for npc_item in bag.items:
-        if npc_item.variables and check_variables(
-            npc_item.variables, game_variables
+        if npc_item.variables and variable_manager.check_conditions(
+            npc_item.variables
         ):
-            item = Item.create(npc_item.slug, npc_item.model_dump())
+            item = Item.create(npc_item.slug)
             npc.bag.add_item(item, npc_item.quantity)
 
 
@@ -134,8 +149,8 @@ def check_variables(
 
 
 def merge_dialogue(
-    source: Optional[DialogueProfile],
-    fallback: Optional[DialogueProfile] = None,
+    source: DialogueProfile | None,
+    fallback: DialogueProfile | None = None,
 ) -> DialogueProfile:
     """
     Merges a source DialogueProfile with a fallback.

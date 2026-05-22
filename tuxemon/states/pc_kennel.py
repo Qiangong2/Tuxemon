@@ -6,20 +6,21 @@ import logging
 import math
 from collections.abc import Callable, Sequence
 from functools import partial
-from typing import TYPE_CHECKING, Any, ClassVar, Optional
+from typing import TYPE_CHECKING, Any, ClassVar
 from uuid import UUID
 
-import pygame_menu
-from pygame_menu import locals
+from pygame_menu.locals import ALIGN_CENTER, POSITION_EAST
+from pygame_menu.menu import Menu
 from pygame_menu.widgets.selection.highlight import HighlightSelection
 
-from tuxemon.animation import ScheduleType
-from tuxemon.locale import T
+from tuxemon.graphics import scale_surface
+from tuxemon.locale.locale import T
 from tuxemon.menu.interface import MenuItem
 from tuxemon.menu.menu import PygameMenuState
+from tuxemon.menu.transitions import SlideRight
+from tuxemon.monster.renderer import MonsterRenderer
 from tuxemon.platform.const.graphics import BG_PC_KENNEL
 from tuxemon.platform.const.sizes import MAX_KENNEL, PARTY_LIMIT
-from tuxemon.prepare import SCALE, SCREEN_SIZE
 from tuxemon.state.state import State
 from tuxemon.states.monster_menu import MonsterMenuState
 from tuxemon.tools import fix_measure, open_choice_dialog, open_dialog
@@ -32,10 +33,9 @@ from tuxemon.ui.menu_options import (
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
-    from tuxemon.animation import Animation
     from tuxemon.base_client import BaseClient
-    from tuxemon.monster import Monster
-    from tuxemon.npc import NPC
+    from tuxemon.entity.npc import NPC
+    from tuxemon.monster.monster import Monster
 
 
 MenuGameObj = Callable[[], object]
@@ -60,10 +60,7 @@ class MonsterActionHandler:
 
     def pick(self, monster: Monster) -> None:
         self._clear_states("ChoiceState", "MonsterTakeState")
-        self.monster_boxes.remove_from_box("monster", None, monster)
-        self.char.party.insert_monster_to_party(
-            monster, len(self.char.monsters)
-        )
+        self.char.party.transfer_monster_to_party(monster)
         open_dialog(
             self.client,
             [T.format("menu_storage_take_monster", {"name": monster.name})],
@@ -105,7 +102,7 @@ class MonsterActionHandler:
             self._clear_states("MonsterTakeState")
         self.monster_boxes.move_monster(self.box_name, box, monster)
 
-    def output(self, monster: Optional[Monster]) -> None:
+    def output(self, monster: Monster | None) -> None:
         self._clear_states("ChoiceState", "MonsterTakeState")
         if monster is not None:
             self.monster_boxes.remove_from_box(
@@ -121,28 +118,28 @@ class MonsterActionHandler:
         self._clear_states("ChoiceState")
         self.client.state_manager.push_state(
             "MonsterInfoState",
-            kwargs={"monster": mon, "source": self.source_state},
+            **{
+                "monster": mon,
+                "source": self.source_state,
+                "monsters": self.monster_boxes.get_monsters(self.box_name),
+            },
         )
 
     def tech(self, mon: Monster) -> None:
         self._clear_states("ChoiceState")
         self.client.state_manager.push_state(
             "MonsterMovesState",
-            kwargs={"monster": mon, "source": self.source_state},
-        )
-
-    def item(self, mon: Monster) -> None:
-        self._clear_states("ChoiceState")
-        self.client.state_manager.push_state(
-            "MonsterItemState",
-            kwargs={"monster": mon, "source": self.source_state},
+            **{
+                "monster": mon,
+                "source": self.source_state,
+                "monsters": self.monster_boxes.get_monsters(self.box_name),
+            },
         )
 
     def description_dialog(self, mon: Monster) -> None:
         actions = {
             "info": partial(self.info, mon),
             "tech": partial(self.tech, mon),
-            "item": partial(self.item, mon),
         }
 
         options = create_choice_options(actions)
@@ -196,34 +193,38 @@ class MonsterTakeState(PygameMenuState):
 
     def __init__(
         self,
+        client: BaseClient,
         box_name: str,
         character: NPC,
-        swap_target: Optional[Monster] = None,
+        swap_target: Monster | None = None,
+        **kwargs: Any,
     ) -> None:
-        width, height = SCREEN_SIZE
-
-        theme = self._setup_theme(BG_PC_KENNEL)
-        theme.scrollarea_position = locals.POSITION_EAST
-        theme.widget_alignment = locals.ALIGN_CENTER
-
-        # menu
-        theme.title = True
-
-        columns = 3
-
         self.box_name = box_name
         self.char = character
         self.monster_boxes = self.char.monster_boxes
         self.box = self.monster_boxes.get_monsters(self.box_name)
         self.swap_target = swap_target
 
-        # Widgets are like a pygame_menu label, image, etc.
+        width, height = client.context.resolution
+
+        columns = 3
         num_widgets = 3
         rows = math.ceil(len(self.box) / columns) * num_widgets
 
         super().__init__(
-            height=height, width=width, columns=columns, rows=rows
+            client=client,
+            height=height,
+            width=width,
+            columns=columns,
+            rows=rows,
+            **kwargs,
         )
+
+        theme = self._setup_theme(BG_PC_KENNEL)
+        theme.scrollarea_position = POSITION_EAST
+        theme.widget_alignment = ALIGN_CENTER
+        theme.title = True
+        self._menu_config["theme"] = theme
 
         column_width = fix_measure(self.menu._width, 0.33)
         self.menu._column_max_width = [
@@ -284,11 +285,7 @@ class MonsterTakeState(PygameMenuState):
             escape_key_exits=True,
         )
 
-    def add_menu_items(
-        self, menu: pygame_menu.Menu, items: Sequence[Monster]
-    ) -> None:
-        self.monster_boxes = self.char.monster_boxes
-        self.box = self.monster_boxes.get_monsters(self.box_name)
+    def add_menu_items(self, menu: Menu, items: Sequence[Monster]) -> None:
         handler = MonsterActionHandler(
             self.client, self.char, self.box_name, self.name
         )
@@ -297,8 +294,10 @@ class MonsterTakeState(PygameMenuState):
         for monster in _sorted:
             label = T.translate(monster.name).upper()
             iid = monster.instance_id.hex
-            new_image = self._create_image(monster.sprite_handler.front_path)
-            new_image.scale(SCALE * 0.5, SCALE * 0.5)
+            renderer = MonsterRenderer(monster, scale=self.factor)
+            surface = renderer.get_sprite("front").image
+            scaled = scale_surface(surface, self.factor * 0.125)
+            new_image = self._create_image_from_surface(scaled)
             menu.add.banner(
                 new_image,
                 partial(self.kennel_options, iid, handler),
@@ -310,13 +309,13 @@ class MonsterTakeState(PygameMenuState):
                 level,
                 default=diff,
                 font_size=self.font_type.small,
-                align=locals.ALIGN_CENTER,
+                align=ALIGN_CENTER,
             )
             menu.add.button(
                 label,
                 partial(handler.description_dialog, monster),
                 font_size=self.font_type.small,
-                align=locals.ALIGN_CENTER,
+                align=ALIGN_CENTER,
                 selection_effect=HighlightSelection(),
             )
 
@@ -331,12 +330,15 @@ class MonsterBoxState(PygameMenuState):
 
     name: ClassVar[str] = "MonsterBoxState"
 
-    def __init__(self, character: NPC) -> None:
-        _, height = SCREEN_SIZE
+    def __init__(
+        self, client: BaseClient, character: NPC, **kwargs: Any
+    ) -> None:
+        width, height = client.context.resolution
 
-        super().__init__(height=height)
+        super().__init__(
+            client=client, height=height, transition=SlideRight(), **kwargs
+        )
 
-        self.animation_offset = 0
         self.char = character
 
         menu_items_map = self.get_menu_items_map()
@@ -344,7 +346,7 @@ class MonsterBoxState(PygameMenuState):
 
     def add_menu_items(
         self,
-        menu: pygame_menu.Menu,
+        menu: Menu,
         items: Sequence[tuple[str, MenuGameObj]],
     ) -> None:
         menu.add.vertical_fill()
@@ -357,7 +359,7 @@ class MonsterBoxState(PygameMenuState):
             menu.add.button(label, callback)
             menu.add.vertical_fill()
 
-        width, height = SCREEN_SIZE
+        width, height = self.client.context.resolution
         widgets_size = menu.get_size(widget=True)
         b_width, b_height = menu.get_scrollarea().get_border_size()
         menu.resize(
@@ -378,51 +380,20 @@ class MonsterBoxState(PygameMenuState):
             self.client.state_manager.replace_state, state, **kwargs
         )
 
-    def update_animation_position(self) -> None:
-        self.menu.translate(-self.animation_offset, 0)
-
-    def animate_open(self) -> Animation:
-        """
-        Animate the menu sliding in.
-
-        Returns:
-            Sliding in animation.
-
-        """
-
-        width = self.menu.get_width(border=True)
-        self.animation_offset = 0
-
-        ani = self.animate(self, animation_offset=width, duration=0.50)
-        ani.schedule(self.update_animation_position, ScheduleType.ON_UPDATE)
-
-        return ani
-
-    def animate_close(self) -> Animation:
-        """
-        Animate the menu sliding out.
-
-        Returns:
-            Sliding out animation.
-
-        """
-        ani = self.animate(self, animation_offset=0, duration=0.50)
-        ani.schedule(self.update_animation_position, ScheduleType.ON_UPDATE)
-
-        return ani
-
 
 class MonsterStorageState(MonsterBoxState):
     """Menu to choose a box, which you can then take a tuxemon from."""
 
     name: ClassVar[str] = "MonsterStorageState"
 
+    def __init__(self, client: BaseClient, *args: Any, **kwargs: Any):
+        super().__init__(client, *args, **kwargs)
+
     def get_menu_items_map(self) -> Sequence[tuple[str, MenuGameObj]]:
         menu_items_map = []
         monster_boxes = self.char.monster_boxes
         for box_name, monsters in monster_boxes.monster_boxes.items():
-            metadata = monster_boxes.metadata_manager.get(box_name, "monster")
-            if metadata is None or not metadata.is_hidden:
+            if not monster_boxes.is_box_hidden(box_name, "monster"):
                 if not monsters:
                     menu_callback = partial(
                         open_dialog,
@@ -444,12 +415,14 @@ class MonsterDropOffState(MonsterBoxState):
 
     name: ClassVar[str] = "MonsterDropOffState"
 
+    def __init__(self, client: BaseClient, *args: Any, **kwargs: Any):
+        super().__init__(client, *args, **kwargs)
+
     def get_menu_items_map(self) -> Sequence[tuple[str, MenuGameObj]]:
         menu_items_map = []
         monster_boxes = self.char.monster_boxes
         for box_name, monsters in monster_boxes.monster_boxes.items():
-            metadata = monster_boxes.metadata_manager.get(box_name, "monster")
-            if metadata is None or not metadata.is_hidden:
+            if not monster_boxes.is_box_hidden(box_name, "monster"):
                 if len(monsters) < MAX_BOX:
                     menu_callback = self.change_state(
                         "MonsterDropOff",
@@ -473,17 +446,19 @@ class MonsterDropOff(MonsterMenuState):
 
     def __init__(
         self,
+        client: BaseClient,
         box_name: str,
         character: NPC,
-        on_selection: Optional[Callable[[Monster], None]] = None,
+        on_selection: Callable[[Monster], None] | None = None,
+        **kwargs: Any,
     ) -> None:
-        super().__init__(monsters=character.monsters)
+        super().__init__(client=client, monsters=character.monsters, **kwargs)
 
         self.box_name = box_name
         self.char = character
         self.on_selection = on_selection
 
-    def is_valid_entry(self, monster: Optional[Monster]) -> bool:
+    def is_valid_entry(self, monster: Monster | None) -> bool:
         alive_monsters = [
             mon for mon in self.char.monsters if not mon.is_fainted
         ]
@@ -493,7 +468,7 @@ class MonsterDropOff(MonsterMenuState):
 
     def on_menu_selection(
         self,
-        menu_item: MenuItem[Optional[Monster]],
+        menu_item: MenuItem[Monster | None],
     ) -> None:
         monster = menu_item.game_object
         assert monster
@@ -510,6 +485,5 @@ class MonsterDropOff(MonsterMenuState):
             self.on_selection(monster)
             self.client.state_manager.pop_state(self)
         else:
-            self.char.monster_boxes.add_monster(self.box_name, monster)
-            self.char.party.remove_monster(monster)
+            self.char.party.transfer_monster_to_box(monster, self.box_name)
             self.client.state_manager.pop_state(self)

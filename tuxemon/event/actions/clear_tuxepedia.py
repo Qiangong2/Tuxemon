@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional, final
+from typing import final
 
 from tuxemon.event.eventaction import EventAction
 from tuxemon.session import Session
@@ -27,11 +27,10 @@ class ClearTuxepediaAction(EventAction):
 
     Script parameters:
         monster_slug: Monster slug name (e.g. "rockitten").
-
     """
 
     name = "clear_tuxepedia"
-    monster_key: Optional[str] = None
+    monster_key: str | None = None
 
     def start(self, session: Session) -> None:
         player = session.player

@@ -5,12 +5,10 @@ from __future__ import annotations
 import logging
 import random
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Any, final
 
-import yaml
-
 from tuxemon.constants import paths
+from tuxemon.database.yaml_utils import load_yaml
 from tuxemon.event.eventaction import EventAction
 from tuxemon.session import Session
 from tuxemon.technique.technique import Technique
@@ -23,18 +21,6 @@ logger = logging.getLogger(__name__)
 class Movesets:
     name: str
     techniques: list[dict[str, Any]]
-
-
-def load_yaml(filepath: Path) -> Any:
-    try:
-        with filepath.open() as file:
-            return yaml.safe_load(file)
-    except FileNotFoundError:
-        logger.error(f"Config file not found: {filepath}")
-        raise
-    except yaml.YAMLError as exc:
-        logger.error(f"Error parsing YAML file: {exc}")
-        raise exc
 
 
 class Loader:
@@ -87,10 +73,12 @@ class ReplaceTechsFromYamlAction(EventAction):
             logger.info(
                 f"No valid monster selected for variable '{self.variable}'"
             )
+            self.stop()
             return  # Exit early if no valid UUID
         monster = session.client.get_monster_by_iid(monster_id)
         if monster is None:
             logger.error("Monster not found")
+            self.stop()
             return
 
         movesets = Loader.get_config_moves(f"{self.yaml_file}.yaml")
@@ -100,6 +88,7 @@ class ReplaceTechsFromYamlAction(EventAction):
             logger.error(
                 f"Moveset '{self.set_name}' not found in '{self.yaml_file}'"
             )
+            self.stop()
             return
 
         move_slugs = [

@@ -4,7 +4,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from tuxemon.map.map_transition import MapTransition
+from tuxemon.map.transition import MapTransition
 
 
 @pytest.fixture
@@ -43,14 +43,20 @@ def test_change_map(deps, transition):
     deps["map_loader"].load_map_data.return_value = map_data
     transition.change_map("test_map")
     deps["map_loader"].load_map_data.assert_called_once_with("test_map")
-    deps["event_engine"].reset.assert_called_once()
-    deps["event_engine"].set_current_map.assert_called_once_with(map_data)
+    deps["event_engine"].reset.assert_called_once_with(map_data)
     deps["map_manager"].load_map.assert_called_once_with(map_data)
     deps["npc_manager"].clear_npcs.assert_called_once()
     deps["boundary"].set_rectangular_boundary.assert_called_once()
 
 
-@pytest.mark.parametrize("size", [(10, 10), (20, 15), (1, 1)])
+@pytest.mark.parametrize(
+    "size",
+    [
+        pytest.param((10, 10), id="size_10x10"),
+        pytest.param((20, 15), id="size_20x15"),
+        pytest.param((1, 1), id="size_1x1"),
+    ],
+)
 def test_update_boundaries_parametrized(deps, transition, size):
     deps["map_manager"].map_size = size
     transition._update_boundaries()
@@ -62,8 +68,7 @@ def test_update_boundaries_parametrized(deps, transition, size):
 def test_reset_events(deps, transition):
     map_data = MagicMock()
     transition._reset_events(map_data)
-    deps["event_engine"].reset.assert_called_once()
-    deps["event_engine"].set_current_map.assert_called_once_with(map_data)
+    deps["event_engine"].reset.assert_called_once_with(map_data)
 
 
 def test_update_map_state(deps, transition):
@@ -83,8 +88,8 @@ def test_change_map_order_of_operations(deps, transition):
     deps["npc_manager"].clear_npcs.side_effect = lambda: call_order.append(
         "clear_npcs"
     )
-    deps["map_loader"].load_map_data.side_effect = (
-        lambda name: call_order.append("load_map") or map_data
+    deps["map_loader"].load_map_data.side_effect = lambda name: (
+        call_order.append("load_map") or map_data
     )
     transition.change_map("test_map")
     assert call_order == ["clear_npcs", "load_map"]

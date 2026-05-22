@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Optional, final
+from typing import final
 
 from tuxemon.boxes import BoxMetadata
 from tuxemon.event.eventaction import EventAction
@@ -47,13 +47,14 @@ class CreateKennelAction(EventAction):
     name = "create_kennel"
     npc_slug: str
     kennel: str
-    hidden: Optional[str] = None
-    max_capacity: Optional[int] = None
+    hidden: str | None = None
+    max_capacity: int | None = None
 
     def start(self, session: Session) -> None:
-        character = session.get_npc(self.npc_slug)
+        character = session.client.get_npc(self.npc_slug)
         if character is None:
             logger.error(f"{self.npc_slug} not found")
+            self.stop()
             return
 
         if not character.monster_boxes.has_box(self.kennel, "monster"):

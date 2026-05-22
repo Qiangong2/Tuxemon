@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0
 # Copyright (c) 2014-2026 William Edwards <shadowapex@gmail.com>, Benjamin Bean <superman2k5@gmail.com>
+import logging
 from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
@@ -41,22 +42,25 @@ def persistent_npcs(session):
 @pytest.mark.parametrize(
     "map_name, expected_location",
     [
-        ("map_a", "npcs"),  # NPC on current map
-        ("map_b", "npcs_off_map"),  # NPC off current map
+        pytest.param("map_a", "npcs", id="npc_on_current_map"),
+        pytest.param("map_b", "npcs_off_map", id="npc_off_current_map"),
     ],
 )
-@patch("tuxemon.npc_manager.NPC")
+@patch("tuxemon.npc_manager.NPC.from_save")
 def test_load_persistent_npc_states(
     MockNPC, npc_manager, session, map_name, expected_location
 ):
     fake_npc = MagicMock(slug=f"npc_{expected_location}")
     MockNPC.return_value = fake_npc
+
     state = MagicMock(
         player_slug=f"npc_{expected_location}",
         player_name="NPC Test",
         current_map=map_name,
     )
+
     npc_manager.load_persistent_npc_states(session, [state])
+
     assert f"npc_{expected_location}" in getattr(
         npc_manager, expected_location
     )
@@ -71,7 +75,7 @@ def test_load_persistent_npc_states_skips_none_slug(npc_manager, session):
     assert npc_manager.npcs_off_map == {}
 
 
-@patch("tuxemon.npc_manager.NPC")
+@patch("tuxemon.npc_manager.NPC.from_save")
 def test_persistence_round_trip(
     MockNPC, npc_manager, session, persistent_npcs
 ):
@@ -92,7 +96,7 @@ def test_persistence_round_trip(
     assert "npc_2" not in npc_manager.npcs
 
 
-@patch("tuxemon.npc_manager.NPC")
+@patch("tuxemon.npc_manager.NPC.from_save")
 def test_load_persistent_overwrites_duplicate_slugs(
     MockNPC, npc_manager, session
 ):
@@ -111,7 +115,10 @@ def test_get_persistent_npc_states_skips_missing_session(
 ):
     npc = MagicMock(slug="npc_1", persistence=True, session=None)
     npc_manager.add_npc(npc)
-    states = npc_manager.get_persistent_npc_states(session)
+
+    with caplog.at_level(logging.WARNING):
+        states = npc_manager.get_persistent_npc_states(session)
+
     assert states == []
     assert "missing session" in caplog.text
 
@@ -125,7 +132,7 @@ def test_get_persistent_npc_states_ignores_non_persistent(
     assert states == []
 
 
-@patch("tuxemon.npc_manager.NPC")
+@patch("tuxemon.npc_manager.NPC.from_save")
 def test_load_persistent_mixed_valid_invalid(MockNPC, npc_manager, session):
     valid = MagicMock(player_slug="npc_ok", current_map="map_a")
     invalid = MagicMock(player_slug=None, current_map="map_a")
@@ -134,20 +141,6 @@ def test_load_persistent_mixed_valid_invalid(MockNPC, npc_manager, session):
     npc_manager.load_persistent_npc_states(session, [valid, invalid])
     assert "npc_ok" in npc_manager.npcs
     assert npc_manager.npcs_off_map == {}
-
-
-@patch("tuxemon.npc_manager.NPC")
-def test_load_persistent_does_not_clear_existing(
-    MockNPC, npc_manager, session
-):
-    existing = MagicMock(slug="existing")
-    npc_manager.add_npc(existing)
-    state = MagicMock(player_slug="npc_new", current_map="map_a")
-    new_npc = MagicMock(slug="npc_new")
-    MockNPC.return_value = new_npc
-    npc_manager.load_persistent_npc_states(session, [state])
-    assert "existing" in npc_manager.npcs
-    assert "npc_new" in npc_manager.npcs
 
 
 def test_clear_npcs_filters_correctly(npc_manager):
@@ -215,7 +208,7 @@ def test_get_entity_pos_only_checks_on_map(npc_manager):
     assert npc_manager.get_entity_pos((1, 1)) is npc_on
 
 
-@patch("tuxemon.npc_manager.NPC")
+@patch("tuxemon.npc_manager.NPC.from_save")
 def test_load_persistent_does_not_clear_existing(
     MockNPC, npc_manager, session
 ):

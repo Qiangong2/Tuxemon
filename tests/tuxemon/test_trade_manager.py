@@ -6,7 +6,6 @@ from uuid import uuid4
 
 import pytest
 
-from tuxemon.db import SeenStatus
 from tuxemon.trade_manager import TradeManager, TradeRecord, TradeResult
 
 
@@ -106,11 +105,11 @@ def sample_record(players_and_monsters):
 
 
 @pytest.mark.parametrize(
-    "query,expected",
+    "query, expected",
     [
-        ("Better", True),
-        ("Call", True),
-        ("Saul", False),
+        pytest.param("Better", True, id="match_better"),
+        pytest.param("Call", True, id="match_call"),
+        pytest.param("Saul", False, id="no_match_saul"),
     ],
 )
 def test_was_traded_with_player(manager, sample_record, query, expected):
@@ -119,11 +118,11 @@ def test_was_traded_with_player(manager, sample_record, query, expected):
 
 
 @pytest.mark.parametrize(
-    "slug,expected",
+    "slug, expected",
     [
-        ("flamey_slug", True),
-        ("splashy_slug", True),
-        ("leafy_slug", False),
+        pytest.param("flamey_slug", True, id="match_flamey"),
+        pytest.param("splashy_slug", True, id="match_splashy"),
+        pytest.param("leafy_slug", False, id="no_match_leafy"),
     ],
 )
 def test_was_traded_for_monster(manager, sample_record, slug, expected):
@@ -215,12 +214,8 @@ def test_execute_trade_updates_party_and_ownership(
 def test_execute_trade_updates_tuxepedia(manager, players_and_monsters):
     player_a, player_b, monster_a, monster_b = players_and_monsters
     manager.execute_trade(monster_a, monster_b)
-    player_a.tuxepedia.add_entry.assert_called_once_with(
-        monster_b.slug, SeenStatus.caught
-    )
-    player_b.tuxepedia.add_entry.assert_called_once_with(
-        monster_a.slug, SeenStatus.caught
-    )
+    player_a.tuxepedia.register_caught.assert_called_once_with(monster_b.slug)
+    player_b.tuxepedia.register_caught.assert_called_once_with(monster_a.slug)
 
 
 def test_execute_trade_publishes_event(manager, players_and_monsters):
@@ -257,7 +252,6 @@ def test_execute_scripted_trade_success(
     class FakeNewMonster(MockMonster):
         def __init__(self):
             super().__init__("NewMon", "new_slug", player_a)
-            self.set_capture = MagicMock()
 
     fake_mon = FakeNewMonster()
     monkeypatch.setattr(
@@ -269,10 +263,7 @@ def test_execute_scripted_trade_success(
     assert result == TradeResult.SUCCESS
     player_a.party.replace_monster.assert_called_once_with(monster_a, fake_mon)
     assert fake_mon.acquisition is not None
-    fake_mon.set_capture.assert_called_once()
-    player_a.tuxepedia.add_entry.assert_called_once_with(
-        "new_slug", SeenStatus.caught
-    )
+    player_a.tuxepedia.register_caught.assert_called_once_with("new_slug")
     assert len(manager.global_trade_log) == 1
     record = manager.global_trade_log[0]
     assert record.monster_given == monster_a.slug
@@ -297,7 +288,6 @@ def test_execute_scripted_trade_replace_failure(
     class FakeNewMonster(MockMonster):
         def __init__(self):
             super().__init__("NewMon", "new_slug", player_a)
-            self.set_capture = MagicMock()
 
     fake_mon = FakeNewMonster()
     monkeypatch.setattr(

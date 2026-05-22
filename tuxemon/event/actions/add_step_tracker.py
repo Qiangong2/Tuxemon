@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Optional, final
+from typing import final
 
 from tuxemon.event.eventaction import EventAction
 from tuxemon.session import Session
@@ -39,14 +39,15 @@ class AddStepTrackerAction(EventAction):
     character: str
     tracker_id: str
     countdown: float
-    milestones: Optional[str] = None
-    auto_reset: Optional[bool] = None
-    initial_countdown: Optional[float] = None
+    milestones: str | None = None
+    auto_reset: bool | None = None
+    initial_countdown: float | None = None
 
     def start(self, session: Session) -> None:
-        character = session.get_npc(self.character)
+        character = session.client.get_npc(self.character)
         if character is None:
             logger.error(f"{self.character} not found")
+            self.stop()
             return
 
         steps = round(character.steps)

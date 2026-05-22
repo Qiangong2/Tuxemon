@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Optional, Union, final
+from typing import final
 
 from tuxemon.event.eventaction import EventAction
 from tuxemon.formula import set_health
@@ -35,12 +35,13 @@ class ModifyMonsterHealthAction(EventAction):
     """
 
     name = "modify_monster_health"
-    variable: Optional[str] = None
-    health: Optional[Union[int, float]] = None
+    variable: str | None = None
+    health: int | float | None = None
 
     def start(self, session: Session) -> None:
         player = session.player
         if not player.monsters:
+            self.stop()
             return
 
         monster_health = 1.0 if self.health is None else self.health
@@ -56,10 +57,12 @@ class ModifyMonsterHealthAction(EventAction):
                 logger.info(
                     f"No valid monster selected for variable '{self.variable}'"
                 )
+                self.stop()
                 return  # Exit early if no valid UUID
             monster = session.client.get_monster_by_iid(monster_id)
             if monster is None:
                 logger.error("Monster not found")
+                self.stop()
                 return
             set_health(monster, monster_health, True)
             if monster.is_fainted:

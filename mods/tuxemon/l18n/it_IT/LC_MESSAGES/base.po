@@ -1253,14 +1253,11 @@ msgstr "Cavaliere II"
 msgid "liela"
 msgstr "Liela"
 
-msgid "maple_girl"
+msgid "maple_wren"
 msgstr "Maple"
 
 msgid "misa"
 msgstr "Misa"
-
-msgid "npc_wife"
-msgstr "Moglie NPC"
 
 msgid "professor"
 msgstr "Professore"
@@ -2249,15 +2246,6 @@ msgstr "Surat"
 msgid "sledgehammer_description"
 msgstr "Distrugge massi."
 
-msgid "cotton_breeder1"
-msgstr "Vuoi lasciare due dei tuoi Tuxemon con me per allevarli?"
-
-msgid "cotton_breeder2a_1"
-msgstr "Ok, quale Tuxemon sarà la madre?"
-
-msgid "cotton_breeder3"
-msgstr "Ok, sei sicuro che questi siano i due che vuoi allevare?"
-
 msgid "chosefight"
 msgstr "E... LOTTIAMO!"
 
@@ -2289,18 +2277,6 @@ msgstr "Pescare."
 
 msgid "sledgehammer"
 msgstr "Mazza"
-
-msgid "cotton_breeder5"
-msgstr "Hey ${{name}}, vieni a controllare il tuo Tuxemon?"
-
-msgid "cotton_breeder6a"
-msgstr ""
-"Stanno ancora facendo conoscenza, per così dire. Perché non torni più tardi?"
-
-msgid "cotton_breeder_continue"
-msgstr ""
-"Ci vorrà un po' di tempo prima che siano pronti di nuovo, ma se vuoi posso "
-"tenerli e allevarli di nuovo."
 
 msgid "taba_greeting2a"
 msgstr ""
@@ -2686,9 +2662,6 @@ msgstr "Esecutore"
 msgid "spyder_cottontown_barmaid"
 msgstr "Barista"
 
-msgid "spyder_goth"
-msgstr "Goth"
-
 msgid "spyder_florist"
 msgstr "Fiorista"
 
@@ -2774,9 +2747,6 @@ msgstr "Nonna"
 msgid "spyder_route2_marion"
 msgstr "Marion"
 
-msgid "spyder_maniac"
-msgstr "Maniaco"
-
 msgid "spyder_shopkeeper"
 msgstr "Bottegaio"
 
@@ -2793,28 +2763,6 @@ msgstr "Argon"
 
 msgid "spyder_greenwash_louis2"
 msgstr "Posso parlarti dell'Ipotesi di Gaia?"
-
-msgid "cotton_breeder0"
-msgstr ""
-"Ciao, benvenuto al Daycare, allevo Tuxemon qui.\n"
-"Gestisco questo posto perché amo i Tuxemon!\n"
-"Se vuoi posso allevare un paio dei tuoi Tuxemon. Fammi sapere, ok?"
-
-msgid "cotton_breeder2a_2"
-msgstr "Fantastico, e il padre?"
-
-msgid "cotton_breeder4a"
-msgstr ""
-"Benissimo! Torna a fare a controllare più tardi e ti farò sapere come sta "
-"andando."
-
-msgid "cotton_breeder6c"
-msgstr "Felicitazioni! Hanno avuto un cucciolo! Ecco, crescilo bene."
-
-msgid "cotton_breeder6b"
-msgstr ""
-"Sta andando molto bene! Sono praticamente inseparabili!\n"
-"Non dovrebbe passare molto tempo prima di avere un cucciolo."
 
 msgid "softened"
 msgstr "Rammollito"
@@ -3379,7 +3327,10 @@ msgstr "Forfait"
 
 msgid "evolution_confirmation"
 msgstr ""
-"{name} sta provando ad evolversi in {evolve}. Permettere l'evoluzione?"
+"{name} sta provando ad evolversi in {evolve}."
+
+msgid "allow_evolution"
+msgstr "Permettere l'evoluzione?"
 
 msgid "tuxemon_stat2"
 msgstr "{desc}"
@@ -4145,19 +4096,6 @@ msgid "spyder_greenwash_looten1"
 msgstr ""
 "Credo che la tecnologia di fusione non è ancora pronta. Sebbene ci stiamo "
 "lavorando da anni!"
-
-msgid "cotton_breeder_rejected"
-msgstr "Oh, va bene. Pensaci ancora un po' e torna da me."
-
-msgid "cotton_breeder7a"
-msgstr ""
-"Benissimo! Tu prendi un po' di tempo con il cucciolo e io mi prenderò cura "
-"dei genitori. Torna più tardi per controllarli."
-
-msgid "cotton_breeder7b"
-msgstr ""
-"Buona idea, la nuova famiglia dovrebbe essere tenuta insieme in questa fase importante dello sviluppo del cucciolo.\n"
-"Tornerai ora, no?"
 
 msgid "taba_town_sign_tuxecenter"
 msgstr "Tuxecenter - Il posto in cui guarire i tuoi tuxemon"

@@ -6,33 +6,32 @@ import logging
 from collections import defaultdict
 from collections.abc import Callable, Generator
 from functools import partial
-from typing import TYPE_CHECKING, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from pygame import SRCALPHA
 from pygame.rect import Rect
 from pygame.surface import Surface
 
-from tuxemon import graphics, tools
-from tuxemon.combat import utils
 from tuxemon.combat.menu_visibility import MenuProfiles
 from tuxemon.db import EffectPhase, SpeedLabel, State
+from tuxemon.graphics import load_and_scale
 from tuxemon.item.filter import ItemFilter
-from tuxemon.locale import T
+from tuxemon.locale.locale import T
 from tuxemon.menu.interface import MenuItem
 from tuxemon.menu.menu import Menu, PopUpMenu
-from tuxemon.monster import Monster
-from tuxemon.prepare import SCALE, SCREEN_RECT, SCREEN_SIZE
+from tuxemon.monster.monster import Monster
 from tuxemon.sprite import Sprite
 from tuxemon.states.item_menu import ItemMenuState
 from tuxemon.states.monster_menu import MonsterMenuState
 from tuxemon.technique.technique import Technique
-from tuxemon.tools import fix_measure
+from tuxemon.tools import fix_measure, open_dialog
 from tuxemon.ui.graphic_box import GraphicBox
 from tuxemon.ui.text import TextArea
 
 if TYPE_CHECKING:
+    from tuxemon.base_client import BaseClient
+    from tuxemon.entity.npc import NPC
     from tuxemon.item.item import Item
-    from tuxemon.npc import NPC
     from tuxemon.session import Session
     from tuxemon.states.combat_state import CombatState
 
@@ -56,16 +55,18 @@ class MainCombatMenuState(PopUpMenu[MenuGameObj]):
 
     def __init__(
         self,
+        client: BaseClient,
         session: Session,
-        cmb: CombatState,
+        combat: CombatState,
         character: NPC,
         monster: Monster,
+        **kwargs: Any,
     ) -> None:
-        super().__init__()
+        super().__init__(client=client, **kwargs)
         self.rect = self.calculate_menu_rectangle()
         self.session = session
         self.combat_session = self.client.combat_session
-        self.combat = cmb
+        self.combat = combat
         self.character = character
         self.monster = monster
         self.party = self.combat_session.field_monsters.get_monsters(
@@ -83,7 +84,7 @@ class MainCombatMenuState(PopUpMenu[MenuGameObj]):
             )
         params = {"name": monster.name}
         message = T.format("combat_monster_choice", params)
-        self.dialog.alert(message, self.combat.text_area)
+        self.event_bus.publish("combat_dialog", message=message)
 
         self.type_icon_sprites: list[Sprite] = []
         self.text_sprites: dict[str, Sprite] = {}
@@ -113,7 +114,7 @@ class MainCombatMenuState(PopUpMenu[MenuGameObj]):
                     self.sprites.remove(spr)
 
     def calculate_menu_rectangle(self) -> Rect:
-        rect_screen = SCREEN_RECT.copy()
+        rect_screen = self.client.context.rect.copy()
         menu_width = fix_measure(rect_screen.w, 102 / 256)
         menu_height = fix_measure(rect_screen.h, 36 / 144)
         rect = Rect(0, 0, menu_width, menu_height)
@@ -128,14 +129,13 @@ class MainCombatMenuState(PopUpMenu[MenuGameObj]):
 
     def initialize_items(self) -> Generator[MenuItem[MenuGameObj], None, None]:
         menu_map, default_visibility = self.get_menu_profile()
-
         visibility_map = default_visibility.copy()
-
         visibility_map.update(self.combat_session.menu_visibility_map)
 
         if self.enemy.combat.forfeit:
             visibility_map["menu_forfeit"] = True
 
+        # Hide Item if no usable items
         items_filtered = ItemFilter(self.character.items)
         items_filtered.set_filter_combat_targets(
             self.session, self.character.monsters, self.opponents
@@ -143,9 +143,11 @@ class MainCombatMenuState(PopUpMenu[MenuGameObj]):
         if not items_filtered.items:
             visibility_map["menu_item"] = False
 
-        if self.character.party.party_size == 1:
+        # Hide Swap if no valid swap targets
+        if not self.can_swap_any(self.character):
             visibility_map["menu_monster"] = False
 
+        # Yield menu items
         for key, method_name in menu_map.items():
             callback = getattr(self, method_name)
             visible = visibility_map.get(key, False)
@@ -182,61 +184,84 @@ class MainCombatMenuState(PopUpMenu[MenuGameObj]):
                 "status": message,
             }
             msg = T.format("combat_player_run_status", params)
-            tools.open_dialog(self.client, [msg], dialog_speed="max")
+            open_dialog(self.client, [msg], dialog_speed="max")
             return
         self.client.remove_state_by_name("MainCombatMenuState")
         self.combat_session.enqueue_action(
             self.party[0], run, self.opponents[0]
         )
 
+    def can_swap_any(self, character: NPC) -> bool:
+        """Return True if the character has at least one valid swap target."""
+        active = self.combat_session.active_monsters
+        tracker = self.combat_session.swap_tracker
+
+        # If all monsters are active, no swap is possible
+        if len(character.monsters) <= len(active):
+            return False
+
+        for mon in character.monsters:
+            if mon.is_fainted:
+                continue
+            if mon in active:
+                continue
+            if not tracker.can_swap(mon):
+                continue
+            return True
+
+        return False
+
     def open_swap_menu(self) -> None:
         """Open menus to swap monsters in party."""
 
-        def swap_it(menuitem: MenuItem[Monster]) -> None:
+        def swap_it(menuitem: MenuItem[Monster | None]) -> None:
             added = menuitem.game_object
+
+            if added is None:
+                return
+
             swap = Technique.create("swap")
             status = self.monster.status.current_status
             message = status.name.lower() if status else ""
+
             if not swap.validate_monster(self.session, self.monster):
                 params = {
                     "monster": self.monster.name.upper(),
                     "status": message,
                 }
                 msg = T.format("combat_player_swap_status", params)
-                tools.open_dialog(self.client, [msg], dialog_speed="max")
+                open_dialog(self.client, [msg], dialog_speed="max")
                 return
+
             self.combat_session.swap_tracker.register(added)
             self.combat_session.enqueue_action(self.monster, swap, added)
-            self.client.remove_state_by_name("MonsterMenuState")
-            self.client.remove_state_by_name("MainCombatMenuState")
+            self.client.pop_state()
+            self.client.pop_state()
 
-        def validate_monster(menu_item: Monster) -> bool:
-            if menu_item.is_fainted:
+        def validate_monster(mon: Monster) -> bool:
+            if mon.is_fainted:
                 return False
-            if menu_item in self.combat_session.active_monsters:
+            if mon in self.combat_session.active_monsters:
                 return False
-            if not self.combat_session.swap_tracker.can_swap(menu_item):
+            if not self.combat_session.swap_tracker.can_swap(mon):
                 return False
             return True
 
-        def validate(menu_item: MenuItem[Monster]) -> bool:
-            if isinstance(menu_item, Monster):
-                return validate_monster(menu_item)
-            return False
+        def validate(mon: Monster | None) -> bool:
+            if mon is None:
+                return False
+            return validate_monster(mon)
 
         menu = self.client.push_state(
-            MonsterMenuState(self.character.monsters)
-        )
-        menu.on_menu_selection = swap_it  # type: ignore[assignment]
-        menu.is_valid_entry = validate  # type: ignore[assignment]
-        menu.anchor("bottom", self.rect.top)
-        menu.anchor("right", SCREEN_RECT.right)
-
-        if all(not validate_monster(mon) for mon in self.character.monsters):
-            party_unselectable = T.translate("combat_party_unselectable")
-            tools.open_dialog(
-                self.client, [party_unselectable], dialog_speed="max"
+            MonsterMenuState(
+                self.client,
+                self.character.monsters,
+                on_selection=swap_it,
+                is_valid_entry=validate,
             )
+        )
+        menu.anchor("bottom", self.rect.top)
+        menu.anchor("right", self.client.context.rect.right)
 
     def open_item_menu(self) -> None:
         """Open menu to choose item to use."""
@@ -247,13 +272,16 @@ class MainCombatMenuState(PopUpMenu[MenuGameObj]):
             items_filtered.set_filter_combat_targets(
                 self.session, self.character.monsters, self.opponents
             )
-            menu = self.client.push_state(
-                ItemMenuState(self.character, self.name, items_filtered)
+            self.client.push_state(
+                ItemMenuState(
+                    self.client,
+                    character=self.character,
+                    source=self.name,
+                    item_filter=items_filtered,
+                    on_selection=choose_target,
+                    is_valid_entry=validate_item,
+                )
             )
-
-            # set next menu after the selection is made
-            menu.is_valid_entry = validate_item  # type: ignore[method-assign]
-            menu.on_menu_selection = choose_target  # type: ignore[method-assign]
 
         def choose_target(menu_item: MenuItem[Item]) -> None:
             # open menu to choose target of item
@@ -266,11 +294,14 @@ class MainCombatMenuState(PopUpMenu[MenuGameObj]):
                     mon = MenuItem(surface, None, None, enemy)
                     enqueue_item(item, mon)
                 else:
-                    state = self.client.push_state(
-                        MonsterMenuState(self.character.monsters)
+                    self.client.push_state(
+                        MonsterMenuState(
+                            self.client,
+                            self.character.monsters,
+                            on_selection=partial(enqueue_item, item),
+                            is_valid_entry=partial(validate, item),
+                        )
                     )
-                    state.is_valid_entry = partial(validate, item)  # type: ignore[method-assign]
-                    state.on_menu_selection = partial(enqueue_item, item)  # type: ignore[method-assign]
 
         def validate_item(item: Item | None) -> bool:
             if item and item.behaviors.throwable:
@@ -280,13 +311,17 @@ class MainCombatMenuState(PopUpMenu[MenuGameObj]):
                 return True
             return True
 
-        def validate(item: Item, menu_item: MenuItem[Monster]) -> bool:
-            if isinstance(menu_item, Monster):
-                return item.validate_monster(self.session, menu_item)
-            return False
+        def validate(item: Item, monster: Monster | None) -> bool:
+            if monster is None:
+                return False
+            return item.validate_monster(self.session, monster)
 
-        def enqueue_item(item: Item, menu_item: MenuItem[Monster]) -> None:
+        def enqueue_item(
+            item: Item, menu_item: MenuItem[Monster | None]
+        ) -> None:
             target = menu_item.game_object
+            if target is None:
+                return
 
             # check target status
             status = target.status.current_status
@@ -299,9 +334,7 @@ class MainCombatMenuState(PopUpMenu[MenuGameObj]):
                         T.translate(extra) for extra in result_status.extras
                     ]
                     template = "\n".join(templates)
-                    tools.open_dialog(
-                        self.client, [template], dialog_speed="max"
-                    )
+                    open_dialog(self.client, [template], dialog_speed="max")
                     return
 
             # enqueue the item
@@ -322,7 +355,7 @@ class MainCombatMenuState(PopUpMenu[MenuGameObj]):
                 self.session, self.opponents
             )
 
-            menu = self.client.push_state(Menu())
+            menu: Menu[Any] = self.client.push_state(Menu(self.client))
             menu.shrink_to_items = True
 
             # No usable moves → show only fallback/skip
@@ -336,7 +369,6 @@ class MainCombatMenuState(PopUpMenu[MenuGameObj]):
             # Normal case → show all moves with enabled/disabled state
             else:
                 for tech in self.monster.moves.get_moves():
-
                     usable = any(
                         tech.can_use(self.session, opponent)
                         for opponent in self.opponents
@@ -369,18 +401,18 @@ class MainCombatMenuState(PopUpMenu[MenuGameObj]):
 
             # position the new menu
             menu.anchor("bottom", self.rect.top)
-            menu.anchor("right", SCREEN_RECT.right)
+            menu.anchor("right", self.client.context.rect.right)
 
             # set next menu after the selection is made
-            menu.on_menu_selection = choose_target  # type: ignore[assignment]
+            menu.on_selection_callback = choose_target
 
             def show() -> None:
                 # Clear the combat dialog so the old "What will X do?" text disappears
-                self.dialog.alert(
-                    "", self.combat.text_area, dialog_speed="max"
+                self.event_bus.publish(
+                    "combat_dialog", message="", dialog_speed="max"
                 )
 
-                screen_w, screen_h = SCREEN_SIZE
+                screen_w, screen_h = self.client.context.resolution
 
                 # --- Clear old sprites if they exist ---
                 if self.range_icon_sprite:
@@ -415,7 +447,7 @@ class MainCombatMenuState(PopUpMenu[MenuGameObj]):
                     for i, t in enumerate(technique.types.current[:2]):
                         path = f"gfx/ui/icons/element/{t.name.lower()}_type_small.png"
                         try:
-                            icon_surface = graphics.load_and_scale(path, SCALE)
+                            icon_surface = load_and_scale(path, self.factor)
                             spr = Sprite()
                             spr.image = icon_surface
                             spr.rect = spr.image.get_rect()
@@ -442,7 +474,7 @@ class MainCombatMenuState(PopUpMenu[MenuGameObj]):
                 # --- Draw range icon ---
                 path = f"gfx/ui/icons/range/{technique.range.name.lower()}.png"
                 try:
-                    surf = graphics.load_and_scale(path, SCALE)
+                    surf = load_and_scale(path, self.factor)
                     spr = Sprite()
                     spr.image = surf
                     spr.rect = surf.get_rect()
@@ -461,7 +493,7 @@ class MainCombatMenuState(PopUpMenu[MenuGameObj]):
 
                 path = f"gfx/ui/icons/speed/{speed_val}.png"
                 try:
-                    surf = graphics.load_and_scale(path, SCALE)
+                    surf = load_and_scale(path, self.factor)
                     spr = Sprite()
                     spr.image = surf
                     spr.rect = surf.get_rect()
@@ -522,8 +554,8 @@ class MainCombatMenuState(PopUpMenu[MenuGameObj]):
                 # Restore the original combat prompt
                 params = {"name": self.monster.name}
                 message = T.format("combat_monster_choice", params)
-                self.dialog.alert(
-                    message, self.combat.text_area, dialog_speed="max"
+                self.event_bus.publish(
+                    "combat_dialog", message=message, dialog_speed="max"
                 )
 
             menu.on_menu_selection_change_callback = show
@@ -537,15 +569,16 @@ class MainCombatMenuState(PopUpMenu[MenuGameObj]):
 
             # allow to choose target if 1 vs 2 or 2 vs 2
             if len(self.opponents) > 1:
-                state = self.client.push_state(
+                self.client.push_state(
                     CombatTargetMenuState(
-                        combat_state=self.combat,
+                        client=self.client,
+                        combat=self.combat,
                         character=self.character,
                         monster=self.monster,
                         technique=technique,
+                        on_selection=partial(enqueue_technique, technique),
                     )
                 )
-                state.on_menu_selection = partial(enqueue_technique, technique)  # type: ignore[method-assign]
             else:
                 player = self.party[0]
                 enemy = self.opponents[0]
@@ -567,16 +600,13 @@ class MainCombatMenuState(PopUpMenu[MenuGameObj]):
             if not technique.validate_monster(self.session, target):
                 params = {"name": technique.name.upper()}
                 msg = T.format("cannot_use_tech_monster", params)
-                tools.open_dialog(self.client, [msg], dialog_speed="max")
+                open_dialog(self.client, [msg], dialog_speed="max")
                 return
 
-            if (
-                utils.has_effect(technique, "damage")
-                and target == self.monster
-            ):
+            if technique.has_effect("damage") and target == self.monster:
                 params = {"name": technique.name.upper()}
                 msg = T.format("combat_target_itself", params)
-                tools.open_dialog(self.client, [msg], dialog_speed="max")
+                open_dialog(self.client, [msg], dialog_speed="max")
                 return
 
             # Pre-check the technique for validity
@@ -605,17 +635,24 @@ class CombatTargetMenuState(Menu[Monster]):
 
     def __init__(
         self,
-        combat_state: CombatState,
+        client: BaseClient,
+        combat: CombatState,
         character: NPC,
         monster: Monster,
         technique: Technique,
+        *,
+        on_selection: Callable[[MenuItem[Monster]], None] | None = None,
+        is_valid_entry: Callable[[Monster | None], bool] | None = None,
+        **kwargs: Any,
     ) -> None:
-        super().__init__()
+        super().__init__(client=client, **kwargs)
         self.character = character
         self.monster = monster
-        self.combat_state = combat_state
+        self.combat = combat
         self.combat_session = self.client.combat_session
         self.technique = technique
+        self._external_on_selection = on_selection
+        self._external_is_valid_entry = is_valid_entry
         self.targeting_map: defaultdict[str, list[Monster]] = defaultdict(list)
 
         self._create_menu()
@@ -645,35 +682,39 @@ class CombatTargetMenuState(Menu[Monster]):
 
     def _create_menu_item(self, monster: Monster) -> MenuItem[Monster]:
         """Creates a menu item for a given monster."""
-        sprite = self.combat_state.sprite_map.get_sprite(monster)
+        sprite = self.combat.sprite_map.get_sprite(monster)
         if sprite is None:
             raise KeyError(f"Sprite not found for entity: {monster.name}")
         item = MenuItem(self.surface, None, monster.name, monster)
         item.rect = sprite.rect.copy()
-        item.rect.inflate_ip(tools.scale(1), tools.scale(1))
+        item.rect.inflate_ip(self.factor, self.factor)
         return item
 
     def _create_menu(self) -> None:
         """Sets up the menu UI."""
-        rect_screen = SCREEN_RECT.copy()
+        rect_screen = self.client.context.rect.copy()
         rect = Rect(0, 0, rect_screen.w // 2, rect_screen.h // 4)
         rect.bottomright = rect_screen.w, rect_screen.h
 
         self.window = GraphicBox(
-            graphics.load_and_scale(self.borders_filename),
-            None,
-            self.background_color,
+            rect,
+            load_and_scale(self.borders_filename),
+            color=self.background_color,
         )
-        self.window.rect = rect
         self.sprites.add(self.window, layer=100)
 
-        self.text_area = TextArea(self.font, self.font_color)
-        self.text_area.rect = self.window.calc_inner_rect(self.window.rect)
+        self.text_area = TextArea(
+            font=self.font,
+            font_color=self.font_color,
+            rect=self.window.inner_rect,
+            scaling=self.client.context.scaling,
+        )
         self.sprites.add(self.text_area, layer=100)
 
         self.surface = Surface(self.window.rect.size, SRCALPHA)
         self.border = GraphicBox(
-            graphics.load_and_scale(self.borders_filename), None, None
+            Rect(0, 0, 1, 1),
+            load_and_scale(self.borders_filename),
         )
 
     def determine_target(self) -> None:
@@ -688,10 +729,10 @@ class CombatTargetMenuState(Menu[Monster]):
                         )
                         return
 
-    def refresh_layout(self) -> None:
+    def refresh_layout(self, *, mutate: bool = True) -> Rect:
         """Updates layout after determining the target."""
         self.determine_target()
-        super().refresh_layout()
+        return super().refresh_layout(mutate=mutate)
 
     def _update_borders(self) -> None:
         """Draws borders around the currently selected monster in 2vs2/1vs2 combat."""
@@ -700,12 +741,12 @@ class CombatTargetMenuState(Menu[Monster]):
 
         if selected := self.get_selected_item():
             monster = selected.game_object
-            pos = self.combat_state.sprite_map.get_sprite(monster)
+            pos = self.combat.sprite_map.get_sprite(monster)
             if pos is None:
                 return
 
             selected.image = Surface(selected.rect.size, SRCALPHA)
-            BORDER_OFFSET = tools.scale(12)
+            BORDER_OFFSET = self.client.context.scaling.scale_int(12)
             selected.rect.center = (
                 pos.rect.centerx - BORDER_OFFSET,
                 pos.rect.centery - BORDER_OFFSET,
@@ -719,3 +760,12 @@ class CombatTargetMenuState(Menu[Monster]):
         """Handles border updates when selection changes."""
         self.hide_cursor()
         self._update_borders()
+
+    def on_menu_selection(self, item: MenuItem[Monster]) -> None:
+        if self._external_on_selection:
+            return self._external_on_selection(item)
+
+    def is_valid_entry(self, monster: Monster | None) -> bool:
+        if self._external_is_valid_entry:
+            return self._external_is_valid_entry(monster)
+        return monster is not None

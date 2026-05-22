@@ -8,11 +8,12 @@ from typing import TYPE_CHECKING
 
 from tuxemon import formula
 from tuxemon.core.core_effect import CoreEffect, ItemEffectResult
-from tuxemon.db import Acquisition, SeenStatus
+from tuxemon.database.rules import config_capdev
+from tuxemon.db import Acquisition
 
 if TYPE_CHECKING:
     from tuxemon.item.item import Item
-    from tuxemon.monster import Monster
+    from tuxemon.monster.monster import Monster
     from tuxemon.session import Session
 
 logger = logging.getLogger(__name__)
@@ -82,7 +83,7 @@ class CaptureCombinedEffect(CoreEffect):
         Calculate the status effectiveness modifier based on the opponent's
         status.
         """
-        capdev_modifier = formula.config_capdev.capdev_modifier
+        capdev_modifier = config_capdev.capdev_modifier
         our_monster = self.client.combat_session.field_monsters.get_monsters(
             self.session.player
         )
@@ -113,7 +114,7 @@ class CaptureCombinedEffect(CoreEffect):
     def _apply_capture_effects(self, item: Item, target: Monster) -> None:
         if self.session.player.tuxepedia.is_seen(target.slug):
             self.client.combat_session.set_variable("new_tuxepedia", True)
-        self.session.player.tuxepedia.add_entry(target.slug, SeenStatus.caught)
+        self.session.player.tuxepedia.register_caught(target.slug)
         target.capture_device = item.slug
         target.wild = False
         target.set_acquisition(Acquisition.CAPTURED)

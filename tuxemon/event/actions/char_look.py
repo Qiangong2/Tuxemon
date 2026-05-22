@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import random
 from dataclasses import dataclass
-from typing import Optional, final
+from typing import final
 
 from tuxemon.db import Direction
 from tuxemon.event.eventaction import EventAction
@@ -42,15 +42,16 @@ class CharLookAction(EventAction):
 
     name = "char_look"
     character: str
-    frequency: Optional[float] = None
-    directions: Optional[str] = None
+    frequency: float | None = None
+    directions: str | None = None
 
     def start(self, session: Session) -> None:
-        character = session.get_npc(self.character)
+        character = session.client.get_npc(self.character)
         world = session.client.get_state_by_name(WorldState)
 
         if not character:
             logger.error(f"{self.character} not found")
+            self.stop()
             return
 
         self.limit_direction: list[Direction] = []
@@ -65,6 +66,7 @@ class CharLookAction(EventAction):
                 state_name in ("WorldMenuState", "DialogState", "ChoiceState")
                 for state_name in session.client.active_state_names
             ):
+                self.stop()
                 return
 
             # Choose a random direction

@@ -10,7 +10,7 @@ from tuxemon.map.map import get_coords, get_direction
 from tuxemon.platform.const.sizes import SURFACE_KEYS
 
 if TYPE_CHECKING:
-    from tuxemon.monster import Monster
+    from tuxemon.monster.monster import Monster
     from tuxemon.session import Session
 
 
@@ -45,9 +45,7 @@ class FacingTileCondition(CoreCondition):
         tiles = get_coords(player.tile_pos, client.map_manager.map_size)
 
         label = (
-            client.collision_manager.get_all_tile_properties(
-                client.map_manager.surface_map, self.facing_tile
-            )
+            client.terrain_manager.get_all_tile_properties(self.facing_tile)
             if self.facing_tile in SURFACE_KEYS
             else client.collision_manager.check_collision_zones(
                 client.map_manager.collision_map, self.facing_tile

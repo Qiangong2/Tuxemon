@@ -11,7 +11,7 @@ from tuxemon.technique.technique import Technique
 from tuxemon.tools import get_valid_uuid
 
 if TYPE_CHECKING:
-    from tuxemon.monster import Monster
+    from tuxemon.monster.monster import Monster
     from tuxemon.session import Session
 
 logger = logging.getLogger(__name__)
@@ -51,12 +51,14 @@ class OverwriteTechAction(EventAction):
             logger.error(
                 f"{removed.slug} not found in current moves of {monster.name}"
             )
+            self.stop()
             return
 
         if monster.moves.has_move(self.added):
             logger.warning(
                 f"{monster.name} already knows {self.added}. Overwrite skipped."
             )
+            self.stop()
             return
 
         added_tech = Technique.create(self.added)
@@ -72,6 +74,7 @@ class OverwriteTechAction(EventAction):
             logger.info(
                 f"No valid tech selected for variable '{self.removed}'"
             )
+            self.stop()
             return  # Exit early if no valid UUID
 
         for monster in player.monsters:

@@ -10,7 +10,7 @@ from tuxemon.core.core_effect import CoreEffect, ItemEffectResult
 
 if TYPE_CHECKING:
     from tuxemon.item.item import Item
-    from tuxemon.monster import Monster
+    from tuxemon.monster.monster import Monster
     from tuxemon.session import Session
 
 
@@ -43,6 +43,6 @@ class GainXpEffect(CoreEffect):
     ) -> ItemEffectResult:
         set_var(session, self.name, target.instance_id.hex)
         client = session.client.event_engine
-        _params = [self.name, self.amount]
+        _params = [self.name, self.amount, "true"]
         client.execute_action("give_experience", _params, True)
         return ItemEffectResult(name=item.name, success=True)

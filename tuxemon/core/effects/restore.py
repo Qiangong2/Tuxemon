@@ -3,14 +3,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Union
+from typing import TYPE_CHECKING
 
 from tuxemon.core.core_effect import CoreEffect, ItemEffectResult
 from tuxemon.db import CategoryStatus
 
 if TYPE_CHECKING:
     from tuxemon.item.item import Item
-    from tuxemon.monster import Monster
+    from tuxemon.monster.monster import Monster
     from tuxemon.session import Session
 
 
@@ -48,15 +48,15 @@ class RestoreEffect(CoreEffect):
     """
 
     name = "restore"
-    category: Union[str, None] = None
+    category: str | None = None
 
     def apply_item_target(
         self, session: Session, item: Item, target: Monster
     ) -> ItemEffectResult:
         if self.category:
             if (
-                self.category == CategoryStatus.positive
-                or self.category == CategoryStatus.negative
+                self.category == CategoryStatus.POSITIVE
+                or self.category == CategoryStatus.NEGATIVE
             ):
                 checking = [
                     ele

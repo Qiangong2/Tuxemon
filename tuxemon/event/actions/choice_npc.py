@@ -7,9 +7,9 @@ from dataclasses import dataclass
 from functools import partial
 from typing import final
 
+from tuxemon.entity.npc import NPC
 from tuxemon.event.eventaction import EventAction
-from tuxemon.locale import T
-from tuxemon.npc import NPC
+from tuxemon.locale.locale import T
 from tuxemon.session import Session
 from tuxemon.ui.menu_options import MenuOptions, create_choice_options
 from tuxemon.ui.text_formatter import TextFormatter
@@ -63,7 +63,5 @@ class ChoiceNpcAction(EventAction):
         session.client.push_state("ChoiceNpc", menu=MenuOptions(options))
 
     def update(self, session: Session, dt: float) -> None:
-        try:
-            session.client.get_state_by_name("ChoiceNpc")
-        except ValueError:
+        if "ChoiceNpc" not in session.client.active_state_names:
             self.stop()
